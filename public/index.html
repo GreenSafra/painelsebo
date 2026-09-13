@@ -1,0 +1,2440 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
+<title>Alocação de sebo</title>
+<style>
+@font-face{font-family:Archivo;src:local('Archivo');font-display:swap}
+:root{
+  color-scheme:only light;
+  --paper:#DFE0E4; --card:#FFFFFF; --ink:#23242B; --mute:#6B6D78; --line:#C4C6D0;
+  --azul:#1E1E7B; --alert:#ED1C24; --alertd:#C31419; --alertbg:#FDEDEE;
+  --teal:#0B5C86; --flora:#0B5C86; --bio:#2F9E44; --sebo:#7A7D88; --red:#C31419;
+  --c1:#E8E9F4; --c2:#C2C4E2; --c3:#9195C9; --c4:#5A5EA8; --c5:#1E1E7B;
+  --dpos:#EFA2A5; --dneg:#B9BCDF;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper)}
+body{background:var(--paper);color:var(--ink);
+  font-family:Archivo,'Segoe UI',system-ui,-apple-system,sans-serif;
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px 80px;
+  background:var(--paper);min-height:100vh}
+header,main,footer,.sec,.detail{background:var(--paper)}
+h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-.01em}
+table{border-collapse:collapse;width:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+.hide{display:none!important}
+
+/* ---------- topo ---------- */
+header{border-bottom:1px solid var(--line);margin-bottom:26px}
+.hbar{display:flex;align-items:flex-end;gap:20px;padding:22px 0 16px;flex-wrap:wrap}
+.hbar img.brand{height:34px;width:auto;display:block}
+.htitle{flex:1;min-width:220px}
+.htitle h1{font-size:26px;line-height:1.1;color:var(--azul)}
+.htitle p{margin:3px 0 0;color:var(--mute);font-size:13.5px}
+.stamp{text-align:right;font-size:12.5px;color:var(--mute);line-height:1.5}
+.stamp b{color:var(--ink);font-weight:600}
+
+.acts{display:flex;gap:8px;align-items:center;padding-bottom:16px;flex-wrap:wrap}
+.btn{background:var(--paper);color:var(--ink);border:1px solid var(--line);
+  border-radius:var(--r);padding:7px 13px;font-size:13.5px;
+  transition:border-color .12s,background .12s}
+.btn:hover{border-color:var(--azul);color:var(--azul);background:#D5D6DF}
+.btn.pri{background:var(--azul);color:#fff;border-color:var(--azul)}
+.btn.pri:hover{background:#16165C}
+.btn:disabled{opacity:.4;cursor:default}
+.btn:disabled:hover{border-color:var(--line);color:var(--ink);background:var(--paper)}
+select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
+  font:inherit;font-size:13.5px;background:var(--card)}
+.spacer{flex:1}
+
+/* ---------- importar ---------- */
+.import{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:28px}
+.import h2{font-size:19px;margin-bottom:6px}
+.import>p{margin:0 0 22px;color:var(--mute);max-width:62ch}
+.drops{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.drop{border:1px dashed var(--line);border-radius:var(--r);padding:18px 16px;
+  background:var(--paper);transition:border-color .12s,background .12s}
+.drop.on{border-color:var(--azul);background:#EFEFF8}
+.drop.ok{border-style:solid;border-color:var(--azul)}
+.drop h3{font-size:14.5px;margin-bottom:4px}
+.drop p{margin:0 0 12px;font-size:12.5px;color:var(--mute);min-height:34px}
+.drop .file{font-size:12.5px;color:var(--azul);word-break:break-all;margin-top:9px}
+.err{color:var(--alertd);font-size:13px;margin-top:14px}
+.note{font-size:12.5px;color:var(--mute);margin-top:18px;max-width:70ch}
+
+/* ---------- kpis ---------- */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.kpi{background:var(--card);padding:15px 16px}
+.kpi .lb{font-size:12px;color:var(--mute);margin-bottom:5px}
+.kpi .vl{font-size:25px;font-weight:600;letter-spacing:-.02em;line-height:1.15;color:var(--azul)}
+.kpi .sb{font-size:12px;color:var(--mute);margin-top:3px}
+.kpi.hl .vl{color:var(--alertd)}
+
+/* ---------- avisos ---------- */
+.warn{border-left:3px solid var(--azul);background:#EFEFF8;padding:11px 14px;
+  font-size:13.5px;margin:14px 0;border-radius:0 var(--r) var(--r) 0}
+.warn.bad{border-color:var(--alert);background:var(--alertbg)}
+.warn b{font-weight:600}
+
+/* ---------- necessidade ---------- */
+.nec{border:1px solid var(--line);background:var(--card);border-radius:var(--r);
+  padding:16px 18px;margin-top:18px}
+.nechead h2{font-size:17px;color:var(--azul)}
+.nechead p{margin:2px 0 14px;color:var(--mute);font-size:13px;max-width:70ch}
+.nrow{display:flex;align-items:center;gap:12px;padding:9px 0;
+  border-top:1px solid rgba(207,208,201,.6);flex-wrap:wrap}
+.nrow img{height:20px;width:auto;flex:none}
+.nrow .nm{font-size:13.5px;font-weight:600;min-width:170px}
+.nrow .cd{color:var(--mute);font-size:12.5px;flex:1;min-width:90px}
+.nrow input.v{width:88px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r);
+  font:inherit;font-size:14px;text-align:right;background:#EFEFF8;color:var(--azul);
+  font-weight:600;font-variant-numeric:tabular-nums}
+.nrow .un{font-size:12.5px;color:var(--mute);width:14px}
+.nrow .cr{font-size:12px;color:var(--mute);width:82px;text-align:right}
+.nrow .cr.bad{color:var(--alertd)}
+.nrow label.tv{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:5px;
+  width:150px;cursor:pointer}
+.nrow .x{border:0;background:0;color:var(--mute);font-size:15px;line-height:1;padding:2px 4px}
+.nrow .x:hover{color:var(--alertd)}
+.necfoot{display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:12px;
+  border-top:1px solid var(--line);font-size:13px;flex-wrap:wrap}
+.necfoot .pend{color:var(--alertd);font-size:12.5px;font-weight:600}
+.nec.sujo{border-color:var(--alert)}
+.nec.sujo .nrow input.v{border-color:var(--alert)}
+#bRodar{padding:7px 20px}
+.addnec{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.addnec select{border:1px solid var(--line);border-radius:var(--r);padding:5px 8px;
+  font:inherit;font-size:13px;background:var(--paper);max-width:340px}
+
+/* ---------- mapa ---------- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:26px;align-items:start}
+.mapbox{position:relative}
+.maph{font-size:17px;color:var(--azul);margin-bottom:14px}
+svg#map{width:100%;height:auto;display:block}
+svg#map path.uf{stroke:#FFFFFF;stroke-width:1.1;cursor:pointer;transition:opacity .12s}
+svg#map path.uf:hover{opacity:.78}
+svg#map path.uf.sel{stroke:var(--azul);stroke-width:2.2}
+svg#map path.uf.off{fill:#CBCDD6;cursor:default}
+svg#map text.lb{font-size:9.5px;font-weight:700;fill:#8A8C98;pointer-events:none;
+  text-anchor:middle;paint-order:stroke;stroke:#FFFFFF;stroke-width:2.4;stroke-linejoin:round}
+svg#map path.arc{fill:none;stroke-width:1.3;opacity:.5}
+svg#map path.arc.fora{opacity:.12}
+svg#map circle.mk{stroke:#FFFFFF;stroke-width:1.2;cursor:pointer}
+svg#map circle.mk.un{fill:var(--azul)}
+svg#map circle.mk.dest{stroke-width:2}
+svg#map circle.mk.dest.bio{fill:var(--bio)}
+svg#map circle.mk.dest.flo{fill:var(--flora)}
+svg#map circle.mk.fora{opacity:.3}
+svg#map circle.mk:hover{stroke:var(--ink);stroke-width:2}
+svg#map text.dlb{font-size:8.6px;font-weight:600;fill:#1F2129;pointer-events:none;
+  paint-order:stroke;stroke:#FFFFFF;stroke-width:2.8;stroke-linejoin:round}
+svg#map path.guia{stroke:#9A9CA8;stroke-width:.8;fill:none;pointer-events:none}
+.legend{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mute);margin-top:10px}
+.legend i{width:26px;height:9px;display:inline-block;border-radius:1px}
+.legend i.dot{width:9px;height:9px;border-radius:50%;margin-left:8px}
+.legend i.dot.jbs{background:var(--azul)}
+.legend i.dot.bio{background:var(--bio)}
+.legend i.dot.flo{background:var(--flora)}
+.legend svg.lgd{width:44px;height:20px;overflow:visible}
+.legend svg.lgd circle{fill:var(--azul)}
+.tip{position:absolute;pointer-events:none;background:var(--azul);color:#fff;
+  padding:6px 9px;border-radius:var(--r);font-size:12px;opacity:0;transition:opacity .1s;z-index:9;
+  white-space:nowrap}
+
+/* ---------- tabelas ---------- */
+.sec h2{font-size:17px;margin-bottom:3px;color:var(--azul)}
+.sec>p.hint{margin:0 0 12px;color:var(--mute);font-size:13px}
+table.t{font-size:13.5px}
+table.t th{text-align:right;font-weight:600;font-size:11.5px;color:var(--mute);
+  padding:0 8px 7px;border-bottom:1px solid var(--line)}
+table.t th:first-child,table.t td:first-child{text-align:left;padding-left:0}
+table.t th:last-child,table.t td:last-child{padding-right:0}
+table.t td{text-align:right;padding:7px 8px;border-bottom:1px solid rgba(207,208,201,.55)}
+table.t tbody tr{cursor:pointer}
+table.t tbody tr:hover{background:rgba(0,0,0,.035)}
+table.t tr.sel{background:rgba(30,30,123,.09)}
+.pos{color:var(--alertd);font-weight:600}
+.neg{color:var(--azul);font-weight:600}
+.dim{color:var(--mute)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- detalhe ---------- */
+.detail{margin-top:34px;border-top:1px solid var(--line);padding-top:24px}
+.dhead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.dhead h2{font-size:22px;color:var(--azul)}
+.dhead .sub{color:var(--mute);font-size:13.5px}
+.cmp{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-bottom:20px}
+.cbox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;
+  border-top:3px solid var(--line)}
+.cbox.bio{border-top-color:var(--bio)}
+.cbox.flo{border-top-color:var(--flora)}
+.cbox.ter{border-top-color:var(--sebo)}
+.cbox .lg{height:22px;margin-bottom:9px;display:block;width:auto}
+.cbox .nm{font-size:13.5px;font-weight:600;margin-bottom:7px}
+.cbox .vl{font-size:23px;font-weight:600;letter-spacing:-.02em;color:var(--azul)}
+.cbox .sb{font-size:12px;color:var(--mute);margin-top:3px}
+
+.orig{display:flex;align-items:center;gap:10px;margin:26px 0 11px}
+.orig h3{font-size:15px;color:var(--azul)}
+.orig .lgo{height:19px;width:auto}
+.plant{border:1px solid var(--line);border-radius:var(--r);background:var(--card);
+  margin-bottom:9px;overflow:hidden}
+.prow{display:flex;align-items:center;gap:12px;padding:10px 14px;flex-wrap:wrap}
+.prow .sg{font-weight:600;font-size:14px;min-width:44px}
+.prow .cd{color:var(--mute);font-size:13px;flex:1;min-width:120px}
+.prow .tn{font-size:13.5px;font-variant-numeric:tabular-nums}
+.dest{display:flex;align-items:center;gap:9px;padding:7px 14px 7px 58px;font-size:13px;
+  border-top:1px solid rgba(207,208,201,.5)}
+.dest .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dest .nm{flex:1;min-width:100px}
+.dest .mn{font-variant-numeric:tabular-nums;color:var(--mute)}
+.dot.bio{background:var(--bio)}.dot.flo{background:var(--flora)}.dot.ter{background:var(--sebo)}
+.tagm{font-size:11px;background:var(--azul);color:#fff;padding:1px 6px;border-radius:9px}
+
+/* ---------- editor ---------- */
+.editor{border-top:1px solid var(--line);background:var(--paper);padding:14px}
+.editor h4{margin:0 0 3px;font-size:13.5px;font-weight:600}
+.editor .hint{font-size:12.5px;color:var(--mute);margin:0 0 11px}
+.opt{display:flex;align-items:center;gap:10px;padding:7px 0;
+  border-bottom:1px solid rgba(207,208,201,.5);font-size:13px;flex-wrap:wrap}
+.opt:last-of-type{border-bottom:0}
+.opt .rk{width:17px;color:var(--mute);font-size:12px}
+.opt .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.opt .nm{flex:1;min-width:130px}
+.opt .nt{font-variant-numeric:tabular-nums;width:74px;text-align:right}
+.opt .gp{font-variant-numeric:tabular-nums;width:62px;text-align:right;font-size:12px;color:var(--alertd)}
+.opt input.vol{width:66px;padding:4px 6px;border:1px solid var(--line);border-radius:var(--r);
+  font:inherit;font-size:12.5px;text-align:right;background:var(--card)}
+.opt input.of{width:74px;padding:4px 6px;border:1px solid var(--line);border-radius:var(--r);
+  font:inherit;font-size:12.5px;text-align:right;background:#EFEFF8;color:var(--azul)}
+.opt .cr{font-size:11.5px;color:var(--mute);width:76px}
+.opt .cr.bad{color:var(--alertd)}
+.opt.off{opacity:.45}
+.mini{border:1px solid var(--line);background:var(--card);border-radius:var(--r);
+  padding:2px 8px;font-size:11.5px}
+.mini:hover{border-color:var(--azul);color:var(--azul)}
+.edfoot{display:flex;gap:9px;align-items:center;margin-top:11px;font-size:12.5px;flex-wrap:wrap}
+.rest{color:var(--alertd);font-weight:600}
+footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--mute);display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+footer img{height:17px;width:auto;opacity:.75}
+@media(max-width:860px){
+  .grid{grid-template-columns:1fr;gap:24px}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .drops{grid-template-columns:1fr}
+  .wrap{padding:0 16px 60px}
+}
+
+/* ---------- celular ---------- */
+@media(max-width:640px){
+  html{-webkit-text-size-adjust:100%}
+  .wrap{padding:0 12px 48px}
+  .hbar{padding:16px 0 12px;gap:12px}
+  .hbar img.brand{height:28px}
+  .htitle{flex:1 1 100%;order:2}
+  .htitle h1{font-size:21px}
+  .htitle p{font-size:12.5px}
+  .stamp{order:3;flex:1 1 100%;text-align:left;font-size:12px}
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:14px}
+  .acts .btn{width:100%;padding:11px 8px;font-size:13.5px;text-align:center;
+    line-height:1.25;min-height:44px}
+  .acts .btn.pri{grid-column:1/-1}
+  .acts .spacer{display:none}
+  select.who{grid-column:1/-1;width:100%;padding:10px 9px;font-size:16px;min-height:44px}
+
+  .kpis{grid-template-columns:1fr}
+  .kpi{padding:12px 14px}
+  .kpi .vl{font-size:22px}
+
+  .import{padding:18px 14px}
+  .import h2{font-size:17px}
+
+  /* necessidade */
+  .nec{padding:14px 12px}
+  .nrow{display:grid;gap:6px 10px;align-items:center;
+    grid-template-columns:auto 1fr auto auto;
+    grid-template-areas:"logo nome nome x" "cid cid cid cid" "trava trava vol un" "cr cr cr cr"}
+  .nrow img.lg{grid-area:logo}
+  .nrow .nm{grid-area:nome;min-width:0}
+  .nrow .x{grid-area:x}
+  .nrow .cd{grid-area:cid;flex:none}
+  .nrow label.tv{grid-area:trava;width:auto}
+  .nrow input.v{grid-area:vol;width:100%;font-size:16px}
+  .nrow .un{grid-area:un}
+  .nrow .cr{grid-area:cr;width:auto;text-align:left}
+  .necfoot{gap:8px}
+  .necfoot .spacer{display:none}
+  .necfoot #bRodar{flex:1}
+
+  /* mapa e tabela */
+  .maph{font-size:15px;margin-bottom:10px}
+  .legend{font-size:11px;flex-wrap:wrap;gap:5px}
+  .sec{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .sec h2{font-size:15px}
+  table.t{font-size:12.5px;min-width:430px}
+  table.t td{padding:6px 6px}
+
+  /* detalhe */
+  .detail{margin-top:26px}
+  .dhead h2{font-size:19px}
+  .cmp{grid-template-columns:1fr;gap:8px}
+  .cbox{padding:12px}
+  .dest{padding:7px 12px 7px 14px}
+  .prow{padding:10px 12px;gap:8px}
+  .prow .cd{flex:1 1 100%;order:3}
+
+  /* editor */
+  .editor{padding:12px}
+  .opt{display:grid;gap:5px 8px;align-items:center;
+    grid-template-columns:auto 1fr auto;
+    grid-template-areas:"dot nome nt" "gp of vol" "cr cr cr"}
+  .opt .rk{display:none}
+  .opt .dot{grid-area:dot}
+  .opt .nm{grid-area:nome;min-width:0}
+  .opt .nt{grid-area:nt;width:auto}
+  .opt .gp{grid-area:gp;width:auto;align-self:center}
+  .opt input.of{grid-area:of;width:100%;font-size:16px}
+  .opt input.vol{grid-area:vol;width:100%;font-size:16px}
+  .opt .cr{grid-area:cr;width:auto}
+  .edfoot{gap:8px}
+
+  footer{gap:10px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="hbar">
+    <img class="brand" id="lgFriboi" alt="Friboi">
+    <div class="htitle">
+      <h1>Alocação de sebo</h1>
+      <p id="sub">Importe as planilhas da semana para começar</p>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+  <div class="acts">
+    <button class="btn" id="bImport">Importar planilhas</button>
+    <button class="btn" id="bSave" disabled>Salvar andamento</button>
+    <button class="btn" id="bLoad">Abrir andamento</button>
+    <button class="btn" id="bProg" disabled>Exportar programação</button>
+    <button class="btn pri" id="bDist" disabled>Gerar painel para distribuir</button>
+    <div class="spacer"></div>
+    <select class="who" id="who" aria-label="Quem está operando">
+      <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
+    </select>
+  </div>
+</header>
+
+<section class="import" id="importBox">
+  <h2>Planilhas da semana</h2>
+  <p>Solte os dois arquivos abaixo, ou clique para escolher. A necessidade das fábricas
+     próprias você digita depois, aqui mesmo no painel. Tudo é lido dentro do seu
+     navegador — nada é enviado para fora.</p>
+  <div class="drops">
+    <div class="drop" data-k="prog">
+      <h3>Programação</h3>
+      <p>O que cada unidade produz na semana. Precisa ter Sigla, UF e TON.</p>
+      <button class="btn" data-pick="prog">Escolher arquivo</button>
+      <input type="file" accept=".xlsx,.xlsm" class="hide" data-in="prog">
+      <div class="file" data-f="prog"></div>
+    </div>
+    <div class="drop" data-k="mapa">
+      <h3>Mapa de ofertas</h3>
+      <p>Cotações da semana, no formato que vem da área de cotações. Não precisa alterar.</p>
+      <button class="btn" data-pick="mapa">Escolher arquivo</button>
+      <input type="file" accept=".xlsx,.xlsm" class="hide" data-in="mapa">
+      <div class="file" data-f="mapa"></div>
+    </div>
+  </div>
+  <div class="err hide" id="impErr"></div>
+  <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
+     no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
+  <input type="file" accept=".json" class="hide" id="loadIn">
+</section>
+
+<main id="app" class="hide">
+  <div class="kpis" id="kpis"></div>
+  <div id="avisos"></div>
+
+  <section class="nec" id="necBox">
+    <div class="nechead">
+      <h2>Necessidade da semana</h2>
+      <p>Volume obrigatório de cada fábrica própria, em toneladas. Os preços continuam
+         vindo do Mapa de ofertas.</p>
+    </div>
+    <div id="necRows"></div>
+    <div class="necfoot">
+      <span id="necTot"></span>
+      <span class="spacer"></span>
+      <span class="pend hide" id="pend">alterações ainda não aplicadas</span>
+      <button class="mini" id="bAddNec">Acrescentar fábrica própria</button>
+      <button class="btn pri" id="bRodar">Rodar</button>
+    </div>
+    <div class="addnec hide" id="addNec">
+      <select id="selNec" aria-label="Cliente do mapa"></select>
+      <button class="mini" id="bAddOk">Incluir</button>
+      <button class="mini" id="bAddNo">Cancelar</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="mapbox">
+      <h2 class="maph">Unidades da semana</h2>
+      <svg id="map" viewBox="0 0 520 560" role="img" aria-label="Mapa do Brasil por estado"></svg>
+      <div class="legend" id="legend"></div>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="sec">
+      <h2>Distribuição por estado</h2>
+      <p class="hint">Para onde foi a produção de cada estado. Clique para abrir o detalhe
+        unidade por unidade.</p>
+      <table class="t" id="tblUF"></table>
+    </div>
+  </div>
+
+  <section class="detail hide" id="detail"></section>
+</main>
+
+<footer>
+  <span id="foot"></span>
+  <span class="spacer"></span>
+  <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
+</footer>
+</div>
+<script>/* ====================== LEITURA DE XLSX NO NAVEGADOR ====================== */
+function u16(d, o) { return d[o] | (d[o + 1] << 8); }
+function u32(d, o) { return (d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24)) >>> 0; }
+
+async function inflateRaw(bytes) {
+  const ds = new DecompressionStream('deflate-raw');
+  const buf = await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
+  return new Uint8Array(buf);
+}
+
+async function unzip(arrayBuffer) {
+  const d = new Uint8Array(arrayBuffer);
+  let eocd = -1;
+  for (let i = d.length - 22; i >= 0 && i > d.length - 66000; i--) {
+    if (u32(d, i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('arquivo não parece ser um .xlsx');
+  const nEnt = u16(d, eocd + 10);
+  let p = u32(d, eocd + 16);
+  const out = new Map();
+  for (let k = 0; k < nEnt; k++) {
+    if (u32(d, p) !== 0x02014b50) break;
+    const method = u16(d, p + 10);
+    const csize = u32(d, p + 20);
+    const nlen = u16(d, p + 28), elen = u16(d, p + 30), clen = u16(d, p + 32);
+    const lho = u32(d, p + 42);
+    const name = new TextDecoder().decode(d.subarray(p + 46, p + 46 + nlen));
+    const lnlen = u16(d, lho + 26), lelen = u16(d, lho + 28);
+    const start = lho + 30 + lnlen + lelen;
+    out.set(name, {
+      method, bytes: d.subarray(start, start + csize),
+      crc: u32(d, p + 16), usize: u32(d, p + 24), ordem: k
+    });
+    p += 46 + nlen + elen + clen;
+  }
+  return out;
+}
+
+async function entryText(zip, name) {
+  const e = zip.get(name);
+  if (!e) return null;
+  const raw = e.method === 0 ? e.bytes : await inflateRaw(e.bytes);
+  return new TextDecoder().decode(raw);
+}
+
+function colToIdx(ref) {
+  let n = 0;
+  for (let i = 0; i < ref.length; i++) {
+    const c = ref.charCodeAt(i);
+    if (c < 65 || c > 90) break;
+    n = n * 26 + (c - 64);
+  }
+  return n - 1;
+}
+
+function serialToDate(n) {
+  if (!(n > 20000 && n < 80000)) return null;
+  const ms = Math.round((n - 25569) * 86400000);
+  return new Date(ms);
+}
+
+async function readXlsx(file) {
+  const zip = await unzip(await file.arrayBuffer());
+  const shared = [];
+  const ssTxt = await entryText(zip, 'xl/sharedStrings.xml');
+  if (ssTxt) {
+    const doc = new DOMParser().parseFromString(ssTxt, 'application/xml');
+    for (const si of doc.getElementsByTagName('si')) {
+      let s = '';
+      for (const t of si.getElementsByTagName('t')) s += t.textContent;
+      shared.push(s);
+    }
+  }
+  const wbTxt = await entryText(zip, 'xl/workbook.xml');
+  const relTxt = await entryText(zip, 'xl/_rels/workbook.xml.rels');
+  const relDoc = new DOMParser().parseFromString(relTxt, 'application/xml');
+  const rel = {};
+  for (const r of relDoc.getElementsByTagName('Relationship')) {
+    let t = r.getAttribute('Target');
+    if (t.charAt(0) === '/') t = t.slice(1); else if (!/^xl\//.test(t)) t = 'xl/' + t;
+    rel[r.getAttribute('Id')] = t;
+  }
+  const wbDoc = new DOMParser().parseFromString(wbTxt, 'application/xml');
+  const sheets = {};
+  for (const sh of wbDoc.getElementsByTagName('sheet')) {
+    const nm = sh.getAttribute('name');
+    const rid = sh.getAttribute('r:id') || sh.getAttributeNS(
+      'http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+    const path = rel[rid];
+    const txt = await entryText(zip, path);
+    if (!txt) continue;
+    sheets[nm] = parseSheet(txt, shared);
+  }
+  return sheets;
+}
+
+function parseSheet(txt, shared) {
+  const doc = new DOMParser().parseFromString(txt, 'application/xml');
+  const rows = [];
+  for (const row of doc.getElementsByTagName('row')) {
+    const ri = parseInt(row.getAttribute('r'), 10) - 1;
+    const arr = rows[ri] || (rows[ri] = []);
+    let auto = 0;
+    for (const c of row.getElementsByTagName('c')) {
+      const ref = c.getAttribute('r');
+      const ci = ref ? colToIdx(ref) : auto++;
+      auto = ci + 1;
+      const t = c.getAttribute('t');
+      let v = null;
+      if (t === 'inlineStr') {
+        v = '';
+        for (const tt of c.getElementsByTagName('t')) v += tt.textContent;
+      } else {
+        const ve = c.getElementsByTagName('v')[0];
+        if (ve) {
+          const raw = ve.textContent;
+          if (t === 's') v = shared[parseInt(raw, 10)];
+          else if (t === 'str' || t === 'e') v = raw;
+          else if (t === 'b') v = raw === '1';
+          else { const n = parseFloat(raw); v = isNaN(n) ? raw : n; }
+        }
+      }
+      arr[ci] = v;
+    }
+  }
+  for (let i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
+  return rows;
+}
+
+/* ====================== ESCRITA DE XLSX ====================== */
+var CRCTAB = (function () {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRCTAB[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+async function deflateRaw(bytes) {
+  const cs = new CompressionStream('deflate-raw');
+  const buf = await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer();
+  return new Uint8Array(buf);
+}
+
+function w16(a, o, v) { a[o] = v & 255; a[o + 1] = (v >>> 8) & 255; }
+function w32(a, o, v) { a[o] = v & 255; a[o + 1] = (v >>> 8) & 255; a[o + 2] = (v >>> 16) & 255; a[o + 3] = (v >>> 24) & 255; }
+
+function rezip(nomes, mapa) {
+  const enc = new TextEncoder();
+  const locais = [], centrais = [];
+  let off = 0;
+  nomes.forEach(nome => {
+    const e = mapa.get(nome);
+    const nb = enc.encode(nome);
+    const lh = new Uint8Array(30 + nb.length);
+    w32(lh, 0, 0x04034b50); w16(lh, 4, 20); w16(lh, 6, 0);
+    w16(lh, 8, e.method); w16(lh, 10, 0); w16(lh, 12, 0);
+    w32(lh, 14, e.crc); w32(lh, 18, e.bytes.length); w32(lh, 22, e.usize);
+    w16(lh, 26, nb.length); w16(lh, 28, 0);
+    lh.set(nb, 30);
+    locais.push(lh, e.bytes);
+    const ch = new Uint8Array(46 + nb.length);
+    w32(ch, 0, 0x02014b50); w16(ch, 4, 20); w16(ch, 6, 20); w16(ch, 8, 0);
+    w16(ch, 10, e.method); w16(ch, 12, 0); w16(ch, 14, 0);
+    w32(ch, 16, e.crc); w32(ch, 20, e.bytes.length); w32(ch, 24, e.usize);
+    w16(ch, 28, nb.length); w16(ch, 30, 0); w16(ch, 32, 0);
+    w16(ch, 34, 0); w16(ch, 36, 0); w32(ch, 38, 0); w32(ch, 42, off);
+    ch.set(nb, 46);
+    centrais.push(ch);
+    off += lh.length + e.bytes.length;
+  });
+  const cdSize = centrais.reduce((s, c) => s + c.length, 0);
+  const eocd = new Uint8Array(22);
+  w32(eocd, 0, 0x06054b50); w16(eocd, 4, 0); w16(eocd, 6, 0);
+  w16(eocd, 8, nomes.length); w16(eocd, 10, nomes.length);
+  w32(eocd, 12, cdSize); w32(eocd, 16, off);
+  return new Blob(locais.concat(centrais, [eocd]), {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+}
+
+async function trocarEntrada(mapa, nome, texto) {
+  const bytes = new TextEncoder().encode(texto);
+  mapa.set(nome, {
+    method: 8, bytes: await deflateRaw(bytes), crc: crc32(bytes), usize: bytes.length
+  });
+}
+
+/* ====================== NORMALIZAÇÃO E DE-PARA ====================== */
+function norm(s) {
+  s = String(s == null ? '' : s).trim();
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  s = s.replace(/\(.*?\)/g, '').replace(/\d+[,.]?\d*\s*%/g, '');
+  s = s.replace(/acidez|a 12/gi, '');
+  return s.toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function sim(a, b) {
+  if (a === b) return 1;
+  const bg = s => { const m = new Map(); for (let i = 0; i < s.length - 1; i++) { const g = s.substr(i, 2); m.set(g, (m.get(g) || 0) + 1); } return m; };
+  const A = bg(a), B = bg(b);
+  let inter = 0, tot = 0;
+  A.forEach((v, k) => { inter += Math.min(v, B.get(k) || 0); tot += v; });
+  B.forEach(v => { tot += v; });
+  return tot ? 2 * inter / tot : 0;
+}
+
+/* ====================== ADAPTADORES DE PLANILHA ====================== */
+function findHeader(rows, must) {
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const h = rows[i].map(norm);
+    if (must.every(m => h.some(x => x.indexOf(m) >= 0))) return i;
+  }
+  return -1;
+}
+
+function colMap(headerRow) {
+  const m = {};
+  headerRow.forEach((h, i) => { const n = norm(h); if (n && !(n in m)) m[n] = i; });
+  return m;
+}
+
+function pick(cm, ...cands) {
+  for (const c of cands) {
+    if (c in cm) return cm[c];
+    for (const k in cm) if (k.indexOf(c) === 0) return cm[k];
+  }
+  return -1;
+}
+
+function readProducao(sheets) {
+  const nm = Object.keys(sheets).find(n => norm(n).indexOf('program') >= 0) || Object.keys(sheets)[0];
+  const rows = sheets[nm];
+  const hi = findHeader(rows, ['sigla', 'ton', 'uf']);
+  if (hi < 0) throw new Error('Na Programação não achei o cabeçalho com Sigla, UF e TON.');
+  const cm = colMap(rows[hi]);
+  const cS = pick(cm, 'sigla'), cC = pick(cm, 'cidade'), cU = pick(cm, 'uf'), cT = pick(cm, 'ton');
+  const cSem = pick(cm, 'semana'), cPer = pick(cm, 'periodo'), cEmb = pick(cm, 'data embarque');
+  const agg = new Map();
+  const linhas = [];
+  let semana = null, periodo = null;
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const sg = String(r[cS] == null ? '' : r[cS]).trim().toUpperCase();
+    const ton = parseFloat(r[cT]);
+    if (!sg || !isFinite(ton) || ton <= 0) continue;
+    if (norm(sg).indexOf('total') >= 0) continue;
+    if (semana == null && r[cSem] != null) semana = r[cSem];
+    if (periodo == null && r[cPer] != null) periodo = String(r[cPer]);
+    const k = sg;
+    const cur = agg.get(k) || { sigla: sg, cidade: String(r[cC] || '').trim(), uf: String(r[cU] || '').trim().toUpperCase(), ton: 0 };
+    cur.ton += ton;
+    agg.set(k, cur);
+    const emb = cEmb >= 0 ? parseFloat(r[cEmb]) : NaN;
+    linhas.push({ r: i + 1, sigla: sg, ton: ton, emb: isFinite(emb) ? emb : null });
+  }
+  const plants = [...agg.values()].sort((a, b) => a.uf.localeCompare(b.uf) || a.sigla.localeCompare(b.sigla));
+  if (!plants.length) throw new Error('Não encontrei nenhuma linha de produção na Programação.');
+  let colDest = null;
+  try { colDest = colunasDestino(rows, hi); } catch (e) { colDest = null; }
+  return { plants, semana, periodo, linhas, aba: nm, colDest: colDest };
+}
+
+var PROPRIAS_CONHECIDAS = [
+  { cliente: 'JBS - BioPower Mafra', cidade: 'Mafra', uf: 'SC' }
+];
+
+function detectarProprios(mapa) {
+  const PAT = /biopower|flora/i;
+  const vis = new Map();
+  mapa.rows.forEach(r => {
+    if (!PAT.test(r.cli) || vis.has(r.cli)) return;
+    vis.set(r.cli, dadosDestino(r.cli, r.dst));
+  });
+  const lista = [...vis.values()];
+  PROPRIAS_CONHECIDAS.forEach(k => {
+    const chave = norm(k.cidade) + '|' + k.uf;
+    if (lista.some(d => norm(d.cidade) + '|' + d.uf === chave)) return;
+    lista.push({ cliente: k.cliente, cidade: k.cidade, uf: k.uf, semCotacao: true });
+  });
+  return lista;
+}
+
+function dadosDestino(cliente, dst) {
+  const t = String(dst || '').split(',');
+  const uf = (t.length > 1 ? t[t.length - 1] : '').trim().toUpperCase().slice(0, 2);
+  return { cliente, cidade: t[0].trim(), uf: /^[A-Z]{2}$/.test(uf) ? uf : '' };
+}
+
+function clientesDoMapa(mapa) {
+  const vis = new Map();
+  mapa.rows.forEach(r => { if (!vis.has(r.cli)) vis.set(r.cli, r.dst); });
+  return [...vis.entries()].map(([c, d]) => dadosDestino(c, d))
+    .sort((a, b) => a.cliente.localeCompare(b.cliente));
+}
+
+function readMapa(sheets) {
+  for (const nm of Object.keys(sheets)) {
+    const rows = sheets[nm];
+    const hi = findHeader(rows, ['unidades', 'clientes', 'oferta']);
+    if (hi < 0) continue;
+    const cm = colMap(rows[hi]);
+    const c = {
+      data: pick(cm, 'data'), un: pick(cm, 'unidades jbs', 'unidades'), uf: pick(cm, 'uf'),
+      cli: pick(cm, 'clientes', 'cliente'), dst: pick(cm, 'cidade uf', 'cidade'),
+      of: pick(cm, 'oferta'), net: pick(cm, 'net'), icms: pick(cm, 'icms'),
+      pis: pick(cm, 'pis'), fcli: pick(cm, 'frete cliente'),
+      frete: pick(cm, 'modal cif', 'modal', 'frete cif', 'frete'),
+      pgt: pick(cm, 'pgt', 'pagamento', 'prazo')
+    };
+    const out = [];
+    let data = null, dataSerial = null;
+    for (let i = hi + 1; i < rows.length; i++) {
+      const r = rows[i];
+      const cli = String(r[c.cli] == null ? '' : r[c.cli]).trim();
+      const un = String(r[c.un] == null ? '' : r[c.un]).trim();
+      if (!cli || !un) continue;
+      const of = parseFloat(r[c.of]), net = parseFloat(r[c.net]);
+      const icms = parseFloat(r[c.icms]), pis = parseFloat(r[c.pis]);
+      const fcli = parseFloat(r[c.fcli]);
+      if (data == null && r[c.data] != null) {
+        const d = serialToDate(r[c.data]);
+        data = d ? d.toLocaleDateString('pt-BR') : String(r[c.data]);
+        dataSerial = typeof r[c.data] === 'number' ? r[c.data] : null;
+      }
+      out.push({
+        i: out.length, linha: i, un, uf: String(r[c.uf] || '').trim().toUpperCase(), cli,
+        dst: String(r[c.dst] || '').trim(),
+        of: isFinite(of) ? of : null, net: isFinite(net) ? net : null,
+        icms: isFinite(icms) ? icms : 0, pis: isFinite(pis) ? pis : 0.00925,
+        fcli: isFinite(fcli) ? fcli : 0,
+        modal: String(r[c.frete] || '').trim(),
+        pgt: c.pgt >= 0 ? String(r[c.pgt] == null ? '' : r[c.pgt]).trim() : ''
+      });
+    }
+    if (out.length) {
+      const modalCol = conferirModal(rows, hi, out, c.frete);
+      return { rows: out, data: data, dataSerial: dataSerial, modalCol: modalCol };
+    }
+  }
+  throw new Error('No Mapa de Ofertas não achei o cabeçalho com Unidades JBS, Clientes e $ Oferta.');
+}
+
+// o cabeçalho do Mapa varia; se a coluna escolhida não trouxer CIF/FOB,
+// procura a coluna certa pelos valores
+function ehModal(v) { return /^\s*(cif|fob)\s*$/i.test(String(v == null ? '' : v)); }
+
+function conferirModal(rows, hi, out, ci) {
+  const bons = out.filter(x => ehModal(x.modal)).length;
+  if (out.length && bons >= out.length * 0.6) return { col: ci, ok: true };
+  let melhor = -1, melhorN = 0, larg = 0;
+  for (let i = hi + 1; i < rows.length; i++) larg = Math.max(larg, rows[i].length);
+  for (let k = 0; k < larg; k++) {
+    let n = 0;
+    for (let i = hi + 1; i < rows.length; i++) if (ehModal(rows[i][k])) n++;
+    if (n > melhorN) { melhorN = n; melhor = k; }
+  }
+  if (melhor < 0 || melhorN < out.length * 0.3) {
+    out.forEach(x => { if (!ehModal(x.modal)) x.modal = ''; });
+    return { col: -1, ok: false, cabecalho: String(rows[hi][ci] || '').trim() };
+  }
+  out.forEach(x => {
+    const v = rows[x.linha] ? rows[x.linha][melhor] : null;
+    x.modal = ehModal(v) ? String(v).trim().toUpperCase() : '';
+  });
+  return { col: melhor, ok: true, trocada: melhor !== ci,
+    cabecalho: String(rows[hi][melhor] || '').trim() };
+}
+
+function netDe(r) {
+  if (r.ofEdit != null) return r.ofEdit * (1 - r.icms) * (1 - r.pis) - r.fcli;
+  return r.net;
+}
+
+/* ====================== MONTAGEM DO CONJUNTO ====================== */
+function montar(prod, nec, mapa) {
+  const plants = prod.plants;
+  const siglas = new Set(plants.map(p => p.sigla));
+  const cidadeIdx = new Map();
+  plants.forEach(p => {
+    const k = norm(p.cidade);
+    if (!cidadeIdx.has(k)) cidadeIdx.set(k, []);
+    cidadeIdx.get(k).push(p.sigla);
+  });
+  const cidades = [...cidadeIdx.keys()];
+
+  function resolve(nome) {
+    const toks = String(nome).match(/\b[A-Z]{3}\b/g) || [];
+    const hit = toks.filter(t => siglas.has(t));
+    if (hit.length) return hit;
+    let n = norm(nome).replace(/\bcpg\b|\bcgr\b/g, 'campo grande').trim();
+    if (cidadeIdx.has(n)) return cidadeIdx.get(n);
+    // abreviaturas: "sao m guapore" casa com "sao miguel do guapore"
+    const stop = { de: 1, do: 1, da: 1, dos: 1, das: 1, d: 1 };
+    const tk = s => s.split(' ').filter(w => w && !stop[w]);
+    const qt = tk(n);
+    let cand = [];
+    if (qt.length) {
+      for (const c of cidades) {
+        const ct = tk(c);
+        const usado = new Array(ct.length).fill(false);
+        let ok = 0;
+        for (const w of qt) {
+          for (let i = 0; i < ct.length; i++) {
+            if (usado[i]) continue;
+            if (ct[i].indexOf(w) === 0 || w.indexOf(ct[i]) === 0) { usado[i] = true; ok++; break; }
+          }
+        }
+        if (ok === qt.length) cand.push(c);
+      }
+      if (cand.length === 1) return cidadeIdx.get(cand[0]);
+    }
+    let best = null, bs = 0;
+    for (const c of cidades) { const s = sim(n, c); if (s > bs) { bs = s; best = c; } }
+    return bs >= 0.72 ? cidadeIdx.get(best) : [];
+  }
+
+  const ufDe = {}; plants.forEach(p => ufDe[p.sigla] = p.uf);
+  const naoMapeadas = new Set();
+  const q = new Map();           // sigla|cliente -> melhor linha
+  mapa.rows.forEach(r => {
+    const n = netDe(r);
+    if (!(r.of > 0) || !(n > 0)) return;
+    const sg = resolve(r.un);
+    if (!sg.length) { naoMapeadas.add(r.un); return; }
+    sg.forEach(s => {
+      const k = s + '|' + r.cli;
+      const prev = q.get(k);
+      if (!prev || n > prev.net) q.set(k, { sigla: s, uf: ufDe[s], cli: r.cli, dst: r.dst, net: n, modal: r.modal, src: r.i });
+    });
+  });
+  const quotes = [...q.values()];
+  const proprios = new Map(nec.map(d => [d.cliente, d]));
+  quotes.forEach(x => x.prop = proprios.has(x.cli));
+  return { plants, quotes, proprios, naoMapeadas: [...naoMapeadas], ufDe };
+}
+
+/* ====================== FLUXO DE CUSTO MÍNIMO ====================== */
+function mcmf(nNodes, edges, s, t) {
+  const G = Array.from({ length: nNodes }, () => []);
+  const E = [];
+  const map = [];
+  edges.forEach(([u, v, cap, cost]) => {
+    map.push(E.length);
+    G[u].push(E.length); E.push({ v, cap, cost, f: 0, rev: E.length + 1 });
+    G[v].push(E.length); E.push({ v: u, cap: 0, cost: -cost, f: 0, rev: E.length - 1 });
+  });
+  let flow = 0, cost = 0;
+  for (; ;) {
+    const dist = new Array(nNodes).fill(Infinity);
+    const inq = new Array(nNodes).fill(false);
+    const pe = new Array(nNodes).fill(-1);
+    dist[s] = 0;
+    const qq = [s]; inq[s] = true;
+    let guard = 0;
+    while (qq.length) {
+      if (++guard > 500000) break;
+      const u = qq.shift(); inq[u] = false;
+      for (const ei of G[u]) {
+        const e = E[ei];
+        if (e.cap - e.f > 1e-9 && dist[u] + e.cost < dist[e.v] - 1e-9) {
+          dist[e.v] = dist[u] + e.cost; pe[e.v] = ei;
+          if (!inq[e.v]) { inq[e.v] = true; qq.push(e.v); }
+        }
+      }
+    }
+    if (dist[t] === Infinity) break;
+    let push = Infinity;
+    for (let v = t; v !== s; v = E[E[pe[v]].rev].v) {
+      const e = E[pe[v]]; push = Math.min(push, e.cap - e.f);
+    }
+    if (!(push > 1e-9)) break;
+    for (let v = t; v !== s; v = E[E[pe[v]].rev].v) {
+      const e = E[pe[v]]; e.f += push; E[e.rev].f -= push;
+    }
+    flow += push; cost += push * dist[t];
+  }
+  return { flow, cost, E, map };
+}
+
+function resolver(ds, travas, fixos) {
+  const { plants, quotes, proprios } = ds;
+  fixos = fixos || {};
+  const qIdx = new Map();
+  quotes.forEach(q => qIdx.set(q.sigla + '|' + q.cli, q));
+
+  const oferta = {}; plants.forEach(p => oferta[p.sigla] = p.ton);
+  const pedido = {}; proprios.forEach((d, c) => pedido[c] = d.ton);
+
+  // escolhas travadas pelo usuário saem da conta antes de otimizar o resto
+  const fixado = [];
+  const foraDeCotacao = [];
+  Object.keys(fixos).forEach(sg => {
+    (fixos[sg] || []).forEach(m => {
+      if (!(m.ton > 0.001)) return;
+      const q = qIdx.get(sg + '|' + m.cli);
+      if (!q) { foraDeCotacao.push(sg + ' → ' + m.cli); return; }
+      const t = Math.min(m.ton, oferta[sg] || 0);
+      if (!(t > 0.001)) return;
+      oferta[sg] -= t;
+      if (q.prop) pedido[q.cli] = Math.max(0, (pedido[q.cli] || 0) - t);
+      fixado.push(Object.assign({}, q, { ton: t, fixo: true }));
+    });
+  });
+
+  const psobra = plants.filter(p => oferta[p.sigla] > 0.001);
+  const dests = [];
+  proprios.forEach((d, c) => { if (pedido[c] > 0.001) dests.push(d); });
+  const P = psobra.length, D = dests.length;
+  const idxP = new Map(psobra.map((p, i) => [p.sigla, i]));
+  const idxD = new Map(dests.map((d, i) => [d.cliente, i]));
+  const S = 0, T = 1, base = 2, baseD = 2 + P;
+  const M = 1e6;
+  const CAP = plants.reduce((a, b) => a + b.ton, 0) + 1;
+
+  const bestTer = new Map();
+  quotes.forEach(x => {
+    if (x.prop) return;
+    const b = bestTer.get(x.sigla);
+    if (!b || x.net > b.net) bestTer.set(x.sigla, x);
+  });
+
+  const edges = [];
+  psobra.forEach((p, i) => edges.push([S, base + i, oferta[p.sigla], 0]));
+  const arcos = [];
+  quotes.forEach(x => {
+    if (!x.prop) return;
+    const tv = travas[x.cli];
+    if (tv && x.uf !== tv) return;
+    const i = idxP.get(x.sigla), j = idxD.get(x.cli);
+    if (i == null || j == null) return;
+    arcos.push({ ei: edges.length, x: x });
+    edges.push([base + i, baseD + j, CAP, -(x.net + M)]);
+  });
+  const arcosTer = [];
+  bestTer.forEach((x, sg) => {
+    const i = idxP.get(sg);
+    if (i == null) return;
+    arcosTer.push({ ei: edges.length, x: x });
+    edges.push([base + i, T, CAP, -x.net]);
+  });
+  dests.forEach((d, j) => edges.push([baseD + j, T, pedido[d.cliente], 0]));
+
+  const semTerceiro = plants.filter(p => !bestTer.has(p.sigla)).map(p => p.sigla);
+  const res = P ? mcmf(2 + P + D, edges, S, T) : { E: [], map: [] };
+
+  const aloc = fixado.slice();
+  arcos.forEach(a => { const f = res.E[res.map[a.ei]].f; if (f > 0.01) aloc.push(Object.assign({}, a.x, { ton: f })); });
+  arcosTer.forEach(a => { const f = res.E[res.map[a.ei]].f; if (f > 0.01) aloc.push(Object.assign({}, a.x, { ton: f })); });
+
+  const atendido = {};
+  proprios.forEach((d, c) => atendido[c] = 0);
+  aloc.forEach(a => { if (a.prop) atendido[a.cli] += a.ton; });
+  const faltas = [];
+  proprios.forEach((d, c) => {
+    if (d.ton > 0.01 && atendido[c] < d.ton - 0.01)
+      faltas.push({ cliente: c, pedido: d.ton, atendido: atendido[c] });
+  });
+
+  const sobra = plants.filter(p => {
+    const usado = aloc.filter(a => a.sigla === p.sigla).reduce((s, a) => s + a.ton, 0);
+    return usado < p.ton - 0.01;
+  }).map(p => p.sigla);
+
+  aloc.sort((a, b) => a.uf.localeCompare(b.uf) || a.sigla.localeCompare(b.sigla) || b.net - a.net);
+  const net = aloc.reduce((s, a) => s + a.ton * a.net, 0);
+  return { aloc: aloc, faltas: faltas, semTerceiro: semTerceiro, sobra: sobra,
+    foraDeCotacao: foraDeCotacao, net: net, bestTer: bestTer };
+}
+
+/* ====================== DEVOLVER A PROGRAMAÇÃO PREENCHIDA ====================== */
+function repartir(prod, aloc) {
+  const porSigla = {};
+  aloc.forEach(a => (porSigla[a.sigla] || (porSigla[a.sigla] = [])).push(a));
+  for (const s in porSigla) {
+    porSigla[s].sort((a, b) => (b.prop ? 1 : 0) - (a.prop ? 1 : 0) || b.net - a.net);
+  }
+  const saldo = {};
+  for (const s in porSigla) saldo[s] = porSigla[s].map(a => ({ a: a, resta: a.ton }));
+  const porLinha = {};
+  prod.linhas.forEach(l => {
+    const lista = porLinha[l.r] || (porLinha[l.r] = []);
+    let resta = l.ton;
+    const ds = saldo[l.sigla] || [];
+    let guarda = 0;
+    while (resta > 0.01 && guarda++ < 50) {
+      const d = ds.find(x => x.resta > 0.01);
+      if (!d) break;
+      const q = Math.round(Math.min(resta, d.resta) * 1000) / 1000;
+      lista.push({ ton: q, dest: d.a });
+      resta -= q; d.resta -= q;
+    }
+    if (resta > 0.01) lista.push({ ton: resta, dest: null });
+  });
+  return porLinha;
+}
+
+function escXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function celula(row, col, r, spec, estilo) {
+  const cs = row.getElementsByTagName('c');
+  let alvo = null;
+  for (let i = 0; i < cs.length; i++) {
+    const ref = cs[i].getAttribute('r') || '';
+    if (ref.replace(/\d+$/, '') === col) { alvo = cs[i]; break; }
+  }
+  if (!alvo) return;
+  alvo.setAttribute('r', col + r);
+  if (estilo != null) alvo.setAttribute('s', String(estilo));
+  if (!spec) return;
+  while (alvo.firstChild) alvo.removeChild(alvo.firstChild);
+  alvo.removeAttribute('t');
+  if (spec.limpar) return;
+  const doc = row.ownerDocument;
+  const NS = row.namespaceURI;
+  const cria = n => NS ? doc.createElementNS(NS, n) : doc.createElement(n);
+  if (spec.f != null) {
+    const f = cria('f'); f.textContent = spec.f; alvo.appendChild(f);
+  }
+  if (spec.txt != null) {
+    if (spec.si != null) {
+      alvo.setAttribute('t', 's');
+      const v = cria('v'); v.textContent = String(spec.si); alvo.appendChild(v);
+    } else {
+      alvo.setAttribute('t', 'inlineStr');
+      const is = cria('is'), t = cria('t');
+      t.textContent = spec.txt; is.appendChild(t); alvo.appendChild(is);
+    }
+  } else if (spec.v != null) {
+    const v = cria('v');
+    v.textContent = (typeof spec.v === 'number' && isFinite(spec.v)
+      ? Number(spec.v.toPrecision(12)) : spec.v).toString();
+    alvo.appendChild(v);
+  }
+}
+
+function letra(i) {
+  let s = '';
+  i++;
+  while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = (i - m - 1) / 26; }
+  return s;
+}
+
+function colunasDestino(rows, hi) {
+  const h = rows[hi].map(norm);
+  const iCli = h.findIndex(x => x.indexOf('clientes') === 0 || x === 'cliente');
+  if (iCli < 0) throw new Error('não achei a coluna Clientes na Programação');
+  const achaEm = (ini, fim, cands) => {
+    for (const cand of cands) {
+      for (let i = ini; i < fim; i++) if (h[i] && h[i].indexOf(cand) === 0) return letra(i);
+    }
+    return null;
+  };
+  const fim = h.length;
+  return {
+    emb: achaEm(0, iCli, ['data embarque', 'embarque']),
+    cts: achaEm(0, iCli, ['n cts', 'no cts', 'n carretas', 'carretas', 'cts']),
+    tonProd: achaEm(0, iCli, ['toneladas', 'ton']),
+    cli: letra(iCli),
+    dst: achaEm(iCli, fim, ['cidade uf', 'cidade']),
+    ton: achaEm(iCli + 1, fim, ['toneladas', 'ton']),
+    of: achaEm(iCli, fim, ['oferta']),
+    net: achaEm(iCli, fim, ['net', 'valor net']),
+    net2: achaEm(iCli, fim, ['valor net melhor', 'valor net', 'net melhor']),
+    cli2: achaEm(iCli, fim, ['nome melhor', 'melhor cliente', 'nome']),
+    icms: achaEm(iCli, fim, ['icms']),
+    pis: achaEm(iCli, fim, ['pis']),
+    modal: achaEm(iCli, fim, ['modal cif', 'frete cif', 'modal', 'frete c']),
+    vfrete: achaEm(iCli, fim, ['valor frete']),
+    entrega: achaEm(iCli, fim, ['data entrega', 'entrega'])
+  };
+}
+
+/* ---- estimativa de trânsito ---- */
+var KM_DIA = 500, FATOR_ROD = 1.25;
+
+function geo(cidade, uf) {
+  const p = CIDADES[norm(cidade) + '|' + uf];
+  return (p && p.length > 3) ? { lat: p[2], lon: p[3] } : null;
+}
+
+function geoDestino(dst) {
+  const s = String(dst || '').trim();
+  const m = /[,\s]([A-Za-z]{2})$/.exec(s);
+  const uf = m ? m[1].toUpperCase() : null;
+  const cid = m ? s.slice(0, m.index) : s;
+  if (!norm(cid)) return null;
+  if (uf) return geo(cid, uf);
+  const alvo = norm(cid) + '|';
+  for (const k in CIDADES) {
+    if (k.indexOf(alvo) === 0 && CIDADES[k].length > 3)
+      return { lat: CIDADES[k][2], lon: CIDADES[k][3] };
+  }
+  return null;
+}
+
+function kmEntre(a, b) {
+  const R = 6371, g = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * g, dLon = (b.lon - a.lon) * g;
+  const s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(a.lat * g) * Math.cos(b.lat * g) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function diasTransito(origem, destino) {
+  if (!origem || !destino) return null;
+  const km = kmEntre(origem, destino) * FATOR_ROD;
+  return Math.max(1, Math.ceil(km / KM_DIA));
+}
+
+/* ---- aba de vendas, um bloco por cliente ---- */
+function abaVendas(zip, prod, aloc, mapa, estilos) {
+  const ondeUn = {};
+  prod.plants.forEach(p => ondeUn[p.sigla] = p);
+  const grupos = new Map();
+  aloc.forEach(a => {
+    const k = a.cli + '|' + a.sigla;
+    const g = grupos.get(k) || { cli: a.cli, sigla: a.sigla, dst: a.dst, ton: 0, src: a.src };
+    g.ton += a.ton;
+    grupos.set(k, g);
+  });
+  const porCli = new Map();
+  grupos.forEach(g => {
+    const l = porCli.get(g.cli) || [];
+    l.push(g); porCli.set(g.cli, l);
+  });
+  const clientes = [...porCli.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const CAB = ['Data', 'Sigla', 'Unidades', 'UF', 'Cliente', 'Cidade', 'Volume',
+    'A Faturar', 'ICMS', 'PIS/COFiNS', 'Frete', 'Pagamento'];
+  const COL = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+  const linhas = [];
+  let r = 1;
+  clientes.forEach(cli => {
+    const cab = { r: r++, cels: [] };
+    CAB.forEach((t, i) => cab.cels.push({ col: COL[i], txt: t, s: estilos.cab }));
+    linhas.push(cab);
+    porCli.get(cli).sort((a, b) => b.ton - a.ton).forEach(g => {
+      const un = ondeUn[g.sigla] || {};
+      const src = mapa.rows[g.src] || {};
+      const of = src.ofEdit != null ? src.ofEdit : src.of;
+      const lin = { r: r++, cels: [] };
+      const põe = (col, o) => lin.cels.push(Object.assign({ col: col }, o));
+      if (mapa.dataSerial != null) põe('A', { v: mapa.dataSerial, s: estilos.data });
+      else põe('A', { txt: mapa.data || '', s: estilos.txt });
+      põe('B', { txt: 'JBS - ' + g.sigla, s: estilos.txt });
+      põe('C', { txt: String(un.cidade || '').toUpperCase(), s: estilos.txt });
+      põe('D', { txt: un.uf || '', s: estilos.centro });
+      põe('E', { txt: g.cli, s: estilos.txt });
+      põe('F', { txt: g.dst || '', s: estilos.txt });
+      põe('G', { v: g.ton, s: estilos.ton });
+      põe('H', { v: of != null ? of : '', s: estilos.moeda });
+      põe('I', { v: src.icms != null ? src.icms : '', s: estilos.perc });
+      põe('J', { txt: src.pis != null
+        ? (src.pis * 100).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) + '%' : '',
+        s: estilos.centro });
+      põe('K', { txt: ehModal(src.modal) ? src.modal.toUpperCase() : '', s: estilos.centro });
+      põe('L', { txt: src.pgt || '', s: estilos.centro });
+      linhas.push(lin);
+    });
+    r++;
+  });
+  return { linhas: linhas, blocos: clientes.length, larguras: [13, 12, 24, 6, 40, 26, 11, 13, 9, 12, 8, 13] };
+}
+
+function garantirNumFmt(xml, codeEsc) {
+  // procurar SO dentro de <numFmts>: os numFmt de <dxfs> usam outra numeracao
+  const esc = codeEsc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const bloco = (/<numFmts[^>]*>[\s\S]*?<\/numFmts>/.exec(xml) || [''])[0];
+  const m = new RegExp('<numFmt numFmtId="(\\d+)" formatCode="' + esc + '"\\s*/>').exec(bloco);
+  if (m) return { xml: xml, id: parseInt(m[1], 10) };
+  let maior = 163;
+  (xml.match(/<numFmt numFmtId="(\d+)"/g) || []).forEach(s =>
+    maior = Math.max(maior, parseInt(/\d+/.exec(s)[0], 10)));
+  const id = maior + 1;
+  const novo = '<numFmt numFmtId="' + id + '" formatCode="' + codeEsc + '"/>';
+  const mn = /<numFmts count="(\d+)">/.exec(xml);
+  const out = mn
+    ? xml.replace(/<numFmts count="\d+">/, '<numFmts count="' + (parseInt(mn[1], 10) + 1) + '">')
+        .replace('</numFmts>', () => novo + '</numFmts>')
+    : xml.replace(/(<styleSheet[^>]*>)/, m2 => m2 + '<numFmts count="1">' + novo + '</numFmts>');
+  return { xml: out, id: id };
+}
+
+function novoXf(xml, baseIdx, numFmtId) {
+  const m = /<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/.exec(xml);
+  const xfs = m[2].match(/<xf [^>]*\/>|<xf [^>]*>[\s\S]*?<\/xf>/g) || [];
+  const base = (baseIdx != null && xfs[baseIdx]) ? xfs[baseIdx]
+    : '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>';
+  let novo = /numFmtId="\d+"/.test(base)
+    ? base.replace(/numFmtId="\d+"/, () => 'numFmtId="' + numFmtId + '"')
+    : base.replace('<xf ', () => '<xf numFmtId="' + numFmtId + '" ');
+  if (novo.indexOf('applyNumberFormat') < 0)
+    novo = novo.replace('<xf ', () => '<xf applyNumberFormat="1" ');
+  const idx = xfs.length;
+  const out = xml.replace(/<cellXfs count="\d+">/, '<cellXfs count="' + (idx + 1) + '">')
+    .replace('</cellXfs>', () => novo + '</cellXfs>');
+  return { xml: out, idx: String(idx) };
+}
+
+async function gravarAba(zip, nome, conteudo, texto) {
+  const rels = await entryText(zip, 'xl/_rels/workbook.xml.rels');
+  const wb = await entryText(zip, 'xl/workbook.xml');
+  const ct = await entryText(zip, '[Content_Types].xml');
+
+  // já existe uma aba com esse nome? reaproveita
+  let caminho = null, wbNovo = wb, relsNovo = rels, ctNovo = ct;
+  const mSheet = new RegExp('<sheet [^>]*name="' + nome + '"[^>]*/>').exec(wb);
+  if (mSheet) {
+    const rid = /r:id="([^"]+)"/.exec(mSheet[0]);
+    const mRel = new RegExp('<Relationship[^>]*Id="' + rid[1] + '"[^>]*/>').exec(rels);
+    let alvo = /Target="([^"]+)"/.exec(mRel[0])[1];
+    if (alvo.charAt(0) === '/') alvo = alvo.slice(1);
+    else if (!/^xl\//.test(alvo)) alvo = 'xl/' + alvo;
+    caminho = alvo;
+  } else {
+    let k = 1;
+    while (zip.has('xl/worksheets/sheet' + k + '.xml')) k++;
+    caminho = 'xl/worksheets/sheet' + k + '.xml';
+    let maxR = 0;
+    (rels.match(/Id="rId(\d+)"/g) || []).forEach(s => {
+      maxR = Math.max(maxR, parseInt(/\d+/.exec(s)[0], 10));
+    });
+    const rid = 'rId' + (maxR + 1);
+    let maxId = 0;
+    (wb.match(/sheetId="(\d+)"/g) || []).forEach(s => {
+      maxId = Math.max(maxId, parseInt(/\d+/.exec(s)[0], 10));
+    });
+    relsNovo = rels.replace('</Relationships>',
+      '<Relationship Id="' + rid + '" Type="http://schemas.openxmlformats.org/' +
+      'officeDocument/2006/relationships/worksheet" Target="worksheets/' +
+      caminho.split('/').pop() + '"/></Relationships>');
+    wbNovo = wb.replace('</sheets>', '<sheet name="' + nome + '" sheetId="' +
+      (maxId + 1) + '" r:id="' + rid + '"/></sheets>');
+    ctNovo = ct.replace('</Types>', '<Override PartName="/' + caminho +
+      '" ContentType="application/vnd.openxmlformats-officedocument.' +
+      'spreadsheetml.worksheet+xml"/></Types>');
+  }
+
+  const cols = conteudo.larguras.map((w, i) =>
+    '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('');
+  const linhas = conteudo.linhas.map(l => {
+    const cels = l.cels.map(cel => {
+      const ref = cel.col + l.r;
+      const s = cel.s != null ? ' s="' + cel.s + '"' : '';
+      if (cel.txt != null) {
+        if (cel.txt === '') return '';
+        const t = texto(cel.txt);
+        return t.si != null
+          ? '<c r="' + ref + '"' + s + ' t="s"><v>' + t.si + '</v></c>'
+          : '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t>' + escXml(cel.txt) + '</t></is></c>';
+      }
+      if (cel.v === '' || cel.v == null) return '';
+      return '<c r="' + ref + '"' + s + '><v>' +
+        (typeof cel.v === 'number' ? Number(cel.v.toPrecision(12)) : cel.v) + '</v></c>';
+    }).join('');
+    return '<row r="' + l.r + '">' + cels + '</row>';
+  }).join('');
+  const ultima = conteudo.linhas.length ? conteudo.linhas[conteudo.linhas.length - 1].r : 1;
+  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+    '<dimension ref="A1:' + (conteudo.colunas || 'L') + ultima + '"/>' +
+    '<sheetViews><sheetView workbookViewId="0"/></sheetViews>' +
+    '<sheetFormatPr defaultRowHeight="15"/>' +
+    '<cols>' + cols + '</cols>' +
+    '<sheetData>' + linhas + '</sheetData>' +
+    '<pageMargins left="0.5" right="0.5" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>' +
+    '<pageSetup orientation="landscape" paperSize="9"/></worksheet>';
+
+  await trocarEntrada(zip, caminho, xml);
+  if (!mSheet) {
+    await trocarEntrada(zip, 'xl/workbook.xml', wbNovo);
+    await trocarEntrada(zip, 'xl/_rels/workbook.xml.rels', relsNovo);
+    await trocarEntrada(zip, '[Content_Types].xml', ctNovo);
+  }
+}
+
+async function programacaoPreenchida(buf, prod, aloc, ops, dataMapa, serialMapa) {
+  const zip = await unzip(buf);
+  const relTxt = await entryText(zip, 'xl/_rels/workbook.xml.rels');
+  const relDoc = new DOMParser().parseFromString(relTxt, 'application/xml');
+  const rel = {};
+  for (const r of relDoc.getElementsByTagName('Relationship')) {
+    let t = r.getAttribute('Target');
+    if (t.charAt(0) === '/') t = t.slice(1); else if (!/^xl\//.test(t)) t = 'xl/' + t;
+    rel[r.getAttribute('Id')] = t;
+  }
+  const wbTxt = await entryText(zip, 'xl/workbook.xml');
+  const wbDoc = new DOMParser().parseFromString(wbTxt, 'application/xml');
+  let caminho = null;
+  for (const sh of wbDoc.getElementsByTagName('sheet')) {
+    if (sh.getAttribute('name') !== prod.aba) continue;
+    const rid = sh.getAttribute('r:id') || sh.getAttributeNS(
+      'http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+    caminho = rel[rid];
+  }
+  if (!caminho) throw new Error('não localizei a aba ' + prod.aba + ' dentro do arquivo');
+
+  const xml = await entryText(zip, caminho);
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const sd = doc.getElementsByTagName('sheetData')[0];
+  const orig = [].slice.call(sd.getElementsByTagName('row'));
+  const porLinha = repartir(prod, aloc);
+  const somaAloc = aloc.reduce((s, a) => s + a.ton, 0);
+
+  const CD = prod.colDest;
+  if (!CD) throw new Error('a Programação não tem as colunas de destino (Clientes, Cidade/UF, Ton...)');
+  const COLS = [];
+  for (let i = 0; i < 26; i++) COLS.push(letra(i));
+  const ondeFica = {};
+  prod.plants.forEach(p => ondeFica[p.sigla] = geo(p.cidade, p.uf));
+  const embarqueDe = {};
+  prod.linhas.forEach(l => { if (l.emb != null) embarqueDe[l.r] = l.emb; });
+  const transito = [], semRota = [];
+  const ssTxt = await entryText(zip, 'xl/sharedStrings.xml');
+  let nSS = 0, novasSS = [];
+  const jaSS = new Map();
+  if (ssTxt) {
+    const sd0 = new DOMParser().parseFromString(ssTxt, 'application/xml');
+    const sis = sd0.getElementsByTagName('si');
+    nSS = sis.length;
+    for (let i = 0; i < nSS; i++) {
+      let s = '';
+      const ts = sis[i].getElementsByTagName('t');
+      for (let k = 0; k < ts.length; k++) s += ts[k].textContent;
+      if (!jaSS.has(s)) jaSS.set(s, i);
+    }
+  }
+  const texto = s => {
+    const v = String(s == null ? '' : s);
+    if (!ssTxt) return { txt: v };
+    if (!jaSS.has(v)) { jaSS.set(v, nSS + novasSS.length); novasSS.push(v); }
+    return { txt: v, si: jaSS.get(v) };
+  };
+  const novas = [];
+  let n = 0, ultimaDado = 0;
+
+  orig.forEach(row => {
+    const rOld = parseInt(row.getAttribute('r'), 10);
+    const partes = porLinha[rOld];
+    const lista = (partes && partes.length) ? partes : [null];
+    const copias = lista.map((x, k) => k === 0 ? row : row.cloneNode(true));
+    lista.forEach((p, k) => {
+      const el = copias[k];
+      n++;
+      el.setAttribute('r', String(n));
+      COLS.forEach(col => celula(el, col, n, null));
+      // nas linhas de embarque o bloco de destino é reescrito do zero
+      if (porLinha[rOld]) {
+        ['cli', 'dst', 'ton', 'of', 'net', 'net2', 'cli2', 'icms', 'pis', 'modal',
+          'vfrete', 'entrega']
+          .forEach(k2 => { if (CD[k2]) celula(el, CD[k2], n, { limpar: true }); });
+      }
+      // fórmulas compartilhadas viram fórmulas normais: duplicar a definição
+      // mestre ao dividir uma linha faz o Excel acusar arquivo corrompido
+      [].slice.call(el.getElementsByTagName('f')).forEach(f => {
+        const cel = f.parentNode;
+        const col = (cel.getAttribute('r') || '').replace(/\d+$/, '');
+        f.removeAttribute('t'); f.removeAttribute('si'); f.removeAttribute('ref');
+        const t = f.textContent;
+        const mSum = /^SUM\(([A-Z]{1,3})\d+:[A-Z]{1,3}\d+\)$/.exec(t);
+        if (col === CD.tonProd && CD.cts) f.textContent = CD.cts + n + '*35';
+        else if (mSum) f.textContent = 'SUM(' + mSum[1] + '2:' + mSum[1] + ultimaDado + ')';
+        else if (!t) cel.removeChild(f);
+        else if (/^[A-Z]{1,3}\d+\*35$/.test(t) && CD.cts) f.textContent = CD.cts + n + '*35';
+      });
+      if (p) {
+        ultimaDado = n;
+        const inteiro = Math.abs(p.ton / 35 - Math.round(p.ton / 35)) < 1e-9;
+        if (CD.cts) celula(el, CD.cts, n, { v: inteiro ? Math.round(p.ton / 35) : p.ton / 35 });
+        if (CD.tonProd) celula(el, CD.tonProd, n,
+          (inteiro && CD.cts) ? { f: CD.cts + n + '*35', v: p.ton } : { v: p.ton });
+        if (p.dest) {
+          const src = MAPA_ROWS ? MAPA_ROWS[p.dest.src] : null;
+          const put = (col, spec) => { if (col) celula(el, col, n, spec); };
+          put(CD.cli, texto(p.dest.cli));
+          put(CD.dst, texto(p.dest.dst || ''));
+          put(CD.ton, { v: p.ton });
+          if (src) {
+            put(CD.of, { v: src.ofEdit != null ? src.ofEdit : src.of });
+            put(CD.net, { v: p.dest.net });
+            if (CD.net2 || CD.cli2) {
+              const lista = (ops && ops[p.dest.sigla]) || [];
+              let alt = null;
+              lista.forEach(o => {
+                if (o.cli === p.dest.cli) return;
+                if (!alt || o.net > alt.net) alt = o;
+              });
+              if (alt) {
+                put(CD.net2, { v: alt.net });
+                put(CD.cli2, texto(alt.cli));
+              }
+            }
+            put(CD.icms, { v: src.icms });
+            put(CD.pis, { v: src.pis });
+            put(CD.modal, texto(ehModal(src.modal) ? src.modal.toUpperCase() : ''));
+            put(CD.vfrete, { v: src.fcli });
+            if (CD.entrega && /cif/i.test(src.modal || '')) {
+              const dias = diasTransito(ondeFica[p.dest.sigla], geoDestino(p.dest.dst));
+              const emb = embarqueDe[rOld];
+              if (dias != null && emb != null) {
+                put(CD.entrega, { v: emb + dias });
+                transito.push({ sigla: p.dest.sigla, destino: p.dest.dst, dias: dias });
+              } else if (dias == null) {
+                semRota.push(p.dest.dst || p.dest.cli);
+              }
+            }
+          }
+        }
+      } else if (porLinha[rOld]) {
+        ultimaDado = n;
+      }
+      novas.push(el);
+    });
+  });
+
+  while (sd.firstChild) sd.removeChild(sd.firstChild);
+  novas.forEach(el => sd.appendChild(el));
+
+  const estiloDe = (linha, col) => {
+    if (!col) return null;
+    for (const row of novas) {
+      if (parseInt(row.getAttribute('r'), 10) !== linha) continue;
+      const cs = row.getElementsByTagName('c');
+      for (let i = 0; i < cs.length; i++)
+        if ((cs[i].getAttribute('r') || '').replace(/\d+$/, '') === col)
+          return cs[i].getAttribute('s');
+    }
+    return null;
+  };
+
+  // ---- formato padronizado por coluna ----
+  let stXml = await entryText(zip, 'xl/styles.xml');
+  const stOriginal = stXml;
+  const MOEDA = '&quot;R$&quot;\\ #,##0';
+  const cacheNF = new Map(), cacheXF = new Map();
+  const idFmt = code => {
+    if (cacheNF.has(code)) return cacheNF.get(code);
+    const g = garantirNumFmt(stXml, code);
+    stXml = g.xml; cacheNF.set(code, g.id); return g.id;
+  };
+  const estiloCom = (sBase, code) => {
+    const nid = idFmt(code);
+    const k = (sBase == null ? '' : sBase) + '|' + nid;
+    if (cacheXF.has(k)) return cacheXF.get(k);
+    const x = novoXf(stXml, sBase == null ? null : parseInt(sBase, 10), nid);
+    stXml = x.xml; cacheXF.set(k, x.idx); return x.idx;
+  };
+  const estMoeda0 = estiloCom(estiloDe(2, CD.of), MOEDA);
+
+  const FMTCOL = {};
+  const fmt = (col, code) => { if (col && !FMTCOL[col]) FMTCOL[col] = code; };
+  fmt(CD.cts, '#,##0');
+  fmt(CD.tonProd, '#,##0.##');
+  fmt(CD.ton, '#,##0.##');
+  fmt(CD.of, MOEDA);
+  fmt(CD.net, MOEDA);
+  fmt(CD.net2, MOEDA);
+  fmt(CD.vfrete, MOEDA);
+  fmt(CD.icms, '0%');
+  fmt(CD.pis, '0.000%');
+  fmt(CD.emb, 'dd/mm/yyyy');
+  fmt(CD.entrega, 'dd/mm/yyyy');
+  novas.forEach(row => {
+    if (parseInt(row.getAttribute('r'), 10) < 2) return;
+    const cs = row.getElementsByTagName('c');
+    for (let i = 0; i < cs.length; i++) {
+      const col = (cs[i].getAttribute('r') || '').replace(/\d+$/, '');
+      const code = FMTCOL[col];
+      if (!code || cs[i].getAttribute('t') === 's') continue;
+      cs[i].setAttribute('s', estiloCom(cs[i].getAttribute('s'), code));
+    }
+  });
+
+  // ---- acumulado por cliente (vai para a aba Resumo) ----
+  const acum = new Map();
+  aloc.forEach(a => {
+    const k = a.cli + '|' + a.uf;
+    const cur = acum.get(k) || { cli: a.cli, uf: a.uf, dst: a.dst, ton: 0, valor: 0 };
+    const src = MAPA_ROWS ? MAPA_ROWS[a.src] : null;
+    const of = src ? (src.ofEdit != null ? src.ofEdit : src.of) : null;
+    cur.ton += a.ton;
+    if (of != null) cur.valor += of * a.ton;
+    acum.set(k, cur);
+  });
+  const porCliente = {};
+  acum.forEach(x => porCliente[x.cli] = (porCliente[x.cli] || 0) + x.ton);
+  const resumo = [...acum.values()].sort((a, b) =>
+    porCliente[b.cli] - porCliente[a.cli] || a.cli.localeCompare(b.cli) || a.uf.localeCompare(b.uf));
+  const ultimaLinha = n;
+
+  const dim = doc.getElementsByTagName('dimension')[0];
+  if (dim) {
+    const ref = dim.getAttribute('ref') || '';
+    const mDim = /^([A-Z]+\d+):([A-Z]+)\d+$/.exec(ref);
+    if (mDim) dim.setAttribute('ref', mDim[1] + ':' + mDim[2] + ultimaLinha);
+  }
+
+  // linha de total ganha a soma do volume alocado
+  const ultima = novas[novas.length - 1];
+  const totalRow = novas.find(el => {
+    const fs = el.getElementsByTagName('f');
+    for (let i = 0; i < fs.length; i++) if (/^SUM\(J2:J/.test(fs[i].textContent)) return true;
+    return false;
+  });
+  if (totalRow && CD.ton) {
+    const rT = totalRow.getAttribute('r');
+    celula(totalRow, CD.ton, rT, { f: 'SUM(' + CD.ton + '2:' + CD.ton + ultimaDado + ')', v: somaAloc });
+  }
+
+  const saida = new XMLSerializer().serializeToString(doc);
+  await trocarEntrada(zip, caminho, saida);
+
+
+  // se a aba usa Tabela do Excel, o intervalo precisa acompanhar as linhas novas
+  const acrescidas = n - orig.length;
+  if (acrescidas > 0) {
+    for (const nome of [...zip.keys()]) {
+      if (!/^xl\/tables\/.+\.xml$/.test(nome)) continue;
+      const t = await entryText(zip, nome);
+      await trocarEntrada(zip, nome, t.replace(
+        /ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g,
+        (m0, c1, r1, c2, r2) => 'ref="' + c1 + r1 + ':' + c2 + (parseInt(r2, 10) + acrescidas) + '"'));
+    }
+  }
+
+  // o mapa de cálculo antigo não vale mais
+  const ct = (await entryText(zip, '[Content_Types].xml'))
+    .replace(/<Override[^>]*calcChain[^>]*\/>/, '');
+  await trocarEntrada(zip, '[Content_Types].xml', ct);
+  const rl = relTxt.replace(/<Relationship[^>]*calcChain[^>]*\/>/, '');
+  await trocarEntrada(zip, 'xl/_rels/workbook.xml.rels', rl);
+  let wb = wbTxt.replace(/<calcPr[^>]*\/>/, '<calcPr calcId="0" fullCalcOnLoad="1"/>');
+  if (wb.indexOf('fullCalcOnLoad') < 0) wb = wb.replace('</workbook>',
+    '<calcPr calcId="0" fullCalcOnLoad="1"/></workbook>');
+  await trocarEntrada(zip, 'xl/workbook.xml', wb);
+
+  if (stXml !== stOriginal) await trocarEntrada(zip, 'xl/styles.xml', stXml);
+
+  const estResumo = {
+    cab: estiloDe(1, CD.cli), txt: estiloDe(2, CD.cli), centro: estiloDe(2, CD.modal),
+    ton: estiloDe(2, CD.tonProd), moeda: estMoeda0
+  };
+  const linhasR = [];
+  let rr = 1;
+  linhasR.push({ r: rr++, cels: [
+    { col: 'A', txt: 'UF Fornecedora', s: estResumo.cab },
+    { col: 'B', txt: 'Clientes', s: estResumo.cab },
+    { col: 'C', txt: 'Cidade/UF', s: estResumo.cab },
+    { col: 'D', txt: '$ Oferta', s: estResumo.cab },
+    { col: 'E', txt: 'Toneladas', s: estResumo.cab }] });
+  const primeiraR = rr;
+  resumo.forEach(x => {
+    linhasR.push({ r: rr++, cels: [
+      { col: 'A', txt: x.uf, s: estResumo.centro },
+      { col: 'B', txt: x.cli, s: estResumo.txt },
+      { col: 'C', txt: x.dst || '', s: estResumo.txt },
+      { col: 'D', v: x.ton > 0 ? x.valor / x.ton : 0, s: estResumo.moeda },
+      { col: 'E', v: x.ton, s: estResumo.ton }] });
+  });
+  linhasR.push({ r: rr, cels: [
+    { col: 'B', txt: 'TOTAL', s: estResumo.cab },
+    { col: 'E', f: 'SUM(E' + primeiraR + ':E' + (rr - 1) + ')',
+      v: resumo.reduce((s, x) => s + x.ton, 0), s: estResumo.cab }] });
+  await gravarAba(zip, 'Resumo',
+    { linhas: linhasR, larguras: [15, 42, 26, 14, 13], colunas: 'E' }, texto);
+
+  const estVendas = {
+    cab: estiloDe(1, CD.cli), txt: estiloDe(2, CD.cli), centro: estiloDe(2, CD.modal),
+    data: estiloDe(2, CD.emb), ton: estiloDe(2, CD.tonProd),
+    moeda: estMoeda0, perc: estiloDe(2, CD.icms)
+  };
+  const vendas = abaVendas(zip, prod, aloc, { rows: MAPA_ROWS || [], data: dataMapa,
+    dataSerial: serialMapa }, estVendas);
+  await gravarAba(zip, 'Vendas', vendas, texto);
+
+  if (ssTxt && novasSS.length) {
+    const add = novasSS.map(s =>
+      '<si><t xml:space="preserve">' + escXml(s) + '</t></si>').join('');
+    let ss = ssTxt.replace('</sst>', add + '</sst>');
+    const uniq = nSS + novasSS.length;
+    const cnt = /count="(\d+)"/.exec(ss);
+    if (cnt) ss = ss.replace(/count="\d+"/, 'count="' + (parseInt(cnt[1], 10) + novasSS.length) + '"');
+    ss = ss.replace(/uniqueCount="\d+"/, 'uniqueCount="' + uniq + '"');
+    await trocarEntrada(zip, 'xl/sharedStrings.xml', ss);
+  }
+
+  const nomes = [...zip.keys()].filter(x => x !== 'xl/calcChain.xml');
+  return { arquivo: rezip(nomes, zip), transito: transito, semRota: [...new Set(semRota)],
+    linhas: ultimaDado - 1, resumo: resumo.length, vendas: vendas.blocos };
+}
+
+var MAPA_ROWS = null;
+
+/* ====================== RANKING DE TERCEIROS ====================== */
+function opcoes(ds, travas, topN, manter) {
+  const por = {};
+  ds.quotes.forEach(x => {
+    if (x.prop) {
+      const tv = travas[x.cli];
+      if (tv && x.uf !== tv) return;
+      const d = ds.proprios.get(x.cli);
+      if (!d || !(d.ton > 0)) return;
+    }
+    (por[x.sigla] || (por[x.sigla] = [])).push(x);
+  });
+  const usados = manter || {};
+  for (const s in por) {
+    por[s].sort((a, b) => b.net - a.net);
+    const n = topN || 8;
+    const corte = por[s].slice(0, n);
+    por[s].slice(n).forEach(x => { if ((usados[s] || []).indexOf(x.cli) >= 0) corte.push(x); });
+    por[s] = corte;
+  }
+  return por;
+}
+</script>
+<script>/* ====================== ESTADO ====================== */
+var PRISTINE = null;
+var STATES = {"AC":{"d":"M5 179L18 185L48 193L70 205L98 218L92 223L87 224L83 229L79 229L76 233L72 235L70 236L70 233L61 232L54 232L49 234L46 233L45 233L45 217L47 211L37 219L24 219L25 216L23 216L22 212L10 211L14 205L9 199L10 197L6 195L5 191L3 189L4 187L0 184L1 181L4 181L3 178L5 179Z","cx":56,"cy":217},"AL":{"d":"M511 202L515 203L515 204L499 226L497 225L496 223L492 221L491 219L480 214L474 210L481 203L482 205L484 204L491 210L493 209L496 210L501 207L501 206L503 204L511 202Z","cx":503,"cy":210},"AM":{"d":"M89 47L92 51L92 59L95 58L102 65L105 65L112 61L113 63L112 67L115 63L117 63L118 59L119 60L122 57L123 58L127 54L128 56L131 53L133 48L137 47L141 44L144 45L146 47L150 48L149 53L153 62L152 69L157 81L155 85L152 87L159 92L161 96L164 96L166 99L164 96L165 89L166 85L170 83L174 84L177 89L182 86L180 83L185 72L200 72L201 81L208 92L210 94L212 92L213 96L220 101L223 101L225 103L229 105L229 107L230 108L237 105L233 111L233 111L209 169L206 172L210 181L207 188L208 192L207 198L206 201L208 201L207 202L165 202L163 200L159 203L158 202L157 199L155 199L154 196L152 196L148 190L138 190L136 195L133 195L134 199L131 201L131 204L122 205L118 211L116 208L113 209L114 211L111 211L109 213L107 211L101 211L99 214L95 216L70 205L48 193L18 185L3 178L5 173L11 169L10 162L14 157L16 149L28 141L41 139L44 135L45 136L49 135L50 138L52 137L52 138L54 137L61 92L58 87L58 83L52 79L52 68L58 67L60 65L62 67L65 67L63 61L55 60L55 51L59 50L78 51L76 50L77 48L80 50L87 44L89 47Z","cx":120,"cy":113},"AP":{"d":"M303 18L304 20L305 32L309 45L312 44L315 50L319 51L320 59L317 66L313 67L310 73L302 78L296 87L296 91L294 92L292 92L291 94L286 91L286 88L285 88L285 84L283 84L283 80L279 78L276 70L277 66L273 63L273 58L271 59L270 56L264 55L261 51L255 50L254 41L256 41L257 43L260 44L266 44L268 42L271 44L274 42L276 43L275 45L279 45L284 40L287 30L297 18L298 13L302 16L303 18Z","cx":285,"cy":47},"BA":{"d":"M460 199L461 201L467 202L469 204L470 202L471 205L474 205L475 211L478 212L478 218L480 219L481 224L479 225L480 229L478 230L475 229L475 232L480 241L484 241L486 240L477 257L473 261L471 262L469 261L465 266L466 271L464 273L465 276L463 287L466 303L461 322L462 329L457 335L455 339L448 333L448 330L443 325L445 318L447 318L447 313L449 313L453 307L448 302L444 302L440 300L433 301L433 298L427 292L423 293L409 286L404 288L400 286L401 281L395 280L390 281L384 287L370 295L372 290L371 288L371 282L373 281L368 278L368 272L369 271L368 268L371 266L367 266L367 263L370 261L367 261L368 256L369 255L368 255L367 253L366 248L369 246L366 246L367 243L370 243L365 241L363 238L368 232L369 228L374 225L375 221L377 221L379 226L379 228L381 231L386 232L390 228L394 227L396 228L402 219L403 217L400 213L405 209L408 211L412 211L414 214L421 209L427 208L433 201L436 201L442 207L441 211L443 212L447 210L448 206L452 205L452 202L455 202L455 200L460 199Z","cx":426,"cy":265},"CE":{"d":"M451 117L461 122L469 129L471 129L477 137L487 145L482 146L475 161L474 163L472 163L470 166L470 167L471 168L469 172L469 173L467 176L470 180L469 184L465 188L463 188L460 184L456 181L448 182L444 182L446 173L441 171L439 162L439 150L434 146L437 136L436 134L434 134L435 129L433 129L434 126L432 124L434 120L433 118L444 116L451 117Z","cx":457,"cy":150},"ES":{"d":"M441 374L438 381L428 378L428 375L426 373L426 368L428 365L433 365L434 362L435 361L436 358L438 355L438 348L435 346L439 345L437 343L437 340L435 340L436 338L437 336L441 336L439 333L442 334L444 332L455 338L454 346L455 352L454 357L449 362L445 371L441 374Z","cx":444,"cy":361},"GO":{"d":"M316 254L314 260L327 266L327 263L330 259L332 261L334 259L337 263L337 267L338 264L339 266L343 264L343 266L344 265L347 267L349 269L350 264L353 266L361 262L365 262L366 260L367 262L370 261L367 263L368 267L371 266L368 268L369 271L368 272L368 278L373 281L371 282L370 290L368 290L365 287L365 291L359 292L359 294L360 295L359 299L361 303L354 306L354 299L353 298L342 298L341 306L354 306L352 312L355 315L356 319L351 326L355 328L353 331L354 335L346 341L341 338L334 339L332 338L329 340L327 343L325 341L321 343L318 342L314 344L311 349L308 352L307 355L304 352L287 346L286 344L280 343L279 341L282 339L277 338L278 334L275 327L278 317L284 313L283 309L287 306L288 304L293 303L298 292L304 290L305 281L307 278L307 273L310 267L312 258L316 254Z","cx":330,"cy":302},"MA":{"d":"M358 205L361 196L364 195L365 191L363 189L358 191L351 182L350 182L352 180L348 179L351 176L353 166L352 155L347 153L346 151L340 150L335 153L348 142L350 141L354 134L357 131L358 127L364 117L363 114L366 112L366 108L368 107L369 102L367 101L369 100L369 93L372 91L372 94L373 91L373 94L376 92L375 96L377 94L378 96L379 94L378 98L380 95L380 101L381 99L383 97L383 98L383 95L384 98L387 96L386 99L387 98L387 100L389 98L389 99L388 100L388 101L389 101L387 102L390 101L389 103L391 102L390 103L391 104L394 112L398 110L397 111L399 111L398 113L403 108L405 110L409 110L418 115L427 115L427 118L422 125L418 125L411 137L413 140L412 145L414 150L414 152L410 157L410 163L413 167L412 171L406 174L402 172L397 173L394 178L389 182L387 181L378 186L375 199L372 204L374 212L372 223L367 222L365 217L363 215L364 212L361 211L359 206L357 206L358 205Z","cx":379,"cy":139},"MG":{"d":"M395 280L401 281L400 286L404 288L409 286L423 293L427 292L433 298L433 301L442 300L444 302L448 302L452 305L452 309L449 313L447 313L447 318L445 318L443 325L449 332L448 333L444 332L442 334L439 333L441 336L437 336L436 338L435 340L437 340L437 343L439 345L435 346L438 348L438 355L436 358L435 361L434 362L433 365L428 365L427 367L427 372L425 376L422 376L423 377L420 386L421 387L410 392L408 391L401 392L379 400L375 399L374 403L367 404L367 402L365 401L366 399L362 395L363 393L362 392L363 391L362 389L365 383L363 382L358 383L355 375L357 372L354 369L355 365L352 362L350 363L347 362L346 364L345 363L343 364L342 363L342 364L334 365L333 369L332 365L329 367L328 364L328 362L324 361L320 362L312 359L305 364L305 358L314 344L318 342L321 343L325 341L327 343L329 340L332 338L334 339L341 338L346 341L354 335L353 331L355 328L352 327L351 325L356 319L352 312L354 305L361 303L359 299L360 295L359 294L359 292L365 291L365 287L368 290L371 289L370 295L384 287L390 281L395 280Z","cx":387,"cy":340},"MS":{"d":"M267 333L269 334L278 334L277 335L278 339L282 339L279 341L280 343L285 343L292 348L304 353L306 356L304 358L305 364L304 366L301 367L297 371L297 376L293 379L294 382L291 384L291 387L286 393L271 405L269 410L266 412L264 419L261 421L256 417L253 419L247 420L245 414L244 400L241 395L236 395L234 392L228 395L221 394L217 392L212 392L215 376L213 375L214 374L213 374L214 373L212 372L212 369L210 365L214 362L211 359L216 348L215 347L218 337L219 337L215 327L216 327L216 330L220 332L225 330L229 324L233 324L237 322L250 329L258 326L261 329L264 328L269 323L269 329L267 330L266 332L267 333Z","cx":247,"cy":367},"MT":{"d":"M181 266L185 261L185 257L189 253L184 245L184 242L187 239L186 235L181 235L180 233L165 233L166 225L164 221L166 217L165 215L166 214L164 209L165 208L166 204L165 202L207 202L208 201L206 201L208 192L207 188L210 181L217 194L218 201L223 204L225 207L228 208L229 211L315 217L310 229L309 240L310 254L309 257L312 260L310 267L307 273L307 278L305 281L304 290L298 292L293 303L288 304L287 306L283 309L283 313L278 317L276 324L275 329L278 334L266 333L267 329L269 329L269 323L264 328L261 329L258 326L250 329L237 322L233 324L229 324L225 330L220 332L216 330L216 327L212 326L207 322L206 315L208 309L183 309L183 298L178 292L182 292L182 285L179 279L181 276L180 273L176 272L181 269L181 266Z","cx":232,"cy":283},"PA":{"d":"M359 86L359 88L360 86L362 89L363 87L362 90L366 88L365 90L366 91L366 90L367 91L369 89L368 93L369 90L369 92L370 90L369 100L367 101L369 102L368 107L366 108L366 112L363 114L364 117L358 127L357 131L354 134L350 141L348 142L335 153L340 153L343 156L341 158L342 161L339 164L340 167L337 168L336 171L329 175L329 180L327 184L330 188L329 193L324 203L318 209L315 217L229 211L228 208L225 207L223 204L218 201L217 194L206 172L209 169L233 111L233 111L237 105L230 108L229 107L229 105L225 103L223 101L220 101L213 96L212 92L210 94L207 91L206 89L203 86L203 82L201 81L200 58L201 59L203 57L206 58L206 55L207 55L208 53L212 54L212 52L218 52L221 47L222 48L224 47L228 49L233 48L239 49L240 47L237 43L239 40L243 41L247 41L248 40L253 39L255 44L255 50L261 51L264 55L270 56L271 59L273 58L273 63L277 66L276 70L279 78L283 80L283 84L285 84L285 88L286 88L286 91L291 93L296 91L296 87L302 78L310 73L313 67L316 66L318 68L318 71L323 71L326 76L333 79L339 80L339 83L345 86L346 84L347 86L349 84L350 86L351 85L352 87L352 84L356 85L356 87L357 85L357 87L359 86Z","cx":285,"cy":145},"PB":{"d":"M488 162L489 164L486 167L484 172L487 172L488 174L493 172L495 176L497 173L497 170L498 171L497 168L499 166L500 166L501 168L503 168L504 169L509 168L515 170L518 169L520 178L520 184L516 182L511 183L510 186L504 188L498 188L498 189L496 190L496 192L491 195L489 193L488 190L486 190L489 187L489 184L491 183L488 180L484 181L481 186L477 188L474 188L473 186L470 187L468 185L470 180L467 176L469 173L469 172L471 168L470 167L471 167L471 168L476 169L481 166L481 165L488 162Z","cx":496,"cy":178},"PE":{"d":"M488 181L491 183L489 184L489 187L486 190L488 190L489 193L491 195L496 192L496 190L498 189L498 188L504 188L510 186L511 183L516 182L519 184L520 191L515 204L511 202L507 204L505 203L502 204L501 207L496 210L493 209L491 210L484 204L482 205L481 203L474 210L474 205L471 205L471 203L470 202L469 205L467 202L461 201L459 198L455 200L455 202L452 202L452 205L448 206L447 210L443 212L441 211L442 207L440 206L439 202L436 201L433 201L443 192L444 188L442 187L442 183L444 182L448 182L456 181L460 184L463 188L468 185L470 187L473 186L474 188L477 188L481 186L484 181L488 181Z","cx":471,"cy":196},"PI":{"d":"M428 116L434 119L432 124L434 126L433 129L435 129L434 134L436 134L437 136L434 146L439 150L439 162L441 171L446 173L444 182L442 183L442 187L444 188L443 192L433 201L427 208L421 209L414 214L412 211L408 211L405 209L400 213L403 217L402 219L396 228L394 227L390 228L386 232L381 231L379 228L379 226L377 221L374 223L372 222L374 212L372 204L375 199L378 187L380 184L387 181L389 182L394 178L397 173L402 172L406 174L412 171L413 167L410 163L410 157L414 152L414 150L412 145L413 140L411 137L418 125L422 125L427 119L426 116L428 116Z","cx":410,"cy":178},"PR":{"d":"M291 399L298 401L302 401L307 402L309 405L319 404L320 406L322 407L324 411L324 418L329 425L328 429L337 429L338 430L338 435L342 434L342 437L345 437L339 443L337 448L329 448L324 452L319 448L315 449L314 450L311 448L309 452L304 452L302 453L302 457L300 459L298 457L294 457L289 455L282 453L277 454L275 452L271 452L268 448L267 443L264 443L264 441L260 444L257 442L262 425L261 421L264 419L266 412L269 410L271 405L279 399L289 401L291 399Z","cx":303,"cy":435},"RJ":{"d":"M391 410L388 411L386 409L387 405L394 403L396 401L393 399L390 400L387 397L401 392L408 391L410 392L421 387L420 386L423 377L422 376L425 376L426 373L428 375L428 378L438 381L437 384L438 391L429 395L425 399L425 401L426 402L424 405L411 405L409 404L411 402L410 401L407 402L409 405L404 406L402 406L404 406L400 404L395 406L392 404L389 407L389 409L389 408L389 410L391 409L391 410Z","cx":412,"cy":401},"RN":{"d":"M489 147L491 146L495 149L504 148L511 150L514 154L518 169L515 170L509 168L504 169L503 168L501 168L500 166L499 166L497 168L498 171L497 170L497 173L495 176L493 172L488 174L487 172L484 172L489 163L481 165L481 166L476 169L470 167L472 163L474 163L476 160L482 146L487 145L489 147Z","cx":497,"cy":158},"RO":{"d":"M100 217L95 216L99 214L101 211L107 211L109 213L111 211L114 211L113 209L116 208L118 211L122 205L131 204L131 201L134 199L133 195L136 195L138 190L149 191L152 196L154 196L155 199L157 199L158 202L160 203L163 200L166 204L165 208L164 209L166 214L165 215L166 217L164 221L166 225L165 233L180 233L181 235L186 235L187 239L184 242L184 245L189 253L185 257L185 260L182 263L181 269L176 272L172 269L161 270L157 264L154 264L151 262L149 262L144 257L142 258L135 254L133 255L127 254L126 251L119 248L118 244L116 244L117 241L115 241L115 236L116 233L114 226L116 222L115 215L114 214L112 217L109 215L100 217Z","cx":144,"cy":237},"RR":{"d":"M187 31L186 37L187 42L189 43L189 49L190 49L190 51L192 51L196 56L200 58L200 72L185 72L180 83L182 86L179 88L176 88L174 84L171 83L167 85L165 87L164 95L166 99L164 96L161 96L159 92L152 87L155 85L157 81L152 69L153 60L149 53L150 48L141 44L141 41L137 42L132 40L133 36L130 31L130 25L126 22L122 15L125 17L130 17L133 21L135 19L137 20L137 18L139 21L140 19L143 19L143 21L146 24L148 22L149 23L149 18L152 18L153 16L157 18L159 16L160 17L162 15L165 15L166 13L169 12L168 11L173 11L174 8L178 5L176 1L180 2L183 0L186 4L184 11L190 13L189 16L192 19L188 25L188 28L187 31Z","cx":167,"cy":34},"RS":{"d":"M291 528L288 532L291 535L291 537L288 539L283 550L273 559L271 557L273 557L273 551L274 549L275 550L277 546L279 545L280 547L282 547L284 542L283 539L284 536L281 538L282 540L278 544L273 543L270 540L269 535L264 533L258 526L249 524L244 518L239 521L238 517L228 507L225 507L223 510L219 510L217 508L226 500L231 493L233 492L235 488L240 484L240 482L243 483L242 480L249 475L252 475L251 474L253 474L255 470L256 471L258 469L262 469L263 466L264 467L267 464L270 466L274 464L274 466L278 464L279 466L290 467L293 470L297 470L304 475L310 483L316 484L317 483L321 484L322 486L319 487L319 492L316 495L318 496L317 495L319 494L322 496L308 521L291 536L292 533L291 532L294 532L299 528L299 529L299 527L302 526L303 521L305 520L306 518L309 516L309 511L310 510L311 512L310 508L309 510L306 510L306 512L304 511L305 509L302 508L301 506L301 510L304 511L302 512L301 516L300 515L300 518L299 519L299 521L297 522L297 524L293 524L291 528Z","cx":276,"cy":508},"SC":{"d":"M269 456L270 452L275 452L277 454L282 453L294 457L298 457L300 459L302 457L302 453L304 452L309 452L311 448L314 450L315 449L319 448L324 452L329 448L336 448L338 451L336 459L337 460L337 464L339 465L337 466L338 467L336 470L337 475L335 484L328 490L322 496L319 494L317 495L318 496L316 494L319 493L319 487L322 486L321 484L317 483L316 484L310 483L304 475L297 470L293 470L290 467L279 466L278 464L274 466L274 464L272 465L268 465L270 462L269 456Z","cx":308,"cy":470},"SE":{"d":"M478 212L491 219L492 221L496 223L497 225L499 226L493 230L486 240L484 241L482 242L478 239L478 236L474 232L475 229L478 230L480 229L479 225L481 224L480 219L478 218L477 213L478 212Z","cx":490,"cy":230},"SP":{"d":"M370 418L369 419L368 420L366 419L359 424L347 434L344 438L345 437L342 437L342 434L340 435L339 434L338 435L337 435L338 430L337 429L328 429L329 425L324 418L324 411L323 408L320 406L319 404L309 405L307 402L302 401L296 401L290 398L289 401L284 399L277 400L286 393L291 387L291 384L294 382L293 379L297 376L297 371L301 367L304 366L306 363L311 360L328 362L328 366L332 365L333 369L334 365L342 364L342 363L343 364L345 363L346 364L347 362L350 363L352 362L355 365L354 369L357 372L355 375L358 383L363 382L365 383L362 389L363 391L362 392L363 393L362 395L366 399L365 401L367 402L367 404L374 403L375 399L379 400L387 397L390 400L393 399L396 401L394 403L387 405L386 409L388 411L386 410L384 413L379 414L379 417L373 416L370 418Z","cx":350,"cy":403},"TO":{"d":"M358 205L357 206L359 206L361 211L364 212L363 215L365 217L367 222L374 223L375 222L374 225L369 228L368 232L363 238L365 241L370 242L367 243L366 246L369 246L366 248L367 253L368 255L369 255L368 256L367 261L370 261L367 262L366 260L365 262L361 262L353 266L350 264L349 269L347 267L344 265L343 266L343 264L339 266L338 264L337 267L337 263L334 259L332 261L330 259L328 260L327 266L314 260L316 253L314 256L312 260L310 260L309 257L310 254L309 244L310 242L309 240L310 229L318 209L328 196L330 188L327 184L329 180L329 175L336 171L338 167L340 167L339 164L342 161L341 158L343 157L340 153L335 153L340 150L346 151L347 153L352 155L353 166L351 176L348 179L352 180L350 182L351 182L358 191L363 189L365 191L364 195L361 196L358 205Z","cx":344,"cy":225},"DF":{"d":"M354 306L341 306L342 298L353 298L354 299L354 306Z","cx":357,"cy":298}};
+var LOGOS = {"biopower":{"w":134.5,"b64":"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"},"flora":{"w":36.0,"b64":"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"},"friboi":{"w":79.0,"b64":"iVBORw0KGgoAAAANSUhEUgAAAJ4AAABICAMAAAAwPLx7AAAAwFBMVEXdFBboGSP3WGTtZmj0pKfbDxH6m6T75ejdDxP87vD93eL1Nke3BQX96+3pXGH0n6TnXWDymp73eYbrKl/3qtKvYGB7AAD6vMTpdJ6zs7P2vMPxfIPrOUXkOkD1u8J/f3+vD1/yfYPw2bz/AP//oV0A//9////aSCT/f/8AAADkARjdABD+/v79AADkByLvFyoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMExYSAAAAMHRSTlMS6vQMDV/wGp9a6/kGoZ6cXGD0CAkDAuoJA6FToldOAgOmHAEEAQIHAgD9+QYC/f27YTzHAAAOWklEQVR42q1ah3akuBJVAhE7O07e3ReEBPr/v3sVJKCTPR6/Pj52dxukq4q3qhBufgWtx/VLax2Cu/EK1vW9s+7N14+j25fqyRn3mZeYsd35/yiE0MZaRKqDNVrALVvV/nL6rXWNe1U+TlG6/wO8AGcMTank+qXKp6ZeX5qPspVyqJ7FjzeW1XACOXg/RPU8jp+Ed3LO/pKqjcPqFWPbKlnJqvq62fZ9D8q0fb/dVJWMvt28KbwgejV4WMRP0blPwju5eitbOKv3K3h+/hxlqxQgrST+gS9AeEY8vKlaNeW1ttaFz8Azri7xrNNw9ZoukNJf2Ljq3hFJQZLz8DMp/baVvgMv6LqU/ga2c6AT/4a/PgI68daioZYTHmNq4VBehPET8Iw7ALpFrf4+RtzMD2pj3kQXnG0iXirVBq35M8YnRifkrMRhpUTvr4wRzU7JPrytLQBDXiHL2pTwbh/G8OfwrEwCQ7MCL4gQNlp4yRjjRALL+qVo08D+b9vSaLUnKe9c3cAJG+te/ly5TeuT4iIcuMFQZxt4laVSrZSzMCEO9nhHZ9+WxYPT7LYFLC7gXmXcw5/Da9nuJi+bdPqVqdQlOM0S+SHTvaunLggOR0UQ+NZL7bo/hhc8x0+pxGUWPbn+gOjERxZEx6AFyxpMlOCJT8BzBG8aKn1lQsceLNu3T7+BKZzsnM7IH0C3QRydiGCEH4RnV9YjGspkHkz+Um/aVRGFZ99dXKcYkHQrGR4m6Q/DCwZ09WjCAo8Wq6y4RkcWqd4N+saF/rV3gq7rXEfWIkF6wh3lx+AhL+r7M+kxvMtIG2yPaXiQ+/e8AWQEuVhVFPFeRttTNFJ79yycbj8EDwLQtoKltvUDbypqDmwgvUsTVwS8em9t3ZkNhfNKmEdM4E9oyx4C1AmAf0h6QVtkOhQydTo6R+Ur6Y01M4LqJN4T3q4FE53kgJlYu53yTFRG81HbQ3LiiYl8Nd1PWtxS4B3a+sz2ArBTyufvEDuCV6SMCNlLwye2FgGq/ig8vJ7XUmlb4Q6UvlV5VhWAFUmK1eDR9vfgDahPI0L6VABPGSnu/T48uj7FdNamcOgB6Gk2RZaA/GcMlqWs+jG8D4/TYmPHQHkM14c3CV78bXjADMkyJnSsHK04rbZlWF8XZo9+jw2JsYjkGpQdxvCNtaPdMcH7/aRmnX1Cz/CQclgqguMb8Z8svQ5D/4FTcRXE+xZToBOB8DB3AEnBDwcDxjIyJfj9nAvOJdEfV54bXKM8SVA24BGub9CLRaJZ1ZjgHUmK4b83VP3sviipqCjOvudLkASIEuGVH2AsAVKikk092qUUCqZiXheROEWpgDgJSsXA2yHDlwcFuwXDejbhBv804vksNKCbhCS9D/K9oEUIuXpi2YwbtSKemOB0gielR2IKPHQHDCYAD3R3Ig0Zi3Z7DntfQhfsCKY0DOYzbJk7BGG3K2Pi64dXUJdLPGvKdZo81KBx1aptuGbLo/6pk0+lqAypFwtUFOXdWgNbDs9XTY6Xh3FRkMjqCXVRFGWzKYq9DSH0/rwyAgvf2XJgbn655IPohNB/o4ViCqGoTA72BbDeq9SMuGg+ZNUKcdQXPRbNX9R1yJRyyBR/roYKyKZQfNR/iYvO0LhWxjeZkgamuEJSvDneMAXYuO43m23t1ulUj7dbQEi06BxCmIBGxrpt5ab0MzzUm+fbVg7SObsrUOhwrFVOA3iQQagMP75Yc8HqRrcvykMrlSp2CwgQ0h6W2s2+fh7VuA8Fb/YH4tC+7AHolAI56c3D3STjMa3QafG1xVilYU0U2JDhdei4U2MfcEWh1+HDueKQytUoi1mHL+aLQgKQw96NelqjGbJ9Q06ru07SOlC1FpH7Gm2zFbVFYnyW1JI+Y4YHDruDd0guLR4orPhGjfdABJ6ouBbz1uRY0zADFtd1oO3LgZsanq57lBLqXwgsxdIpkOWTMLQjlGOUdQZ5dD/PpMfUz6MTlM1Wz52gYENdDlhCY+Hs0Rg025zIlOAuvPGh27RLxwVyGtwJFS/4a+IinppFPpd2UM5hsenPlYv5NzmuMQdwEKBEwaxY3YRCws33EHGntnOPWKbab2d85RqeOFbrVhWx1EdadCQYSycL9R3CD8PVJsAzDC9meOQmkwLWPWCrCqjZKXOIIUl4fMQ4jm2i8RGT4/5AZiLvwdNugxXGxN2BNYnOMP7TlDG3YgZI0sZtyaGHww14A9b28N9CQFqSLmkQLyGLw8/dv1ChLXbZZmJ71zUIBIhFDJfwjgDcozACxPrXks2QencMbyoxtXKoI3hmRB3K8DThdn8V4FEUHEQyBuBZI+1IZTv4uf2HlQ6GcA8eeFsFFbm9hkceAMJg4mIqjr7jDG94QkkeU1iWSNQwpUlXQjFaoOFGZZ8xtFZEzycwBs077oeUi/how0xGz+ARdQLtKvh7DW9kySNzQTuZgwlJFeGRonVKagBPhJ308hAOIJCyxrupV/OrYvqL0taJwUdkXQGtkANGuXfPl/CQGAT3EiD635Be6Gq8WaZLKTKQyQA8OazgfVEZHiKK35F2e9WC7Q2y32LffKDrIZtwrykEW4I97Rw2aVl6cBpzAQ9ywCalzw5+X8Jjo0yM3+Rg0gRqdZCl18ibTCJUAG+sERFEYMDjhxa2ng5q5hgYELndBbfV8PER0A1S+dvw4ONG8g4afr9ewhOEItbsfGHDGupX8JiWJjoKWg9wnthaaoNL7mP6hWHADQWluucTBFb4Yo/oNipz2dMZPAgJoPmGWWrugQGcNTxQiOSPbIcE6VFQqQLvdTiHh7DldoRsUeXOL/5K7USEWexTHnmB26GebXda0gFeoYQ/mwrpAHQk9/jB13kPLMJneBugF9uToaGK/crmY8ICj8JYSKUQwLNVEj5cUckW63Ec4yiZgU7DYVN8qet6X3iO8nXRJi47nhGqnGfGFIpOCZ7aZg+3YG7wyeT3eHUES/xxDs+OdZPoKOpWUgcEqV2DZldC5KNKDPSQqhtVlqWKE3fK3bfEJ8IZvFEYrgUZHpSRKsF7PWfGeonQ2dzO4blchoO0oUrZspIwZHFgESJV1Y2P3s8jgNQzCjPdOYM3Vwh5i1ysl/0CL+hjWOyQze0GvEQcKIqvgrqGr8k8OVtK2EKejUyo17sk4zU8kYZMyTWo75Xh2VvFcsWmd1N6TLvKBnjPOucUA0s7w3O6UT7N8STe8B20chOefgYegDtY1vmYFER9nOsaMIy9wqgnyzU8ucBDpeGUTi2yFzlrpDGFhDNi+dBDZSo0FtX34cEO4O0+lonRruDdqgGB4XHoteNK0wkelGoUHIBFAVnMh7NID2J7Bo9TBvW5O/+Gck8U30l4uaBepHejw4JpjOAlY0ua1smtUh1+1hokzhrBGNzTSnoPI/VeoAp9C54OG07jS2HI3esVLTwfhST2bsYUoj3D+5tD1FMqQStzfJg9HkDTBKJc4HHCDSBihNcs8OQZvGTpbWmzbdktl5ELsTmvPQkeCCMkqpD4EQr/ZQzba8sQoHLOiBfwUpnMzd5se9QbnOe5Xd3SHfU41wINO+5TfcNxw1jLNAkJc4iGdG+y4Xb5bGYp9k2RID1dwUuUoMPoOEtvgXfCBtq0uuM5580hNwEvelx8fds/UseM3XgqE7yODXfCm61bk0Wa3zTX8DDDe8wUGV6rV/D+cVs2vTz9mYP0IG6ZnnGcNnmikOHFMhWKXXb7ld1ykiZIfLRBhhnec4AkgB3e2/A0OSKykW6OUTFVJLeebtFOEumQ5NVX8GjUcgGPyqW2BF409lfSOya2jD2hG/AgO0aMemrpa6SC6fA9067zhg+mc7xe5J2HFbz1yC8szjRhkA5L1likNwbNtUb4TXghtQNu6jbt4NtDIl8X8MxqYDrnjJlcjSFTglW7G69PHZBr10jKhZj+M12f+q/34AWSXhqEQNCUDC+5xsxl4xzTnzUcISbuJ1OffWnsa5UqO3Er7pkL19Bhnxi/ufl8VlIuxBWT55YpayTbSwPTdaOkGtL8RnPg88sMm0bSE9VR8wBnzffsRWDpcqtnZ2/2hMG6U9g7Ud2ZiKUkMo+7tVTEQY2+F4Z7p9uWujUBmd8ppeh0dLgeM6oNj6v5EksPR7sCk0RFN/TkBzYViZMSd55WodMwPH5WalpKIWSyMZWDuVABhcbVkIzhgSliRxZK0kYSGdEu94+gALRQ9T5TS2G+A3zDhiXq+Z053uwJp6QhlTBHATGwTaV9b4AZub8gKE7Kzylbi9FhU6my4oVNp+SmQnwFUQpHDAKL0FUdhYMawB56Op8JWw7Dvevg27ql3pu6OyCYR6zY4/TD12x8tLsCFhr35cRThx0/TzUtRYvB05G44SuoQbbVwuRCB8k+PxbmAFXsBcb0+hAlXlXToyF4nCluzWO4M79IoavY7wo86fdUmBTwwogdC9fLNBUpdgWigzInz9SxB8bjCFUVBRTmclC9md2q5R7QZldUrfc991VA5/i8WLnbF3h8Mo1704iRswYUzYcWe0IWbJWGq0OkelxW7M5ccrcSn1hTYlZFMNisIMYx8CSl3eatzIPZpGdq8OHEFPkJ3+Sn9C3eV7nne5NIPW6Wh6pkCdsWq8ecJPjA0dkFHwlRrEIUGnecH3wCdJslN0Fw5iKM5pJVn54gwGAleX18WKmt3nrEDPsZfOEkodK1/DANFTURU5dO18T0yJhsz0eSBvBROx2XkEspzQ8TNJLiAKiiWo1dnAWRxzhNcZJpi7tTV4gm+NRqRH6N3XmsTeDOSSJ/TUi028J6sFz01Pg75zywWdprlfryQwIII5IzhVX7Dv73VCpV7t2/uZv8lvz6psTh36PO+zVKHXD0OD9V8oijXViuuWHEo6YHaRX5Yrikkw7+hXN/BPE/DRLUyH7X5GQAAAAASUVORK5CYII="}};
+var CIDADES = {"agua boa|MT":[289.7,277.1,-14.051,-52.16],"alta floresta|MT":[237.6,217.2,-9.867,-56.087],"anastacio|MS":[241.3,369.3,-20.482,-55.81],"andradina|SP":[300.1,375.2,-20.895,-51.379],"araguaina|TO":[342.2,178.9,-7.192,-48.204],"araputanga|MT":[207.7,297.4,-15.464,-58.343],"barra do garcas|MT":[288.3,303.4,-15.88,-52.264],"barretos|SP":[337.3,370.3,-20.553,-48.57],"campo grande|MS":[257.0,368.8,-20.449,-54.63],"casa de tabua|PA":[322.1,202.8,-8.858,-49.721],"colider|MT":[245.9,230.8,-10.813,-55.461],"confresa|MT":[297.5,228.3,-10.644,-51.57],"diamantino|MT":[233.0,282.2,-14.404,-56.437],"goiania|GO":[328.1,314.9,-16.686,-49.264],"itapetinga|BA":[447.7,294.3,-15.248,-40.248],"juara|MT":[218.6,237.2,-11.264,-57.524],"lins|SP":[321.6,386.3,-21.672,-49.753],"maraba|PA":[329.9,153.0,-5.381,-49.133],"mozarlandia|GO":[310.8,287.1,-14.746,-50.571],"navirai|MS":[262.7,406.2,-23.062,-54.2],"pimenta bueno|RO":[169.8,243.1,-11.672,-61.198],"pontes e lacerda|MT":[194.4,293.9,-15.222,-59.343],"porto velho|RO":[134.0,201.4,-8.761,-63.9],"redencao|PA":[317.9,190.8,-8.025,-50.032],"rio branco|AC":[81.9,218.8,-9.975,-67.824],"santana do araguaia|PA":[313.7,209.5,-9.328,-50.35],"sao miguel do guapore|RO":[149.6,243.4,-11.695,-62.719],"senador canedo|GO":[330.4,315.2,-16.708,-49.091],"tucuma|PA":[302.9,172.5,-6.747,-51.163],"vilhena|RO":[183.7,258.5,-12.75,-60.149],"campo verde|MT":[249.9,298.5,-15.545,-55.163],"luziania|GO":[345.6,308.7,-16.253,-47.95],"mafra|SC":[320.9,449.9,-26.116,-49.809],"alto araguaia|MT":[275.7,323.9,-17.315,-53.218],"amparo|SP":[361.2,401.1,-22.709,-46.772],"aparecida de goiania|GO":[328.4,316.8,-16.82,-49.247],"bariri|SP":[335.0,392.0,-22.073,-48.744],"batatais|SP":[350.3,375.1,-20.893,-47.592],"brazabrantes|GO":[326.5,311.2,-16.428,-49.386],"cacoal|RO":[166.4,239.7,-11.434,-61.456],"camacari|BA":[473.2,257.8,-12.7,-38.326],"cassilandia|MS":[295.4,349.7,-19.118,-51.731],"cruzalia|SP":[307.9,401.6,-22.737,-50.791],"cuiaba|MT":[237.5,299.3,-15.601,-56.097],"formosa|GO":[353.7,298.5,-15.54,-47.337],"iraquara|BA":[429.6,251.3,-12.243,-41.615],"itajuba|MG":[378.6,397.0,-22.422,-45.46],"jales|SP":[311.1,366.2,-20.267,-50.549],"lapa|PR":[322.1,445.0,-25.767,-49.717],"leme|SP":[353.1,393.6,-22.181,-47.384],"lucas do rio verde|MT":[240.0,262.9,-13.059,-55.904],"marialva|PR":[294.6,412.3,-23.484,-51.793],"mirandopolis|SP":[303.7,378.6,-21.131,-51.103],"nova marilandia|MT":[225.9,281.5,-14.357,-56.97],"palmas|TO":[340.2,222.6,-10.24,-48.356],"palmeiras de goias|GO":[319.4,316.6,-16.804,-49.924],"paragominas|PA":[353.5,118.9,-3.002,-47.353],"paulista|PE":[519.1,189.5,-7.934,-34.868],"porangatu|GO":[329.6,268.4,-13.439,-49.15],"ribeiraozinho|MT":[282.7,312.0,-16.486,-52.692],"rio brilhante|MS":[258.1,388.2,-21.803,-54.543],"rio verde|GO":[306.2,330.7,-17.792,-50.919],"santos|SP":[367.0,419.0,-23.953,-46.335],"simoes filho|BA":[472.2,259.0,-12.787,-38.403],"sto ant do taua|PA":[343.2,92.4,-1.152,-48.131],"sumare|SP":[354.5,402.7,-22.82,-47.273],"sao miguel do araguaia|GO":[316.2,266.0,-13.273,-50.163],"sao paulo|SP":[362.9,413.0,-23.533,-46.639],"teodoro sampaio|BA":[469.1,252.0,-12.295,-38.635],"tome acu|PA":[343.0,110.5,-2.413,-48.142],"varzea grande|MT":[237.0,300.0,-15.646,-56.132]};
+var RAW = null, PROGBUF = null;                 // {prog, nec, mapa} planilhas cruas
+var ST = null;                  // escolhas do usuário
+var DS, RES, OPS, PROD, NEC, MAPA, ULT_EXPORT = null;
+var UFSEL = null, EDIT = null, SUJO = false;
+
+var fmt0 = n => (n == null || !isFinite(n)) ? '—' : Math.round(n).toLocaleString('pt-BR');
+var fmt1 = n => (n == null || !isFinite(n)) ? '—' : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+var rs = n => (n == null || !isFinite(n)) ? '—' : 'R$ ' + fmt0(n);
+var sgn = n => (n > 0 ? '+' : '') + fmt0(n);
+var esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+var $ = s => document.querySelector(s);
+var $$ = s => [].slice.call(document.querySelectorAll(s));
+
+function grupo(cli) {
+  if (!DS.proprios.has(cli)) return 'ter';
+  return /biopower/i.test(cli) ? 'bio' : 'flo';
+}
+function logoDe(g) { return g === 'bio' ? LOGOS.biopower : g === 'flo' ? LOGOS.flora : null; }
+function img(l, cls) {
+  return l ? '<img class="' + cls + '" src="data:image/png;base64,' + l.b64 + '" alt="">' : '';
+}
+function carretas(t) { return t / 35; }
+
+/* ====================== IMPORTAÇÃO ====================== */
+var arquivos = {};
+
+function setupImport() {
+  $$('[data-pick]').forEach(b => b.onclick = () => $('[data-in="' + b.dataset.pick + '"]').click());
+  $$('[data-in]').forEach(i => i.onchange = e => {
+    if (e.target.files[0]) receber(i.dataset.in, e.target.files[0]);
+  });
+  $$('.drop').forEach(d => {
+    d.ondragover = e => { e.preventDefault(); d.classList.add('on'); };
+    d.ondragleave = () => d.classList.remove('on');
+    d.ondrop = e => {
+      e.preventDefault(); d.classList.remove('on');
+      if (e.dataTransfer.files[0]) receber(d.dataset.k, e.dataTransfer.files[0]);
+    };
+  });
+  $('#bImport').onclick = () => {
+    $('#importBox').classList.remove('hide');
+    $('#importBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  $('#bLoad').onclick = () => $('#loadIn').click();
+  $('#loadIn').onchange = e => { if (e.target.files[0]) abrirAndamento(e.target.files[0]); };
+  $('#bSave').onclick = salvarAndamento;
+  $('#bProg').onclick = exportarProg;
+  $('#bDist').onclick = distribuir;
+  $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
+}
+
+async function receber(k, file) {
+  const box = document.querySelector('.drop[data-k="' + k + '"]');
+  document.querySelector('[data-f="' + k + '"]').textContent = 'lendo ' + file.name + '…';
+  erro('');
+  try {
+    const buf = await file.arrayBuffer();
+    const sheets = await readXlsx({ arrayBuffer: async () => buf });
+    if (k === 'prog') { PROD = readProducao(sheets); PROGBUF = buf; }
+    if (k === 'mapa') MAPA = readMapa(sheets);
+    arquivos[k] = file.name;
+    box.classList.add('ok');
+    document.querySelector('[data-f="' + k + '"]').textContent = file.name;
+    if (PROD && MAPA) iniciar();
+  } catch (e) {
+    box.classList.remove('ok');
+    document.querySelector('[data-f="' + k + '"]').textContent = '';
+    erro(file.name + ': ' + e.message);
+  }
+}
+
+function erro(m) {
+  const e = $('#impErr');
+  e.textContent = m; e.classList.toggle('hide', !m);
+}
+
+function iniciar() {
+  RAW = { prod: PROD, mapa: MAPA, arquivos: arquivos };
+  if (!ST) ST = novoEstado();
+  if (!ST.nec) ST.nec = {};
+  if (!ST.fora) ST.fora = [];
+  if (!ST.extras) ST.extras = [];
+  ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
+  $('#importBox').classList.add('hide');
+  $('#app').classList.remove('hide');
+  $('#bSave').disabled = false; $('#bDist').disabled = false;
+  $('#bProg').disabled = !PROGBUF;
+  recalcular();
+}
+
+function novoEstado() {
+  return {
+    usuario: $('#who') ? $('#who').value : 'Usuário 1', salvoEm: null,
+    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: []
+  };
+}
+
+function montarNec() {
+  const det = detectarProprios(MAPA).filter(d => ST.fora.indexOf(d.cliente) < 0);
+  ST.extras.forEach(c => {
+    if (det.some(d => d.cliente === c)) return;
+    const r = MAPA.rows.find(x => x.cli === c);
+    if (r) det.push(dadosDestino(c, r.dst));
+  });
+  const ufsProd = new Set(PROD.plants.map(p => p.uf));
+  det.forEach(d => {
+    if (!(d.cliente in ST.travas))
+      ST.travas[d.cliente] = (/biopower/i.test(d.cliente) && ufsProd.has(d.uf)) ? d.uf : null;
+  });
+  det.sort((a, b) => a.cliente.localeCompare(b.cliente));
+  NEC = det.map(d => ({ cliente: d.cliente, cidade: d.cidade, uf: d.uf,
+    ton: +(ST.nec[d.cliente] || 0) }));
+}
+
+/* ====================== CÁLCULO ====================== */
+function recalcular() {
+  montarNec();
+  MAPA.rows.forEach(r => { r.ofEdit = (r.i in ST.ofEdits) ? ST.ofEdits[r.i] : null; });
+  MAPA_ROWS = MAPA.rows;
+  DS = montar(PROD, NEC, MAPA);
+  const otimo = resolver(DS, ST.travas, null);
+  RES = resolver(DS, ST.travas, ST.manual);
+  RES.alocFinal = RES.aloc;
+  RES.otimoNet = otimo.net;
+  RES.netFinal = RES.net;
+  const usados = {};
+  RES.aloc.forEach(a => (usados[a.sigla] || (usados[a.sigla] = [])).push(a.cli));
+  OPS = opcoes(DS, ST.travas, 8, usados);
+  render();
+}
+
+/* ====================== RENDER ====================== */
+function render() {
+  carimbo();
+  renderNecessidade();
+  renderKpis();
+  renderAvisos();
+  renderMapa();
+  renderTabela();
+  if (UFSEL) renderDetalhe(UFSEL);
+  else { const b = $('#detail'); b.classList.add('hide'); b.innerHTML = ''; }
+  persistir();
+}
+
+function carimbo() {
+  const sem = ST.semana ? 'Semana ' + fmt0(ST.semana) : 'Semana';
+  $('#sub').textContent = sem + (ST.periodo ? ' · ' + ST.periodo : '') +
+    (ST.dataMapa ? ' · cotações de ' + ST.dataMapa : '');
+  $('#stamp').innerHTML = ST.salvoEm
+    ? 'Última alteração<br><b>' + esc(ST.usuario) + '</b> · ' + esc(ST.salvoEm)
+    : 'Operando agora<br><b>' + esc(ST.usuario) + '</b>';
+  if ($('#who').value !== ST.usuario) {
+    const o = [].find.call($('#who').options, x => x.value === ST.usuario);
+    if (o) $('#who').value = ST.usuario;
+  }
+  $('#foot').textContent = RAW && RAW.arquivos
+    ? 'Fontes: ' + Object.values(RAW.arquivos).join(' · ')
+    : '';
+}
+
+function renderKpis() {
+  const tot = RES.alocFinal.reduce((s, a) => s + a.ton, 0);
+  const prop = RES.alocFinal.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
+  const ter = tot - prop;
+  const nTer = new Set(RES.alocFinal.filter(a => !a.prop).map(a => a.cli)).size;
+  const k = [
+    ['Toneladas da semana', fmt0(tot) + ' t', DS.plants.length + ' unidades produzindo'],
+    ['Comprometido com fábrica própria', fmt0(prop) + ' t',
+      NEC.filter(d => d.ton > 0).length + ' fábricas · ' + fmt1(carretas(prop)) + ' carretas'],
+    ['Excedente para terceiros', fmt0(ter) + ' t',
+      nTer + (nTer === 1 ? ' cliente' : ' clientes') + ' · ' + fmt1(carretas(ter)) + ' carretas']
+  ];
+  $('#kpis').innerHTML = k.map(x =>
+    '<div class="kpi"><div class="lb">' + x[0] + '</div>' +
+    '<div class="vl num">' + x[1] + '</div><div class="sb">' + esc(x[2]) + '</div></div>').join('');
+}
+
+function renderAvisos() {
+  let h = '';
+  const semCotacao = c => !DS.quotes.some(q => q.cli === c);
+  const faltasReais = RES.faltas.filter(f => !semCotacao(f.cliente));
+  if (faltasReais.length) {
+    h += '<div class="warn bad">Não deu para fechar o volume de <b>' +
+      faltasReais.map(f => esc(f.cliente) + '</b> (' + fmt0(f.atendido) + ' t de ' + fmt0(f.pedido) + ' t)').join(', <b>') +
+      '. Falta produção elegível — confira a trava de estado ou o volume pedido.</div>';
+  }
+  if (DS.naoMapeadas.length) {
+    h += '<div class="warn">Não consegui identificar a unidade <b>' +
+      DS.naoMapeadas.map(esc).join('</b>, <b>') + '</b> do Mapa de ofertas. ' +
+      'Essas cotações ficaram de fora. Use a sigla de três letras para resolver.</div>';
+  }
+  if (RES.semTerceiro.length) {
+    h += '<div class="warn">Sem nenhuma cotação de terceiro para <b>' +
+      RES.semTerceiro.map(esc).join('</b>, <b>') + '</b>. O excedente dessas unidades só tem ' +
+      'como ir para fábrica própria.</div>';
+  }
+  const semGeo = DS.plants.filter(p => !CIDADES[norm(p.cidade) + '|' + p.uf])
+    .map(p => titulo(p.cidade));
+  if (semGeo.length) {
+    h += '<div class="warn">Não tenho a coordenada de <b>' +
+      [...new Set(semGeo)].map(esc).join('</b>, <b>') + '</b>. No mapa ' +
+      (semGeo.length > 1 ? 'essas unidades aparecem' : 'essa unidade aparece') +
+      ' no centro do estado. Os números não são afetados.</div>';
+  }
+  if (MAPA.modalCol && !MAPA.modalCol.ok) {
+    h += '<div class="warn bad">Não identifiquei a coluna de <b>CIF/FOB</b> no Mapa de ofertas' +
+      (MAPA.modalCol.cabecalho ? ' (li a coluna "' + esc(MAPA.modalCol.cabecalho) + '")' : '') +
+      '. O modal e a data de entrega vão sair em branco na programação.</div>';
+  } else if (MAPA.modalCol && MAPA.modalCol.trocada) {
+    h += '<div class="warn">A coluna de CIF/FOB do Mapa mudou de lugar. Identifiquei pelos ' +
+      'valores, na coluna <b>' + esc(MAPA.modalCol.cabecalho || '(sem título)') + '</b>.</div>';
+  }
+  if (RES.sobra.length) {
+    h += '<div class="warn bad">Sobrou volume sem destino em <b>' +
+      RES.sobra.map(esc).join('</b>, <b>') + '</b>. Abra a unidade e distribua o que falta.</div>';
+  }
+  const semCot = NEC.filter(d => d.ton > 0 && semCotacao(d.cliente)).map(d => d.cliente);
+  if (semCot.length) {
+    h += '<div class="warn bad"><b>' + semCot.map(esc).join('</b>, <b>') +
+      '</b> não tem nenhuma cotação no Mapa de ofertas, então não dá para alocar volume. ' +
+      'Peça a inclusão da linha no Mapa.</div>';
+  }
+  if (RES.foraDeCotacao.length) {
+    h += '<div class="warn bad">Sem cotação no Mapa para <b>' +
+      RES.foraDeCotacao.map(esc).join('</b>, <b>') + '</b>.</div>';
+  }
+  if (ULT_EXPORT) {
+    const t = ULT_EXPORT.transito;
+    if (t.length) {
+      const dias = t.map(x => x.dias);
+      h += '<div class="warn">Programação exportada com <b>' + ULT_EXPORT.linhas +
+        ' linhas</b>. Estimei a data de entrega de <b>' + t.length +
+        '</b> cargas CIF, entre ' + Math.min.apply(null, dias) + ' e ' +
+        Math.max.apply(null, dias) + ' dias de trânsito. FOB fica em branco.</div>';
+    }
+    if (ULT_EXPORT.semRota.length) {
+      h += '<div class="warn bad">Não tenho a coordenada de <b>' +
+        ULT_EXPORT.semRota.map(esc).join('</b>, <b>') +
+        '</b>, então a data de entrega dessas cargas saiu em branco.</div>';
+    }
+  }
+  const nMan = Object.keys(ST.manual).filter(s => (ST.manual[s] || []).length).length;
+  if (nMan) {
+    const perda = RES.otimoNet - RES.netFinal;
+    h += '<div class="warn"><b>' + nMan + (nMan > 1 ? ' unidades estão' : ' unidade está') +
+      '</b> fora da indicação do modelo. Isso custa <b>' + rs(perda) +
+      '</b> de NET na semana. <button class="mini" onclick="zerarManual()">voltar ao ótimo</button></div>';
+  }
+  $('#avisos').innerHTML = h;
+}
+
+function zerarManual() { ST.manual = {}; EDIT = null; recalcular(); }
+
+/* ---------- necessidade ---------- */
+function renderNecessidade() {
+  let h = '';
+  NEC.forEach(d => {
+    const g = grupo(d.cliente);
+    const car = carretas(d.ton);
+    const quebr = d.ton > 0.01 && Math.abs(car - Math.round(car)) > 0.01;
+    const tv = ST.travas[d.cliente];
+    h += '<div class="nrow">' + img(logoDe(g), 'lg') +
+      '<span class="nm">' + esc(d.cliente) + '</span>' +
+      '<span class="cd">' + esc(d.cidade || '') + (d.uf ? ' · ' + d.uf : '') + '</span>' +
+      '<label class="tv"><input type="checkbox" data-tv="' + esc(d.cliente) + '"' +
+      (tv ? ' checked' : '') + (d.uf ? '' : ' disabled') + '> só recebe de ' + (d.uf || '—') + '</label>' +
+      '<input class="v" type="number" min="0" step="35" value="' + Math.round(d.ton) +
+      '" data-nec="' + esc(d.cliente) + '" aria-label="volume de ' + esc(d.cliente) + '">' +
+      '<span class="un">t</span>' +
+      '<span class="cr' + (quebr ? ' bad' : '') + '">' +
+      (d.ton > 0.01 ? fmt1(car) + ' carretas' + (quebr ? ' ⚠' : '') : '') + '</span>' +
+      '<button class="x" data-tira="' + esc(d.cliente) + '" title="tirar da lista">×</button>' +
+      '</div>';
+  });
+  $('#necRows').innerHTML = h;
+  const tot = NEC.reduce((s2, d) => s2 + d.ton, 0);
+  const prodTot = DS ? DS.plants.reduce((s2, p) => s2 + p.ton, 0) : 0;
+  $('#necBox').classList.toggle('sujo', SUJO);
+  $('#pend').classList.toggle('hide', !SUJO);
+  $('#necTot').innerHTML = tot > 0
+    ? '<b>' + fmt0(tot) + ' t</b> comprometidos · sobram ' + fmt0(prodTot - tot) + ' t para terceiros'
+    : '<span class="dim">Digite o volume de cada fábrica e clique em Rodar.</span>';
+
+  $$('[data-nec]').forEach(i => {
+    i.oninput = () => {
+      const v = parseFloat(i.value);
+      ST.nec[i.dataset.nec] = isFinite(v) && v > 0 ? v : 0;
+      marcarSujo();
+    };
+    i.onkeydown = e => { if (e.key === 'Enter') rodar(); };
+  });
+  $$('[data-tv]').forEach(c => c.onchange = () => {
+    const d = NEC.find(x => x.cliente === c.dataset.tv);
+    ST.travas[c.dataset.tv] = c.checked ? d.uf : null;
+    marcarSujo();
+  });
+  $$('[data-tira]').forEach(b => b.onclick = () => {
+    const c = b.dataset.tira;
+    ST.fora.push(c);
+    ST.extras = ST.extras.filter(x => x !== c);
+    delete ST.nec[c];
+    rodar();
+  });
+}
+
+function marcarSujo() {
+  SUJO = true;
+  $('#necBox').classList.add('sujo');
+  $('#pend').classList.remove('hide');
+  const tot = Object.keys(ST.nec).reduce((s2, c) =>
+    s2 + (NEC.some(d => d.cliente === c) ? +ST.nec[c] || 0 : 0), 0);
+  const prodTot = DS ? DS.plants.reduce((s2, p) => s2 + p.ton, 0) : 0;
+  $('#necTot').innerHTML = tot > 0
+    ? '<b>' + fmt0(tot) + ' t</b> comprometidos · sobram ' + fmt0(prodTot - tot) + ' t para terceiros'
+    : '<span class="dim">Digite o volume de cada fábrica e clique em Rodar.</span>';
+  persistir();
+}
+
+function rodar() {
+  SUJO = false; EDIT = null;
+  recalcular();
+  $('#kpis').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function ligarAddNec() {
+  $('#bRodar').onclick = rodar;
+  $('#bAddNec').onclick = () => {
+    const cx = $('#addNec'), sel = $('#selNec');
+    const usados = NEC.map(d => d.cliente);
+    sel.innerHTML = clientesDoMapa(MAPA).filter(c => usados.indexOf(c.cliente) < 0)
+      .map(c => '<option value="' + esc(c.cliente) + '">' + esc(c.cliente) + '</option>').join('');
+    cx.classList.toggle('hide');
+  };
+  $('#bAddNo').onclick = () => $('#addNec').classList.add('hide');
+  $('#bAddOk').onclick = () => {
+    const c = $('#selNec').value;
+    if (c) {
+      ST.fora = ST.fora.filter(x => x !== c);
+      if (ST.extras.indexOf(c) < 0) ST.extras.push(c);
+      ST.nec[c] = ST.nec[c] || 0;
+    }
+    $('#addNec').classList.add('hide');
+    rodar();
+  };
+}
+
+/* ---------- mapa ---------- */
+function ponto(cidade, uf) {
+  const p = CIDADES[norm(cidade) + '|' + uf];
+  if (p) return { x: p[0], y: p[1] };
+  const s = STATES[uf];
+  return s ? { x: +s.cx, y: +s.cy, aprox: true } : null;
+}
+
+function nomeCurto(cliente, cidade) {
+  const base = cliente.replace(/^JBS\s*-\s*/, '').trim();
+  if (!cidade) return base;
+  if (norm(base).indexOf(norm(cidade)) >= 0) return base;
+  return base.split(/[\s-]/)[0] + ' ' + cidade;
+}
+
+function marcadores() {
+  const itens = [];
+  DS.plants.forEach(p => {
+    const q = ponto(p.cidade, p.uf);
+    if (!q) return;
+    itens.push({
+      tipo: 'un', x: q.x, y: q.y, aprox: q.aprox, uf: p.uf, g: 'jbs',
+      nome: p.sigla, det: titulo(p.cidade) + ' · ' + fmt0(p.ton) + ' t', ton: p.ton
+    });
+  });
+  NEC.forEach(d => {
+    const q = ponto(d.cidade, d.uf);
+    if (!q) return;
+    itens.push({
+      tipo: 'dest', x: q.x, y: q.y, aprox: q.aprox, uf: d.uf, g: grupo(d.cliente),
+      nome: nomeCurto(d.cliente, d.cidade), cliente: d.cliente,
+      det: d.ton > 0 ? fmt0(d.ton) + ' t na semana' : 'sem volume nesta semana'
+    });
+  });
+  // separa os que caem no mesmo ponto
+  const grupos = {};
+  itens.forEach(i => {
+    const k = Math.round(i.x) + ',' + Math.round(i.y);
+    (grupos[k] || (grupos[k] = [])).push(i);
+  });
+  Object.keys(grupos).forEach(k => {
+    const g = grupos[k];
+    if (g.length < 2) return;
+    const raio = 4 + g.length;
+    g.forEach((i, n) => {
+      const a = -Math.PI / 2 + n * 2 * Math.PI / g.length;
+      i.x += Math.cos(a) * raio; i.y += Math.sin(a) * raio;
+    });
+  });
+  return itens;
+}
+
+function valorUF(uf) {
+  return DS.plants.filter(p => p.uf === uf).reduce((s, p) => s + p.ton, 0) || null;
+}
+
+function renderMapa() {
+  const porUF = {};
+  Object.keys(STATES).forEach(uf => porUF[uf] = valorUF(uf));
+  let h = '';
+  Object.keys(STATES).forEach(uf => {
+    const s = STATES[uf], ativo = porUF[uf] != null;
+    h += '<path class="uf' + (ativo ? '' : ' off') + (uf === UFSEL ? ' sel' : '') +
+      '" d="' + s.d + '" data-uf="' + uf + '"' + (ativo ? ' fill="var(--c1)"' : '') + '></path>';
+  });
+  h += arcosSvg();
+  Object.keys(STATES).forEach(uf => {
+    if (porUF[uf] == null) return;
+    const s = STATES[uf];
+    h += '<text class="lb" x="' + s.cx + '" y="' + s.cy + '">' + uf + '</text>';
+  });
+
+  const itens = marcadores();
+  const raio = t => 2.4 + Math.sqrt(t / 35) * 1.4;
+  itens.filter(i => i.tipo === 'un').forEach((i, k) => {
+    h += '<circle class="mk un' + (UFSEL && i.uf !== UFSEL ? ' fora' : '') + '" data-mk="' + k +
+      '" cx="' + i.x.toFixed(1) + '" cy="' + i.y.toFixed(1) + '" r="' + raio(i.ton).toFixed(1) + '"></circle>';
+  });
+  const dests = itens.filter(i => i.tipo === 'dest');
+  dests.forEach((i, k) => {
+    h += '<circle class="mk dest ' + i.g + '" data-dk="' + k + '" cx="' + i.x.toFixed(1) +
+      '" cy="' + i.y.toFixed(1) + '" r="6"></circle>';
+  });
+  // rótulos à direita, empilhados para não se sobreporem
+  const rot = dests.map((i, k) => ({ i: i, k: k, y: i.y + 14 }))
+    .sort((a, b) => a.y - b.y);
+  for (let j = 1; j < rot.length; j++) {
+    if (Math.abs(rot[j].i.x - rot[j - 1].i.x) > 60) continue;
+    if (rot[j].y - rot[j - 1].y < 11) rot[j].y = rot[j - 1].y + 11;
+  }
+  rot.forEach(r => {
+    const x = r.i.x + 10, y = r.y;
+    h += '<path class="guia" d="M' + r.i.x.toFixed(1) + ' ' + (r.i.y + 6).toFixed(1) +
+      'L' + r.i.x.toFixed(1) + ' ' + (y - 3.5).toFixed(1) + 'L' + x.toFixed(1) + ' ' +
+      (y - 3.5).toFixed(1) + '"></path>' +
+      '<text class="dlb" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '">' +
+      esc(r.i.nome) + '</text>';
+  });
+
+  const map = $('#map');
+  map.innerHTML = h;
+  const t = $('#tip');
+  const some = () => t.style.opacity = 0;
+  map.querySelectorAll('path.uf:not(.off)').forEach(p => {
+    p.onclick = () => { UFSEL = (UFSEL === p.dataset.uf ? null : p.dataset.uf); EDIT = null; render(); };
+    p.onmouseenter = e => tip(e, p.dataset.uf, porUF[p.dataset.uf]);
+    p.onmousemove = e => tip(e, p.dataset.uf, porUF[p.dataset.uf]);
+    p.onmouseleave = some;
+  });
+  const uns = itens.filter(i => i.tipo === 'un');
+  const liga = (sel, lista) => map.querySelectorAll(sel).forEach(el => {
+    const i = lista[+(el.dataset.mk != null ? el.dataset.mk : el.dataset.dk)];
+    const texto = i.nome + ' · ' + i.det + (i.aprox ? ' · posição aproximada' : '');
+    el.onmouseenter = e => tipTxt(e, texto);
+    el.onmousemove = e => tipTxt(e, texto);
+    el.onmouseleave = some;
+    el.onclick = () => { UFSEL = (UFSEL === i.uf ? null : i.uf); EDIT = null; render(); };
+  });
+  liga('circle.mk.un', uns);
+  liga('circle.mk.dest', dests);
+
+  const tons = uns.map(i => i.ton);
+  const mn = Math.min.apply(null, tons), mx = Math.max.apply(null, tons);
+  $('#legend').innerHTML =
+    '<svg class="lgd" viewBox="0 0 44 20" aria-hidden="true">' +
+    '<circle cx="8" cy="12" r="' + raio(mn).toFixed(1) + '"></circle>' +
+    '<circle cx="30" cy="12" r="' + raio(mx).toFixed(1) + '"></circle></svg>' +
+    '<span>' + fmt0(mn) + ' a ' + fmt0(mx) + ' t por unidade</span>' +
+    '<i class="dot jbs"></i><span>Friboi</span>' +
+    '<i class="dot bio"></i><span>BioPower</span>' +
+    '<i class="dot flo"></i><span>Flora</span>';
+}
+
+function tipTxt(e, txt) {
+  const t = $('#tip'), box = $('.mapbox').getBoundingClientRect();
+  t.textContent = txt;
+  t.style.left = (e.clientX - box.left + 12) + 'px';
+  t.style.top = (e.clientY - box.top + 12) + 'px';
+  t.style.opacity = 1;
+}
+
+function tip(e, uf, v) {
+  const t = $('#tip'), box = $('.mapbox').getBoundingClientRect();
+  t.textContent = uf + (v != null ? ' · ' + fmt0(v) + ' t' : '');
+  t.style.left = (e.clientX - box.left + 12) + 'px';
+  t.style.top = (e.clientY - box.top + 12) + 'px';
+  t.style.opacity = 1;
+}
+
+function arcosSvg() {
+  const cor = { bio: 'var(--bio)', flo: 'var(--flora)' };
+  const pos = {};
+  DS.plants.forEach(p => pos[p.sigla] = ponto(p.cidade, p.uf));
+  const dest = {};
+  NEC.forEach(d => dest[d.cliente] = ponto(d.cidade, d.uf));
+  let h = '';
+  RES.alocFinal.forEach(a => {
+    if (!a.prop) return;
+    const A = pos[a.sigla], B = dest[a.cli];
+    if (!A || !B) return;
+    if (Math.abs(A.x - B.x) < 2 && Math.abs(A.y - B.y) < 2) return;
+    const mx = (A.x + B.x) / 2 + (B.y - A.y) * .16, my = (A.y + B.y) / 2 - (B.x - A.x) * .16;
+    const d = 'M' + A.x.toFixed(0) + ' ' + A.y.toFixed(0) + 'Q' + mx.toFixed(0) + ' ' +
+      my.toFixed(0) + ' ' + B.x.toFixed(0) + ' ' + B.y.toFixed(0);
+    const apaga = UFSEL && a.uf !== UFSEL ? ' fora' : '';
+    h += '<path class="arc' + apaga + '" d="' + d + '" stroke="' + cor[grupo(a.cli)] + '"></path>';
+  });
+  return h;
+}
+
+/* ---------- tabela por estado ---------- */
+function renderTabela() {
+  const ufs = [...new Set(DS.plants.map(p => p.uf))].sort();
+  let h = '<thead><tr><th>Estado</th><th>Unid.</th><th>Produção</th>' +
+    '<th>Fábrica própria</th><th>Terceiros</th></tr></thead><tbody>';
+  ufs.forEach(uf => {
+    const plantas = DS.plants.filter(p => p.uf === uf);
+    const prod = plantas.reduce((s, p) => s + p.ton, 0);
+    const linhas = RES.alocFinal.filter(a => a.uf === uf);
+    const pp = linhas.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
+    const tt = linhas.filter(a => !a.prop).reduce((s, a) => s + a.ton, 0);
+    const cel = v => v > 0.01 ? fmt0(v) + ' t' : '<span class="dim">—</span>';
+    h += '<tr data-uf="' + uf + '"' + (uf === UFSEL ? ' class="sel"' : '') + '>' +
+      '<td><b>' + uf + '</b></td>' +
+      '<td class="num dim">' + plantas.length + '</td>' +
+      '<td class="num">' + fmt0(prod) + ' t</td>' +
+      '<td class="num">' + cel(pp) + '</td>' +
+      '<td class="num">' + cel(tt) + '</td></tr>';
+  });
+  $('#tblUF').innerHTML = h + '</tbody>';
+  $$('#tblUF tbody tr').forEach(tr => tr.onclick = () => {
+    UFSEL = (UFSEL === tr.dataset.uf ? null : tr.dataset.uf); EDIT = null; render();
+    if (UFSEL) $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+/* ---------- detalhe do estado ---------- */
+function renderDetalhe(uf) {
+  const box = $('#detail'); box.classList.remove('hide');
+  const plantas = DS.plants.filter(p => p.uf === uf);
+  const prod = plantas.reduce((s, p) => s + p.ton, 0);
+  const linhas = RES.alocFinal.filter(a => a.uf === uf);
+
+  let h = '<div class="dhead"><h2>' + uf + '</h2><span class="sub">' +
+    fmt0(prod) + ' t em ' + plantas.length + (plantas.length > 1 ? ' unidades' : ' unidade') +
+    ' · ' + fmt1(carretas(prod)) + ' carretas</span></div>';
+
+  const dest = {};
+  linhas.forEach(a => dest[a.cli] = (dest[a.cli] || 0) + a.ton);
+  const ord = Object.keys(dest).sort((a, b) => dest[b] - dest[a]);
+  h += '<div class="cmp">';
+  ord.forEach(cli => {
+    const g = grupo(cli);
+    h += '<div class="cbox ' + g + '">' + img(logoDe(g), 'lg') +
+      '<div class="nm">' + esc(cli) + '</div>' +
+      '<div class="vl num">' + fmt0(dest[cli]) + ' t</div>' +
+      '<div class="sb">' + fmt1(carretas(dest[cli])) + ' carretas · ' +
+      (g === 'ter' ? 'terceiro' : 'fábrica própria') + '</div></div>';
+  });
+  h += '</div>';
+
+  h += '<div class="orig">' + img(LOGOS.friboi, 'lgo') +
+    '<h3>Para onde vai cada unidade</h3></div>';
+  plantas.forEach(p => {
+    const linhas = RES.alocFinal.filter(a => a.sigla === p.sigla);
+    h += '<div class="plant"><div class="prow">' +
+      '<span class="sg">' + p.sigla + '</span>' +
+      '<span class="cd">' + esc(titulo(p.cidade)) + '</span>' +
+      '<span class="tn num">' + fmt0(p.ton) + ' t</span>' +
+      ((OPS[p.sigla] || []).length
+        ? '<button class="mini" data-ed="' + p.sigla + '">' +
+        (EDIT === p.sigla ? 'fechar' : 'trocar destino') + '</button>' : '') +
+      '</div>';
+    linhas.forEach(a => {
+      const g = grupo(a.cli);
+      h += '<div class="dest"><span class="dot ' + g + '"></span>' +
+        '<span class="nm">' + esc(a.cli) + (a.man ? ' <span class="tagm">alterado</span>' : '') + '</span>' +
+        '<span class="mn num">' + rs(a.net) + '/t</span>' +
+        '<span class="tn num">' + fmt0(a.ton) + ' t</span></div>';
+    });
+    if (EDIT === p.sigla) h += editorHtml(p.sigla, p.ton);
+    h += '</div>';
+  });
+
+  box.innerHTML = h;
+  $$('[data-ed]').forEach(b => b.onclick = () => {
+    EDIT = (EDIT === b.dataset.ed ? null : b.dataset.ed); renderDetalhe(uf);
+  });
+  ligarEditor(uf);
+}
+
+function titulo(s) {
+  return String(s).toLowerCase().replace(/(^|[ '-])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase());
+}
+
+/* ---------- editor de terceiros ---------- */
+function editorHtml(sigla, total) {
+  const ops = OPS[sigla] || [];
+  const best = ops.length ? ops[0].net : 0;
+  const atual = ST.manual[sigla];
+  const volDe = cli => {
+    if (atual) { const m = atual.find(x => x.cli === cli); return m ? m.ton : 0; }
+    const a = RES.alocFinal.find(x => x.sigla === sigla && x.cli === cli);
+    return a ? a.ton : 0;
+  };
+  let h = '<div class="editor"><h4>Destinos de ' + sigla + ' — ' + fmt0(total) + ' t na semana</h4>' +
+    '<p class="hint">Todas as ofertas para esta unidade, ranqueadas por NET. Ajuste os volumes ' +
+    'até fechar o total. O que você fixar aqui vira regra, e o modelo redistribui o resto. ' +
+    'Carreta cheia = 35 t.</p>';
+  ops.forEach((o, i) => {
+    const v = volDe(o.cli);
+    const car = carretas(v);
+    const quebr = v > 0.01 && Math.abs(car - Math.round(car)) > 0.01;
+    const linhaMapa = MAPA.rows[o.src];
+    const ofAtual = linhaMapa.ofEdit != null ? linhaMapa.ofEdit : linhaMapa.of;
+    h += '<div class="opt' + (v > 0.01 ? '' : ' off') + '">' +
+      '<span class="rk">' + (i + 1) + '</span>' +
+      '<span class="dot ' + grupo(o.cli) + '"></span>' +
+      '<span class="nm">' + esc(o.cli) + '</span>' +
+      '<span class="nt num">' + rs(o.net) + '</span>' +
+      '<span class="gp num">' + (i ? '−' + fmt0(best - o.net) : '') + '</span>' +
+      '<input class="of num" type="number" step="10" value="' + Math.round(ofAtual) +
+      '" data-of="' + o.src + '" title="oferta na planilha">' +
+      '<input class="vol num" type="number" min="0" step="35" value="' + Math.round(v) +
+      '" data-vol="' + esc(o.cli) + '">' +
+      '<span class="cr' + (quebr ? ' bad' : '') + '">' + (v > 0.01 ? fmt1(car) + ' carretas' + (quebr ? ' ⚠' : '') : '') + '</span>' +
+      '</div>';
+  });
+  const soma = ops.reduce((s, o) => s + volDe(o.cli), 0);
+  const dif = total - soma;
+  h += '<div class="edfoot">';
+  if (Math.abs(dif) > 0.01) h += '<span class="rest">' +
+    (dif > 0 ? 'falta destinar ' + fmt0(dif) + ' t' : 'passou ' + fmt0(-dif) + ' t do que a unidade produz') +
+    '</span>';
+  h += '<button class="mini" data-reset="' + sigla + '">voltar à indicação</button>';
+  h += '<span class="dim">a oferta em azul recalcula o NET e refaz a alocação</span></div></div>';
+  return h;
+}
+
+function ligarEditor(uf) {
+  $$('[data-vol]').forEach(inp => inp.onchange = () => {
+    const sigla = EDIT, ops = OPS[sigla] || [];
+    const cur = {};
+    ops.forEach(o => {
+      const el = document.querySelector('[data-vol="' + CSS.escape(o.cli) + '"]');
+      cur[o.cli] = el ? (parseFloat(el.value) || 0) : 0;
+    });
+    ST.manual[sigla] = ops.map(o => ({ cli: o.cli, ton: cur[o.cli] })).filter(x => x.ton > 0.01);
+    recalcular();
+  });
+  $$('[data-of]').forEach(inp => inp.onchange = () => {
+    const i = +inp.dataset.of, v = parseFloat(inp.value);
+    if (isFinite(v) && v > 0) ST.ofEdits[i] = v; else delete ST.ofEdits[i];
+    recalcular();
+  });
+  $$('[data-reset]').forEach(b => b.onclick = () => {
+    delete ST.manual[b.dataset.reset]; recalcular();
+  });
+}
+
+/* ====================== SALVAR / DISTRIBUIR ====================== */
+function b64(buf) {
+  const d = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < d.length; i += 8192) s += String.fromCharCode.apply(null, d.subarray(i, i + 8192));
+  return btoa(s);
+}
+
+function deB64(s) {
+  const bin = atob(s), d = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i);
+  return d.buffer;
+}
+
+function agora() {
+  const d = new Date();
+  return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function persistir() {
+  try { localStorage.setItem('sebo_estado', JSON.stringify(ST)); } catch (e) { }
+}
+
+function baixar(nome, texto, tipo) {
+  const b = new Blob([texto], { type: tipo });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = nome;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+
+function salvarAndamento() {
+  ST.usuario = $('#who').value; ST.salvoEm = agora();
+  persistir(); carimbo();
+  const pac = { tipo: 'andamento-sebo', v: 1, estado: ST, arquivos: RAW.arquivos };
+  baixar('andamento_sebo_semana_' + (ST.semana || 'x') + '.json',
+    JSON.stringify(pac), 'application/json');
+}
+
+async function abrirAndamento(file) {
+  try {
+    const pac = JSON.parse(await file.text());
+    if (pac.tipo !== 'andamento-sebo') throw new Error('não é um arquivo de andamento');
+    ST = pac.estado;
+    if ($('#who')) $('#who').value = ST.usuario;
+    if (PROD && MAPA) recalcular();
+    else {
+      erro('Andamento carregado. Agora importe as duas planilhas para reabrir o cálculo.');
+      $('#importBox').classList.remove('hide');
+    }
+  } catch (e) { erro('Não consegui abrir: ' + e.message); }
+}
+
+async function exportarProg() {
+  const b = $('#bProg');
+  const txt = b.textContent;
+  b.disabled = true; b.textContent = 'montando…';
+  try {
+    const r = await programacaoPreenchida(PROGBUF, PROD, RES.alocFinal, OPS, MAPA.data, MAPA.dataSerial);
+    ULT_EXPORT = r;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(r.arquivo);
+    a.download = 'Programacao_preenchida_semana_' + (ST.semana || 'x') + '.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  } catch (e) {
+    alert('Não consegui montar a planilha: ' + e.message);
+  }
+  b.disabled = false; b.textContent = txt;
+  if (ULT_EXPORT) renderAvisos();
+}
+
+function distribuir() {
+  ST.usuario = $('#who').value; ST.salvoEm = agora();
+  persistir(); carimbo();
+  const boot = {
+    prod: PROD, progb64: PROGBUF ? b64(PROGBUF) : null,
+    mapa: { rows: MAPA.rows.map(r => { const c = Object.assign({}, r); delete c.ofEdit; return c; }), data: MAPA.data },
+    estado: ST, arquivos: RAW.arquivos
+  };
+  const json = JSON.stringify(boot).replace(/</g, '\\u003c');
+  const ab = '<scr' + 'ipt id="bd" type="application/json">';
+  const fe = '</scr' + 'ipt>';
+  const i = PRISTINE.indexOf(ab);
+  const j = PRISTINE.indexOf(fe, i);
+  if (i < 0 || j < 0) { erro('Não consegui montar o arquivo para distribuir.'); return; }
+  const html = '<!doctype html>' +
+    PRISTINE.slice(0, i + ab.length) + json + PRISTINE.slice(j);
+  baixar('painel_sebo_semana_' + (ST.semana || 'x') + '.html', html, 'text/html');
+}
+
+/* ====================== BOOT ====================== */
+function boot() {
+  $('#lgFriboi').src = 'data:image/png;base64,' + LOGOS.friboi.b64;
+  $('#lgBio').src = 'data:image/png;base64,' + LOGOS.biopower.b64;
+  $('#lgFlora').src = 'data:image/png;base64,' + LOGOS.flora.b64;
+  setupImport();
+  ligarAddNec();
+  const bd = document.getElementById('bd');
+  const txt = bd && bd.textContent.trim();
+  if (txt) {
+    const b = JSON.parse(txt);
+    PROD = b.prod; MAPA = b.mapa; ST = b.estado; arquivos = b.arquivos || {};
+    if (b.progb64) PROGBUF = deB64(b.progb64);
+    MAPA.rows.forEach((r, i) => r.i = i);
+    iniciar();
+    return;
+  }
+  try {
+    const s = localStorage.getItem('sebo_estado');
+    if (s) ST = JSON.parse(s);
+  } catch (e) { }
+}
+
+function arrancar() {
+  PRISTINE = document.documentElement.outerHTML;
+  boot();
+}
+if (!window.CSS || !CSS.escape) {
+  window.CSS = window.CSS || {};
+  CSS.escape = s => String(s).replace(/[^a-zA-Z0-9_\u00a0-\uffff-]/g, c => '\\' + c);
+}
+if (document.readyState === 'loading')
+  document.addEventListener('DOMContentLoaded', arrancar);
+else arrancar();
+</script>
+<script id="bd" type="application/json"></script>
+</body>
+</html>
