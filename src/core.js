@@ -1208,14 +1208,18 @@ async function programacaoPreenchida(buf, prod, aloc, ops, dataMapa, serialMapa)
 var MAPA_ROWS = null;
 
 /* ====================== RANKING DE TERCEIROS ====================== */
-function opcoes(ds, travas, topN, manter) {
+function opcoes(ds, travas, topN, manter, modo) {
+  // No mercado livre a propria disputa so por preco: exigir volume digitado
+  // a tirava do ranking. A trava fiscal continua valendo nos dois modos.
+  const LIVRE = modo === 'mercado';
   const por = {};
   ds.quotes.forEach(x => {
     if (x.prop) {
       const tv = travas[x.cli];
       if (tv && x.uf !== tv) return;
       const d = ds.proprios.get(x.cli);
-      if (!d || !(d.ton > 0)) return;
+      if (!d) return;
+      if (!LIVRE && !(d.ton > 0)) return;
     }
     (por[x.sigla] || (por[x.sigla] = [])).push(x);
   });

@@ -215,6 +215,32 @@ const T = (nome, cond, extra) => console.log((cond ? '  ok  ' : '  FALHA ') + no
   T('carimbo com data', /\d{2}\/\d{2}\/\d{4}/.test(d.querySelector('#stamp').textContent));
   console.log('carimbo final:', d.querySelector('#stamp').textContent.replace(/\s+/g, ' '));
 
+  // --- bloco de destinos recolhe no mercado livre ---
+  const box = d.querySelector('#necBox');
+  const res = d.querySelector('#necResumo');
+  const bVer = d.querySelector('#bVerDest');
+  w.ST.modo = 'prioridade'; w.ST.verDest = null; w.aplicarModo();
+  T('prioridade: lista de destinos aberta', !box.classList.contains('recolhido'));
+  T('prioridade: linha de resumo escondida', res.classList.contains('hide'));
+  w.ST.modo = 'mercado'; w.ST.verDest = null; w.aplicarModo();
+  T('mercado: lista recolhe sozinha', box.classList.contains('recolhido'));
+  T('mercado: linha de resumo aparece', !res.classList.contains('hide'));
+  T('resumo conta os destinos', /\d+ destinos?/.test(d.querySelector('#necResumoTxt').textContent),
+    d.querySelector('#necResumoTxt').textContent);
+  T('resumo cita as travas fiscais', /trava/.test(d.querySelector('#necResumoTxt').textContent),
+    d.querySelector('#necResumoTxt').textContent);
+  T('botao diz mostrar quando recolhido', bVer.textContent === 'mostrar');
+  bVer.dispatchEvent(new w.Event('click'));
+  T('clicar em mostrar reabre a lista', !box.classList.contains('recolhido'));
+  T('botao vira ocultar', bVer.textContent === 'ocultar');
+  bVer.dispatchEvent(new w.Event('click'));
+  T('clicar de novo recolhe', box.classList.contains('recolhido'));
+  d.querySelector('#bAddNec').dispatchEvent(new w.Event('click'));
+  T('acrescentar terceiro reabre a lista recolhida', !box.classList.contains('recolhido'));
+  d.querySelector('#bAddNec').dispatchEvent(new w.Event('click'));
+  w.ST.modo = 'prioridade'; w.ST.verDest = null; w.aplicarModo();
+  T('voltar para prioridade reabre a lista', !box.classList.contains('recolhido'));
+
   // terceiro acrescentado nao pode herdar logo de fabrica propria
   T('BioPower e do grupo bio', w.grupo('JBS - BioPower Lins') === 'bio');
   T('Flora e do grupo flo', w.grupo('Flora GO') === 'flo');

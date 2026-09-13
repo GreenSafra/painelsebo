@@ -76,5 +76,33 @@ const leg=resolver(ds,travas,null);
 t('sem modo informado, mantem o comportamento de prioridade',
   Math.abs(leg.aloc.filter(a=>a.prop).reduce((s,a)=>s+a.ton,0)-70)<0.01);
 
+// --- ranking de precos (funcao opcoes) ---
+// bug real: a propria so entrava no ranking se tivesse volume digitado,
+// entao no mercado livre ela sumia da lista de disputa.
+const dsR={
+  plants:[{sigla:'BBB',uf:'MT',ton:100}],
+  proprios:new Map([['JBS - BioPower Campo Verde',{cliente:'JBS - BioPower Campo Verde',ton:0}]]),
+  quotes:[
+    {sigla:'BBB',cli:'JBS - BioPower Campo Verde',uf:'MT',net:700,prop:true},
+    {sigla:'BBB',cli:'Terceiro Y',uf:'MT',net:850,prop:false}
+  ]
+};
+const rPri=(opcoes(dsR,{},8,{},'prioridade')['BBB']||[]);
+const rMer=(opcoes(dsR,{},8,{},'mercado')['BBB']||[]);
+t('prioridade: propria sem volume fica fora do ranking',
+  !rPri.some(x=>x.prop));
+t('mercado: propria sem volume entra no ranking de precos',
+  rMer.some(x=>x.prop),
+  'ranking devolveu '+rMer.length+' opcao(oes)');
+t('mercado: ranking ordenado por NET, terceiro melhor vem antes',
+  rMer.length===2 && rMer[0].cli==='Terceiro Y' && rMer[1].prop===true);
+t('mercado: trava fiscal ainda barra a propria no ranking',
+  !(opcoes(dsR,{'JBS - BioPower Campo Verde':'SP'},8,{},'mercado')['BBB']||[]).some(x=>x.prop));
+// propria com volume digitado continua no ranking nos dois modos
+const dsV={plants:dsR.plants,quotes:dsR.quotes,
+  proprios:new Map([['JBS - BioPower Campo Verde',{cliente:'JBS - BioPower Campo Verde',ton:40}]])};
+t('prioridade: propria com volume continua no ranking',
+  (opcoes(dsV,{},8,{},'prioridade')['BBB']||[]).some(x=>x.prop));
+
 console.log('\n'+ok+' OK, '+bad+' falhas');
 process.exit(bad?1:0);

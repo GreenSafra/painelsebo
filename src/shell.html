@@ -100,6 +100,12 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   margin-top:3px;line-height:1.4}
 .nec.mercado .nrow input.v,.nec.mercado .nrow .un,
 .nec.mercado .nrow .cr{visibility:hidden}
+.necresumo{display:flex;align-items:center;gap:10px;padding:10px 0 2px;
+  font-size:13px;color:var(--mute);border-top:1px solid rgba(207,208,201,.6)}
+.linkb{background:none;border:0;padding:0;font:inherit;color:var(--azul);
+  font-weight:600;cursor:pointer;text-decoration:underline}
+.linkb:hover{opacity:.8}
+.nec.recolhido #necRows,.nec.recolhido .addnec{display:none}
 .tercm{height:20px;width:20px;flex:none;border-radius:50%;background:var(--sebo);
   display:inline-flex;align-items:center;justify-content:center;
   font-size:10px;font-weight:700;color:#fff;letter-spacing:0}
@@ -401,6 +407,11 @@ footer img{height:17px;width:auto;opacity:.75}
       </div>
       <p id="necSub">Volume obrigatório de cada destino, em toneladas. Os preços continuam
          vindo do Mapa de ofertas.</p>
+    </div>
+    <div class="necresumo hide" id="necResumo">
+      <span id="necResumoTxt"></span>
+      <button class="linkb" id="bVerDest" aria-expanded="false"
+              aria-controls="necRows">mostrar</button>
     </div>
     <div id="necRows"></div>
     <div class="necfoot">

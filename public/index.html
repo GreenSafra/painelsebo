@@ -100,6 +100,12 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   margin-top:3px;line-height:1.4}
 .nec.mercado .nrow input.v,.nec.mercado .nrow .un,
 .nec.mercado .nrow .cr{visibility:hidden}
+.necresumo{display:flex;align-items:center;gap:10px;padding:10px 0 2px;
+  font-size:13px;color:var(--mute);border-top:1px solid rgba(207,208,201,.6)}
+.linkb{background:none;border:0;padding:0;font:inherit;color:var(--azul);
+  font-weight:600;cursor:pointer;text-decoration:underline}
+.linkb:hover{opacity:.8}
+.nec.recolhido #necRows,.nec.recolhido .addnec{display:none}
 .tercm{height:20px;width:20px;flex:none;border-radius:50%;background:var(--sebo);
   display:inline-flex;align-items:center;justify-content:center;
   font-size:10px;font-weight:700;color:#fff;letter-spacing:0}
@@ -401,6 +407,11 @@ footer img{height:17px;width:auto;opacity:.75}
       </div>
       <p id="necSub">Volume obrigatório de cada destino, em toneladas. Os preços continuam
          vindo do Mapa de ofertas.</p>
+    </div>
+    <div class="necresumo hide" id="necResumo">
+      <span id="necResumoTxt"></span>
+      <button class="linkb" id="bVerDest" aria-expanded="false"
+              aria-controls="necRows">mostrar</button>
     </div>
     <div id="necRows"></div>
     <div class="necfoot">
@@ -1651,14 +1662,18 @@ async function programacaoPreenchida(buf, prod, aloc, ops, dataMapa, serialMapa)
 var MAPA_ROWS = null;
 
 /* ====================== RANKING DE TERCEIROS ====================== */
-function opcoes(ds, travas, topN, manter) {
+function opcoes(ds, travas, topN, manter, modo) {
+  // No mercado livre a propria disputa so por preco: exigir volume digitado
+  // a tirava do ranking. A trava fiscal continua valendo nos dois modos.
+  const LIVRE = modo === 'mercado';
   const por = {};
   ds.quotes.forEach(x => {
     if (x.prop) {
       const tv = travas[x.cli];
       if (tv && x.uf !== tv) return;
       const d = ds.proprios.get(x.cli);
-      if (!d || !(d.ton > 0)) return;
+      if (!d) return;
+      if (!LIVRE && !(d.ton > 0)) return;
     }
     (por[x.sigla] || (por[x.sigla] = [])).push(x);
   });
@@ -1771,6 +1786,8 @@ function iniciar() {
   if (!ST.fora) ST.fora = [];
   if (!ST.extras) ST.extras = [];
   if (!ST.modo) ST.modo = 'prioridade';
+  // andamento salvo antes desta versao nao tem verDest
+  if (ST.verDest == null) ST.verDest = ST.modo !== 'mercado';
   ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
   $('#importBox').classList.add('hide');
   $('#app').classList.remove('hide');
@@ -1782,7 +1799,7 @@ function iniciar() {
 function novoEstado() {
   return {
     usuario: $('#who') ? $('#who').value : 'Usuário 1', salvoEm: null,
-    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: [], modo: 'prioridade'
+    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: [], modo: 'prioridade', verDest: true
   };
 }
 
@@ -1816,15 +1833,15 @@ function recalcular() {
   RES.netFinal = RES.net;
   const usados = {};
   RES.aloc.forEach(a => (usados[a.sigla] || (usados[a.sigla] = [])).push(a.cli));
-  OPS = opcoes(DS, ST.travas, 8, usados);
+  OPS = opcoes(DS, ST.travas, 8, usados, ST.modo);
   render();
 }
 
 /* ====================== RENDER ====================== */
 function render() {
   carimbo();
-  aplicarModo();
   renderNecessidade();
+  aplicarModo();  // depois da lista: o resumo conta as linhas ja renderizadas
   renderKpis();
   renderAvisos();
   renderMapa();
@@ -1955,6 +1972,30 @@ function aplicarModo() {
   if (sub) sub.textContent = livre
     ? 'Nenhum destino tem prioridade. Cada um disputa com a cotação que tem no Mapa e o volume vai para o melhor NET por tonelada.'
     : 'Volume obrigatório de cada destino, em toneladas. Os preços continuam vindo do Mapa de ofertas.';
+  // No mercado livre nao ha volume a digitar: a lista recolhe para poupar
+  // espaco, mas continua a um clique — as travas fiscais valem nos dois modos.
+  if (livre && ST.verDest == null) ST.verDest = false;
+  if (!livre) ST.verDest = true;
+  aplicarVerDest();
+}
+
+// Mostra ou esconde a lista de destinos, com a linha de resumo no lugar.
+function aplicarVerDest() {
+  const livre = ST.modo === 'mercado';
+  const aberto = ST.verDest !== false;
+  const box = $('#necBox');
+  if (box) box.classList.toggle('recolhido', !aberto);
+  const res = $('#necResumo');
+  if (res) res.classList.toggle('hide', !livre);
+  const b = $('#bVerDest');
+  if (b) { b.textContent = aberto ? 'ocultar' : 'mostrar'; b.setAttribute('aria-expanded', aberto ? 'true' : 'false'); }
+  const t = $('#necResumoTxt');
+  if (t) {
+    const n = NEC.length;
+    const tr = NEC.filter(d => ST.travas[d.cliente]).length;
+    t.textContent = n + (n === 1 ? ' destino' : ' destinos') +
+      (tr ? ' · ' + tr + (tr === 1 ? ' trava fiscal ativa' : ' travas fiscais ativas') : '');
+  }
 }
 
 function renderNecessidade() {
@@ -1999,6 +2040,7 @@ function renderNecessidade() {
   $$('[data-tv]').forEach(c => c.onchange = () => {
     const d = NEC.find(x => x.cliente === c.dataset.tv);
     ST.travas[c.dataset.tv] = c.checked ? d.uf : null;
+    aplicarVerDest();  // o resumo conta as travas ativas
     marcarSujo();
   });
   $$('[data-tira]').forEach(b => b.onclick = () => {
@@ -2041,7 +2083,11 @@ function ligarAddNec() {
       rodar();
     };
   });
+  const bv = $('#bVerDest');
+  if (bv) bv.onclick = () => { ST.verDest = ST.verDest === false; aplicarVerDest(); };
   $('#bAddNec').onclick = () => {
+    // acrescentar terceiro com a lista recolhida: abre a lista junto
+    if (ST.verDest === false) { ST.verDest = true; aplicarVerDest(); }
     const cx = $('#addNec'), sel = $('#selNec');
     const usados = NEC.map(d => d.cliente);
     sel.innerHTML = clientesDoMapa(MAPA).filter(c => usados.indexOf(c.cliente) < 0)

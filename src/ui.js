@@ -96,6 +96,8 @@ function iniciar() {
   if (!ST.fora) ST.fora = [];
   if (!ST.extras) ST.extras = [];
   if (!ST.modo) ST.modo = 'prioridade';
+  // andamento salvo antes desta versao nao tem verDest
+  if (ST.verDest == null) ST.verDest = ST.modo !== 'mercado';
   ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
   $('#importBox').classList.add('hide');
   $('#app').classList.remove('hide');
@@ -107,7 +109,7 @@ function iniciar() {
 function novoEstado() {
   return {
     usuario: $('#who') ? $('#who').value : 'Usuário 1', salvoEm: null,
-    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: [], modo: 'prioridade'
+    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: [], modo: 'prioridade', verDest: true
   };
 }
 
@@ -141,15 +143,15 @@ function recalcular() {
   RES.netFinal = RES.net;
   const usados = {};
   RES.aloc.forEach(a => (usados[a.sigla] || (usados[a.sigla] = [])).push(a.cli));
-  OPS = opcoes(DS, ST.travas, 8, usados);
+  OPS = opcoes(DS, ST.travas, 8, usados, ST.modo);
   render();
 }
 
 /* ====================== RENDER ====================== */
 function render() {
   carimbo();
-  aplicarModo();
   renderNecessidade();
+  aplicarModo();  // depois da lista: o resumo conta as linhas ja renderizadas
   renderKpis();
   renderAvisos();
   renderMapa();
@@ -280,6 +282,30 @@ function aplicarModo() {
   if (sub) sub.textContent = livre
     ? 'Nenhum destino tem prioridade. Cada um disputa com a cotação que tem no Mapa e o volume vai para o melhor NET por tonelada.'
     : 'Volume obrigatório de cada destino, em toneladas. Os preços continuam vindo do Mapa de ofertas.';
+  // No mercado livre nao ha volume a digitar: a lista recolhe para poupar
+  // espaco, mas continua a um clique — as travas fiscais valem nos dois modos.
+  if (livre && ST.verDest == null) ST.verDest = false;
+  if (!livre) ST.verDest = true;
+  aplicarVerDest();
+}
+
+// Mostra ou esconde a lista de destinos, com a linha de resumo no lugar.
+function aplicarVerDest() {
+  const livre = ST.modo === 'mercado';
+  const aberto = ST.verDest !== false;
+  const box = $('#necBox');
+  if (box) box.classList.toggle('recolhido', !aberto);
+  const res = $('#necResumo');
+  if (res) res.classList.toggle('hide', !livre);
+  const b = $('#bVerDest');
+  if (b) { b.textContent = aberto ? 'ocultar' : 'mostrar'; b.setAttribute('aria-expanded', aberto ? 'true' : 'false'); }
+  const t = $('#necResumoTxt');
+  if (t) {
+    const n = NEC.length;
+    const tr = NEC.filter(d => ST.travas[d.cliente]).length;
+    t.textContent = n + (n === 1 ? ' destino' : ' destinos') +
+      (tr ? ' · ' + tr + (tr === 1 ? ' trava fiscal ativa' : ' travas fiscais ativas') : '');
+  }
 }
 
 function renderNecessidade() {
@@ -324,6 +350,7 @@ function renderNecessidade() {
   $$('[data-tv]').forEach(c => c.onchange = () => {
     const d = NEC.find(x => x.cliente === c.dataset.tv);
     ST.travas[c.dataset.tv] = c.checked ? d.uf : null;
+    aplicarVerDest();  // o resumo conta as travas ativas
     marcarSujo();
   });
   $$('[data-tira]').forEach(b => b.onclick = () => {
@@ -366,7 +393,11 @@ function ligarAddNec() {
       rodar();
     };
   });
+  const bv = $('#bVerDest');
+  if (bv) bv.onclick = () => { ST.verDest = ST.verDest === false; aplicarVerDest(); };
   $('#bAddNec').onclick = () => {
+    // acrescentar terceiro com a lista recolhida: abre a lista junto
+    if (ST.verDest === false) { ST.verDest = true; aplicarVerDest(); }
     const cx = $('#addNec'), sel = $('#selNec');
     const usados = NEC.map(d => d.cliente);
     sel.innerHTML = clientesDoMapa(MAPA).filter(c => usados.indexOf(c.cliente) < 0)
