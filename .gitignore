@@ -2,3 +2,6 @@ node_modules/
 .env
 *.log
 .DS_Store
+test/saida.xlsx
+test/modelo_saida.xlsx
+test/dist_test.html

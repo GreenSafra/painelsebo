@@ -1,0 +1,830 @@
+/* ====================== ESTADO ====================== */
+var PRISTINE = null;
+var STATES = /*__STATES__*/{};
+var LOGOS = /*__LOGOS__*/{};
+var CIDADES = /*__CIDADES__*/{};
+var RAW = null, PROGBUF = null;                 // {prog, nec, mapa} planilhas cruas
+var ST = null;                  // escolhas do usuário
+var DS, RES, OPS, PROD, NEC, MAPA, ULT_EXPORT = null;
+var UFSEL = null, EDIT = null, SUJO = false;
+
+var fmt0 = n => (n == null || !isFinite(n)) ? '—' : Math.round(n).toLocaleString('pt-BR');
+var fmt1 = n => (n == null || !isFinite(n)) ? '—' : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+var rs = n => (n == null || !isFinite(n)) ? '—' : 'R$ ' + fmt0(n);
+var sgn = n => (n > 0 ? '+' : '') + fmt0(n);
+var esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+var $ = s => document.querySelector(s);
+var $$ = s => [].slice.call(document.querySelectorAll(s));
+
+function grupo(cli) {
+  if (!DS.proprios.has(cli)) return 'ter';
+  return /biopower/i.test(cli) ? 'bio' : 'flo';
+}
+function logoDe(g) { return g === 'bio' ? LOGOS.biopower : g === 'flo' ? LOGOS.flora : null; }
+// Terceiro nao tem logo propria: usa um marcador neutro com a inicial.
+function selo(cliente, g) {
+  const l = logoDe(g);
+  if (l) return img(l, 'lg');
+  const ini = String(cliente || '?').replace(/^JBS\s*-\s*/, '').trim().charAt(0).toUpperCase();
+  return '<span class="tercm" title="terceiro">' + esc(ini || '?') + '</span>';
+}
+function img(l, cls) {
+  return l ? '<img class="' + cls + '" src="data:image/png;base64,' + l.b64 + '" alt="">' : '';
+}
+function carretas(t) { return t / 35; }
+
+/* ====================== IMPORTAÇÃO ====================== */
+var arquivos = {};
+
+function setupImport() {
+  $$('[data-pick]').forEach(b => b.onclick = () => $('[data-in="' + b.dataset.pick + '"]').click());
+  $$('[data-in]').forEach(i => i.onchange = e => {
+    if (e.target.files[0]) receber(i.dataset.in, e.target.files[0]);
+  });
+  $$('.drop').forEach(d => {
+    d.ondragover = e => { e.preventDefault(); d.classList.add('on'); };
+    d.ondragleave = () => d.classList.remove('on');
+    d.ondrop = e => {
+      e.preventDefault(); d.classList.remove('on');
+      if (e.dataTransfer.files[0]) receber(d.dataset.k, e.dataTransfer.files[0]);
+    };
+  });
+  $('#bImport').onclick = () => {
+    $('#importBox').classList.remove('hide');
+    $('#importBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  $('#bLoad').onclick = () => $('#loadIn').click();
+  $('#loadIn').onchange = e => { if (e.target.files[0]) abrirAndamento(e.target.files[0]); };
+  $('#bSave').onclick = salvarAndamento;
+  $('#bProg').onclick = exportarProg;
+  $('#bDist').onclick = distribuir;
+  $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
+}
+
+async function receber(k, file) {
+  const box = document.querySelector('.drop[data-k="' + k + '"]');
+  document.querySelector('[data-f="' + k + '"]').textContent = 'lendo ' + file.name + '…';
+  erro('');
+  try {
+    const buf = await file.arrayBuffer();
+    const sheets = await readXlsx({ arrayBuffer: async () => buf });
+    if (k === 'prog') { PROD = readProducao(sheets); PROGBUF = buf; }
+    if (k === 'mapa') MAPA = readMapa(sheets);
+    arquivos[k] = file.name;
+    box.classList.add('ok');
+    document.querySelector('[data-f="' + k + '"]').textContent = file.name;
+    if (PROD && MAPA) iniciar();
+  } catch (e) {
+    box.classList.remove('ok');
+    document.querySelector('[data-f="' + k + '"]').textContent = '';
+    erro(file.name + ': ' + e.message);
+  }
+}
+
+function erro(m) {
+  const e = $('#impErr');
+  e.textContent = m; e.classList.toggle('hide', !m);
+}
+
+function iniciar() {
+  RAW = { prod: PROD, mapa: MAPA, arquivos: arquivos };
+  if (!ST) ST = novoEstado();
+  if (!ST.nec) ST.nec = {};
+  if (!ST.fora) ST.fora = [];
+  if (!ST.extras) ST.extras = [];
+  if (!ST.modo) ST.modo = 'prioridade';
+  ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
+  $('#importBox').classList.add('hide');
+  $('#app').classList.remove('hide');
+  $('#bSave').disabled = false; $('#bDist').disabled = false;
+  $('#bProg').disabled = !PROGBUF;
+  recalcular();
+}
+
+function novoEstado() {
+  return {
+    usuario: $('#who') ? $('#who').value : 'Usuário 1', salvoEm: null,
+    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: [], modo: 'prioridade'
+  };
+}
+
+function montarNec() {
+  const det = detectarProprios(MAPA).filter(d => ST.fora.indexOf(d.cliente) < 0);
+  ST.extras.forEach(c => {
+    if (det.some(d => d.cliente === c)) return;
+    const r = MAPA.rows.find(x => x.cli === c);
+    if (r) det.push(dadosDestino(c, r.dst));
+  });
+  const ufsProd = new Set(PROD.plants.map(p => p.uf));
+  det.forEach(d => {
+    if (!(d.cliente in ST.travas))
+      ST.travas[d.cliente] = (/biopower/i.test(d.cliente) && ufsProd.has(d.uf)) ? d.uf : null;
+  });
+  det.sort((a, b) => a.cliente.localeCompare(b.cliente));
+  NEC = det.map(d => ({ cliente: d.cliente, cidade: d.cidade, uf: d.uf,
+    ton: +(ST.nec[d.cliente] || 0) }));
+}
+
+/* ====================== CÁLCULO ====================== */
+function recalcular() {
+  montarNec();
+  MAPA.rows.forEach(r => { r.ofEdit = (r.i in ST.ofEdits) ? ST.ofEdits[r.i] : null; });
+  MAPA_ROWS = MAPA.rows;
+  DS = montar(PROD, NEC, MAPA);
+  const otimo = resolver(DS, ST.travas, null, ST.modo);
+  RES = resolver(DS, ST.travas, ST.manual, ST.modo);
+  RES.alocFinal = RES.aloc;
+  RES.otimoNet = otimo.net;
+  RES.netFinal = RES.net;
+  const usados = {};
+  RES.aloc.forEach(a => (usados[a.sigla] || (usados[a.sigla] = [])).push(a.cli));
+  OPS = opcoes(DS, ST.travas, 8, usados);
+  render();
+}
+
+/* ====================== RENDER ====================== */
+function render() {
+  carimbo();
+  aplicarModo();
+  renderNecessidade();
+  renderKpis();
+  renderAvisos();
+  renderMapa();
+  renderTabela();
+  if (UFSEL) renderDetalhe(UFSEL);
+  else { const b = $('#detail'); b.classList.add('hide'); b.innerHTML = ''; }
+  persistir();
+}
+
+function carimbo() {
+  const sem = ST.semana ? 'Semana ' + fmt0(ST.semana) : 'Semana';
+  $('#sub').textContent = sem + (ST.periodo ? ' · ' + ST.periodo : '') +
+    (ST.dataMapa ? ' · cotações de ' + ST.dataMapa : '');
+  $('#stamp').innerHTML = ST.salvoEm
+    ? 'Última alteração<br><b>' + esc(ST.usuario) + '</b> · ' + esc(ST.salvoEm)
+    : 'Operando agora<br><b>' + esc(ST.usuario) + '</b>';
+  if ($('#who').value !== ST.usuario) {
+    const o = [].find.call($('#who').options, x => x.value === ST.usuario);
+    if (o) $('#who').value = ST.usuario;
+  }
+  $('#foot').textContent = RAW && RAW.arquivos
+    ? 'Fontes: ' + Object.values(RAW.arquivos).join(' · ')
+    : '';
+}
+
+function renderKpis() {
+  const tot = RES.alocFinal.reduce((s, a) => s + a.ton, 0);
+  const prop = RES.alocFinal.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
+  const ter = tot - prop;
+  const nTer = new Set(RES.alocFinal.filter(a => !a.prop).map(a => a.cli)).size;
+  const k = [
+    ['Toneladas da semana', fmt0(tot) + ' t', DS.plants.length + ' unidades produzindo'],
+    ['Comprometido com fábrica própria', fmt0(prop) + ' t',
+      NEC.filter(d => d.ton > 0).length + ' fábricas · ' + fmt1(carretas(prop)) + ' carretas'],
+    ['Excedente para terceiros', fmt0(ter) + ' t',
+      nTer + (nTer === 1 ? ' cliente' : ' clientes') + ' · ' + fmt1(carretas(ter)) + ' carretas']
+  ];
+  $('#kpis').innerHTML = k.map(x =>
+    '<div class="kpi"><div class="lb">' + x[0] + '</div>' +
+    '<div class="vl num">' + x[1] + '</div><div class="sb">' + esc(x[2]) + '</div></div>').join('');
+}
+
+function renderAvisos() {
+  let h = '';
+  const semCotacao = c => !DS.quotes.some(q => q.cli === c);
+  const faltasReais = RES.faltas.filter(f => !semCotacao(f.cliente));
+  if (faltasReais.length) {
+    h += '<div class="warn bad">Não deu para fechar o volume de <b>' +
+      faltasReais.map(f => esc(f.cliente) + '</b> (' + fmt0(f.atendido) + ' t de ' + fmt0(f.pedido) + ' t)').join(', <b>') +
+      '. Falta produção elegível — confira a trava de estado ou o volume pedido.</div>';
+  }
+  if (DS.naoMapeadas.length) {
+    h += '<div class="warn">Não consegui identificar a unidade <b>' +
+      DS.naoMapeadas.map(esc).join('</b>, <b>') + '</b> do Mapa de ofertas. ' +
+      'Essas cotações ficaram de fora. Use a sigla de três letras para resolver.</div>';
+  }
+  if (RES.semTerceiro.length) {
+    h += '<div class="warn">Sem nenhuma cotação de terceiro para <b>' +
+      RES.semTerceiro.map(esc).join('</b>, <b>') + '</b>. O excedente dessas unidades só tem ' +
+      'como ir para fábrica própria.</div>';
+  }
+  const semGeo = DS.plants.filter(p => !CIDADES[norm(p.cidade) + '|' + p.uf])
+    .map(p => titulo(p.cidade));
+  if (semGeo.length) {
+    h += '<div class="warn">Não tenho a coordenada de <b>' +
+      [...new Set(semGeo)].map(esc).join('</b>, <b>') + '</b>. No mapa ' +
+      (semGeo.length > 1 ? 'essas unidades aparecem' : 'essa unidade aparece') +
+      ' no centro do estado. Os números não são afetados.</div>';
+  }
+  if (MAPA.modalCol && !MAPA.modalCol.ok) {
+    h += '<div class="warn bad">Não identifiquei a coluna de <b>CIF/FOB</b> no Mapa de ofertas' +
+      (MAPA.modalCol.cabecalho ? ' (li a coluna "' + esc(MAPA.modalCol.cabecalho) + '")' : '') +
+      '. O modal e a data de entrega vão sair em branco na programação.</div>';
+  } else if (MAPA.modalCol && MAPA.modalCol.trocada) {
+    h += '<div class="warn">A coluna de CIF/FOB do Mapa mudou de lugar. Identifiquei pelos ' +
+      'valores, na coluna <b>' + esc(MAPA.modalCol.cabecalho || '(sem título)') + '</b>.</div>';
+  }
+  if (RES.sobra.length) {
+    h += '<div class="warn bad">Sobrou volume sem destino em <b>' +
+      RES.sobra.map(esc).join('</b>, <b>') + '</b>. Abra a unidade e distribua o que falta.</div>';
+  }
+  const semCot = NEC.filter(d => d.ton > 0 && semCotacao(d.cliente)).map(d => d.cliente);
+  if (semCot.length) {
+    h += '<div class="warn bad"><b>' + semCot.map(esc).join('</b>, <b>') +
+      '</b> não tem nenhuma cotação no Mapa de ofertas, então não dá para alocar volume. ' +
+      'Peça a inclusão da linha no Mapa.</div>';
+  }
+  if (RES.foraDeCotacao.length) {
+    h += '<div class="warn bad">Sem cotação no Mapa para <b>' +
+      RES.foraDeCotacao.map(esc).join('</b>, <b>') + '</b>.</div>';
+  }
+  if (ULT_EXPORT) {
+    const t = ULT_EXPORT.transito;
+    if (t.length) {
+      const dias = t.map(x => x.dias);
+      h += '<div class="warn">Programação exportada com <b>' + ULT_EXPORT.linhas +
+        ' linhas</b>. Estimei a data de entrega de <b>' + t.length +
+        '</b> cargas CIF, entre ' + Math.min.apply(null, dias) + ' e ' +
+        Math.max.apply(null, dias) + ' dias de trânsito. FOB fica em branco.</div>';
+    }
+    if (ULT_EXPORT.semRota.length) {
+      h += '<div class="warn bad">Não tenho a coordenada de <b>' +
+        ULT_EXPORT.semRota.map(esc).join('</b>, <b>') +
+        '</b>, então a data de entrega dessas cargas saiu em branco.</div>';
+    }
+  }
+  const nMan = Object.keys(ST.manual).filter(s => (ST.manual[s] || []).length).length;
+  if (nMan) {
+    const perda = RES.otimoNet - RES.netFinal;
+    h += '<div class="warn"><b>' + nMan + (nMan > 1 ? ' unidades estão' : ' unidade está') +
+      '</b> fora da indicação do modelo. Isso custa <b>' + rs(perda) +
+      '</b> de NET na semana. <button class="mini" onclick="zerarManual()">voltar ao ótimo</button></div>';
+  }
+  $('#avisos').innerHTML = h;
+}
+
+function zerarManual() { ST.manual = {}; EDIT = null; recalcular(); }
+
+/* ---------- necessidade ---------- */
+// No mercado livre nao ha volume a digitar: some a coluna de toneladas
+// e o texto muda para explicar o que vai acontecer.
+function aplicarModo() {
+  const livre = ST.modo === 'mercado';
+  $('#necBox').classList.toggle('mercado', livre);
+  const r = $(livre ? '#modoMer' : '#modoPri');
+  if (r) r.checked = true;
+  const sub = $('#necSub');
+  if (sub) sub.textContent = livre
+    ? 'Nenhum destino tem prioridade. Cada um disputa com a cotação que tem no Mapa e o volume vai para o melhor NET por tonelada.'
+    : 'Volume obrigatório de cada destino, em toneladas. Os preços continuam vindo do Mapa de ofertas.';
+}
+
+function renderNecessidade() {
+  let h = '';
+  NEC.forEach(d => {
+    const g = grupo(d.cliente);
+    const car = carretas(d.ton);
+    const quebr = d.ton > 0.01 && Math.abs(car - Math.round(car)) > 0.01;
+    const tv = ST.travas[d.cliente];
+    h += '<div class="nrow">' + selo(d.cliente, g) +
+      '<span class="nm">' + esc(d.cliente) + '</span>' +
+      '<span class="cd">' + esc(d.cidade || '') + (d.uf ? ' · ' + d.uf : '') + '</span>' +
+      '<label class="tv"><input type="checkbox" data-tv="' + esc(d.cliente) + '"' +
+      (tv ? ' checked' : '') + (d.uf ? '' : ' disabled') + '> só recebe de ' + (d.uf || '—') + '</label>' +
+      '<input class="v" type="number" min="0" step="35" value="' + Math.round(d.ton) +
+      '" data-nec="' + esc(d.cliente) + '" aria-label="volume de ' + esc(d.cliente) + '">' +
+      '<span class="un">t</span>' +
+      '<span class="cr' + (quebr ? ' bad' : '') + '">' +
+      (d.ton > 0.01 ? fmt1(car) + ' carretas' + (quebr ? ' ⚠' : '') : '') + '</span>' +
+      '<button class="x" data-tira="' + esc(d.cliente) + '" title="tirar da lista">×</button>' +
+      '</div>';
+  });
+  $('#necRows').innerHTML = h;
+  const tot = NEC.reduce((s2, d) => s2 + d.ton, 0);
+  const prodTot = DS ? DS.plants.reduce((s2, p) => s2 + p.ton, 0) : 0;
+  $('#necBox').classList.toggle('sujo', SUJO);
+  $('#pend').classList.toggle('hide', !SUJO);
+  $('#necTot').innerHTML = ST.modo === 'mercado'
+    ? '<span class="dim">' + fmt0(prodTot) + ' t disputadas pelo melhor NET. Clique em Rodar.</span>'
+    : (tot > 0
+      ? '<b>' + fmt0(tot) + ' t</b> comprometidos · sobram ' + fmt0(prodTot - tot) + ' t para terceiros'
+      : '<span class="dim">Digite o volume de cada destino e clique em Rodar.</span>');
+
+  $$('[data-nec]').forEach(i => {
+    i.oninput = () => {
+      const v = parseFloat(i.value);
+      ST.nec[i.dataset.nec] = isFinite(v) && v > 0 ? v : 0;
+      marcarSujo();
+    };
+    i.onkeydown = e => { if (e.key === 'Enter') rodar(); };
+  });
+  $$('[data-tv]').forEach(c => c.onchange = () => {
+    const d = NEC.find(x => x.cliente === c.dataset.tv);
+    ST.travas[c.dataset.tv] = c.checked ? d.uf : null;
+    marcarSujo();
+  });
+  $$('[data-tira]').forEach(b => b.onclick = () => {
+    const c = b.dataset.tira;
+    ST.fora.push(c);
+    ST.extras = ST.extras.filter(x => x !== c);
+    delete ST.nec[c];
+    rodar();
+  });
+}
+
+function marcarSujo() {
+  SUJO = true;
+  $('#necBox').classList.add('sujo');
+  $('#pend').classList.remove('hide');
+  const tot = Object.keys(ST.nec).reduce((s2, c) =>
+    s2 + (NEC.some(d => d.cliente === c) ? +ST.nec[c] || 0 : 0), 0);
+  const prodTot = DS ? DS.plants.reduce((s2, p) => s2 + p.ton, 0) : 0;
+  $('#necTot').innerHTML = ST.modo === 'mercado'
+    ? '<span class="dim">' + fmt0(prodTot) + ' t disputadas pelo melhor NET. Clique em Rodar.</span>'
+    : (tot > 0
+      ? '<b>' + fmt0(tot) + ' t</b> comprometidos · sobram ' + fmt0(prodTot - tot) + ' t para terceiros'
+      : '<span class="dim">Digite o volume de cada destino e clique em Rodar.</span>');
+  persistir();
+}
+
+function rodar() {
+  SUJO = false; EDIT = null;
+  recalcular();
+  $('#kpis').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function ligarAddNec() {
+  $('#bRodar').onclick = rodar;
+  $$('input[name=modo]').forEach(r => {
+    r.onchange = () => {
+      if (!r.checked) return;
+      ST.modo = r.value;
+      aplicarModo();
+      rodar();
+    };
+  });
+  $('#bAddNec').onclick = () => {
+    const cx = $('#addNec'), sel = $('#selNec');
+    const usados = NEC.map(d => d.cliente);
+    sel.innerHTML = clientesDoMapa(MAPA).filter(c => usados.indexOf(c.cliente) < 0)
+      .map(c => '<option value="' + esc(c.cliente) + '">' + esc(c.cliente) + '</option>').join('');
+    cx.classList.toggle('hide');
+  };
+  $('#bAddNo').onclick = () => $('#addNec').classList.add('hide');
+  $('#bAddOk').onclick = () => {
+    const c = $('#selNec').value;
+    if (c) {
+      ST.fora = ST.fora.filter(x => x !== c);
+      if (ST.extras.indexOf(c) < 0) ST.extras.push(c);
+      ST.nec[c] = ST.nec[c] || 0;
+    }
+    $('#addNec').classList.add('hide');
+    rodar();
+  };
+}
+
+/* ---------- mapa ---------- */
+function ponto(cidade, uf) {
+  const p = CIDADES[norm(cidade) + '|' + uf];
+  if (p) return { x: p[0], y: p[1] };
+  const s = STATES[uf];
+  return s ? { x: +s.cx, y: +s.cy, aprox: true } : null;
+}
+
+function nomeCurto(cliente, cidade) {
+  const base = cliente.replace(/^JBS\s*-\s*/, '').trim();
+  if (!cidade) return base;
+  if (norm(base).indexOf(norm(cidade)) >= 0) return base;
+  return base.split(/[\s-]/)[0] + ' ' + cidade;
+}
+
+function marcadores() {
+  const itens = [];
+  DS.plants.forEach(p => {
+    const q = ponto(p.cidade, p.uf);
+    if (!q) return;
+    itens.push({
+      tipo: 'un', x: q.x, y: q.y, aprox: q.aprox, uf: p.uf, g: 'jbs',
+      nome: p.sigla, det: titulo(p.cidade) + ' · ' + fmt0(p.ton) + ' t', ton: p.ton
+    });
+  });
+  NEC.forEach(d => {
+    const q = ponto(d.cidade, d.uf);
+    if (!q) return;
+    itens.push({
+      tipo: 'dest', x: q.x, y: q.y, aprox: q.aprox, uf: d.uf, g: grupo(d.cliente),
+      nome: nomeCurto(d.cliente, d.cidade), cliente: d.cliente,
+      det: d.ton > 0 ? fmt0(d.ton) + ' t na semana' : 'sem volume nesta semana'
+    });
+  });
+  // separa os que caem no mesmo ponto
+  const grupos = {};
+  itens.forEach(i => {
+    const k = Math.round(i.x) + ',' + Math.round(i.y);
+    (grupos[k] || (grupos[k] = [])).push(i);
+  });
+  Object.keys(grupos).forEach(k => {
+    const g = grupos[k];
+    if (g.length < 2) return;
+    const raio = 4 + g.length;
+    g.forEach((i, n) => {
+      const a = -Math.PI / 2 + n * 2 * Math.PI / g.length;
+      i.x += Math.cos(a) * raio; i.y += Math.sin(a) * raio;
+    });
+  });
+  return itens;
+}
+
+function valorUF(uf) {
+  return DS.plants.filter(p => p.uf === uf).reduce((s, p) => s + p.ton, 0) || null;
+}
+
+function renderMapa() {
+  const porUF = {};
+  Object.keys(STATES).forEach(uf => porUF[uf] = valorUF(uf));
+  let h = '';
+  Object.keys(STATES).forEach(uf => {
+    const s = STATES[uf], ativo = porUF[uf] != null;
+    h += '<path class="uf' + (ativo ? '' : ' off') + (uf === UFSEL ? ' sel' : '') +
+      '" d="' + s.d + '" data-uf="' + uf + '"' + (ativo ? ' fill="var(--c1)"' : '') + '></path>';
+  });
+  h += arcosSvg();
+  Object.keys(STATES).forEach(uf => {
+    if (porUF[uf] == null) return;
+    const s = STATES[uf];
+    h += '<text class="lb" x="' + s.cx + '" y="' + s.cy + '">' + uf + '</text>';
+  });
+
+  const itens = marcadores();
+  const raio = t => 2.4 + Math.sqrt(t / 35) * 1.4;
+  itens.filter(i => i.tipo === 'un').forEach((i, k) => {
+    h += '<circle class="mk un' + (UFSEL && i.uf !== UFSEL ? ' fora' : '') + '" data-mk="' + k +
+      '" cx="' + i.x.toFixed(1) + '" cy="' + i.y.toFixed(1) + '" r="' + raio(i.ton).toFixed(1) + '"></circle>';
+  });
+  const dests = itens.filter(i => i.tipo === 'dest');
+  dests.forEach((i, k) => {
+    h += '<circle class="mk dest ' + i.g + '" data-dk="' + k + '" cx="' + i.x.toFixed(1) +
+      '" cy="' + i.y.toFixed(1) + '" r="6"></circle>';
+  });
+  // rótulos à direita, empilhados para não se sobreporem
+  const rot = dests.map((i, k) => ({ i: i, k: k, y: i.y + 14 }))
+    .sort((a, b) => a.y - b.y);
+  for (let j = 1; j < rot.length; j++) {
+    if (Math.abs(rot[j].i.x - rot[j - 1].i.x) > 60) continue;
+    if (rot[j].y - rot[j - 1].y < 11) rot[j].y = rot[j - 1].y + 11;
+  }
+  rot.forEach(r => {
+    const x = r.i.x + 10, y = r.y;
+    h += '<path class="guia" d="M' + r.i.x.toFixed(1) + ' ' + (r.i.y + 6).toFixed(1) +
+      'L' + r.i.x.toFixed(1) + ' ' + (y - 3.5).toFixed(1) + 'L' + x.toFixed(1) + ' ' +
+      (y - 3.5).toFixed(1) + '"></path>' +
+      '<text class="dlb" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '">' +
+      esc(r.i.nome) + '</text>';
+  });
+
+  const map = $('#map');
+  map.innerHTML = h;
+  const t = $('#tip');
+  const some = () => t.style.opacity = 0;
+  map.querySelectorAll('path.uf:not(.off)').forEach(p => {
+    p.onclick = () => { UFSEL = (UFSEL === p.dataset.uf ? null : p.dataset.uf); EDIT = null; render(); };
+    p.onmouseenter = e => tip(e, p.dataset.uf, porUF[p.dataset.uf]);
+    p.onmousemove = e => tip(e, p.dataset.uf, porUF[p.dataset.uf]);
+    p.onmouseleave = some;
+  });
+  const uns = itens.filter(i => i.tipo === 'un');
+  const liga = (sel, lista) => map.querySelectorAll(sel).forEach(el => {
+    const i = lista[+(el.dataset.mk != null ? el.dataset.mk : el.dataset.dk)];
+    const texto = i.nome + ' · ' + i.det + (i.aprox ? ' · posição aproximada' : '');
+    el.onmouseenter = e => tipTxt(e, texto);
+    el.onmousemove = e => tipTxt(e, texto);
+    el.onmouseleave = some;
+    el.onclick = () => { UFSEL = (UFSEL === i.uf ? null : i.uf); EDIT = null; render(); };
+  });
+  liga('circle.mk.un', uns);
+  liga('circle.mk.dest', dests);
+
+  const tons = uns.map(i => i.ton);
+  const mn = Math.min.apply(null, tons), mx = Math.max.apply(null, tons);
+  $('#legend').innerHTML =
+    '<svg class="lgd" viewBox="0 0 44 20" aria-hidden="true">' +
+    '<circle cx="8" cy="12" r="' + raio(mn).toFixed(1) + '"></circle>' +
+    '<circle cx="30" cy="12" r="' + raio(mx).toFixed(1) + '"></circle></svg>' +
+    '<span>' + fmt0(mn) + ' a ' + fmt0(mx) + ' t por unidade</span>' +
+    '<i class="dot jbs"></i><span>Friboi</span>' +
+    '<i class="dot bio"></i><span>BioPower</span>' +
+    '<i class="dot flo"></i><span>Flora</span>';
+}
+
+function tipTxt(e, txt) {
+  const t = $('#tip'), box = $('.mapbox').getBoundingClientRect();
+  t.textContent = txt;
+  t.style.left = (e.clientX - box.left + 12) + 'px';
+  t.style.top = (e.clientY - box.top + 12) + 'px';
+  t.style.opacity = 1;
+}
+
+function tip(e, uf, v) {
+  const t = $('#tip'), box = $('.mapbox').getBoundingClientRect();
+  t.textContent = uf + (v != null ? ' · ' + fmt0(v) + ' t' : '');
+  t.style.left = (e.clientX - box.left + 12) + 'px';
+  t.style.top = (e.clientY - box.top + 12) + 'px';
+  t.style.opacity = 1;
+}
+
+function arcosSvg() {
+  const cor = { bio: 'var(--bio)', flo: 'var(--flora)' };
+  const pos = {};
+  DS.plants.forEach(p => pos[p.sigla] = ponto(p.cidade, p.uf));
+  const dest = {};
+  NEC.forEach(d => dest[d.cliente] = ponto(d.cidade, d.uf));
+  let h = '';
+  RES.alocFinal.forEach(a => {
+    if (!a.prop) return;
+    const A = pos[a.sigla], B = dest[a.cli];
+    if (!A || !B) return;
+    if (Math.abs(A.x - B.x) < 2 && Math.abs(A.y - B.y) < 2) return;
+    const mx = (A.x + B.x) / 2 + (B.y - A.y) * .16, my = (A.y + B.y) / 2 - (B.x - A.x) * .16;
+    const d = 'M' + A.x.toFixed(0) + ' ' + A.y.toFixed(0) + 'Q' + mx.toFixed(0) + ' ' +
+      my.toFixed(0) + ' ' + B.x.toFixed(0) + ' ' + B.y.toFixed(0);
+    const apaga = UFSEL && a.uf !== UFSEL ? ' fora' : '';
+    h += '<path class="arc' + apaga + '" d="' + d + '" stroke="' + cor[grupo(a.cli)] + '"></path>';
+  });
+  return h;
+}
+
+/* ---------- tabela por estado ---------- */
+function renderTabela() {
+  const ufs = [...new Set(DS.plants.map(p => p.uf))].sort();
+  let h = '<thead><tr><th>Estado</th><th>Unid.</th><th>Produção</th>' +
+    '<th>Fábrica própria</th><th>Terceiros</th></tr></thead><tbody>';
+  ufs.forEach(uf => {
+    const plantas = DS.plants.filter(p => p.uf === uf);
+    const prod = plantas.reduce((s, p) => s + p.ton, 0);
+    const linhas = RES.alocFinal.filter(a => a.uf === uf);
+    const pp = linhas.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
+    const tt = linhas.filter(a => !a.prop).reduce((s, a) => s + a.ton, 0);
+    const cel = v => v > 0.01 ? fmt0(v) + ' t' : '<span class="dim">—</span>';
+    h += '<tr data-uf="' + uf + '"' + (uf === UFSEL ? ' class="sel"' : '') + '>' +
+      '<td><b>' + uf + '</b></td>' +
+      '<td class="num dim">' + plantas.length + '</td>' +
+      '<td class="num">' + fmt0(prod) + ' t</td>' +
+      '<td class="num">' + cel(pp) + '</td>' +
+      '<td class="num">' + cel(tt) + '</td></tr>';
+  });
+  $('#tblUF').innerHTML = h + '</tbody>';
+  $$('#tblUF tbody tr').forEach(tr => tr.onclick = () => {
+    UFSEL = (UFSEL === tr.dataset.uf ? null : tr.dataset.uf); EDIT = null; render();
+    if (UFSEL) $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+/* ---------- detalhe do estado ---------- */
+function renderDetalhe(uf) {
+  const box = $('#detail'); box.classList.remove('hide');
+  const plantas = DS.plants.filter(p => p.uf === uf);
+  const prod = plantas.reduce((s, p) => s + p.ton, 0);
+  const linhas = RES.alocFinal.filter(a => a.uf === uf);
+
+  let h = '<div class="dhead"><h2>' + uf + '</h2><span class="sub">' +
+    fmt0(prod) + ' t em ' + plantas.length + (plantas.length > 1 ? ' unidades' : ' unidade') +
+    ' · ' + fmt1(carretas(prod)) + ' carretas</span></div>';
+
+  const dest = {};
+  linhas.forEach(a => dest[a.cli] = (dest[a.cli] || 0) + a.ton);
+  const ord = Object.keys(dest).sort((a, b) => dest[b] - dest[a]);
+  h += '<div class="cmp">';
+  ord.forEach(cli => {
+    const g = grupo(cli);
+    h += '<div class="cbox ' + g + '">' + img(logoDe(g), 'lg') +
+      '<div class="nm">' + esc(cli) + '</div>' +
+      '<div class="vl num">' + fmt0(dest[cli]) + ' t</div>' +
+      '<div class="sb">' + fmt1(carretas(dest[cli])) + ' carretas · ' +
+      (g === 'ter' ? 'terceiro' : 'fábrica própria') + '</div></div>';
+  });
+  h += '</div>';
+
+  h += '<div class="orig">' + img(LOGOS.friboi, 'lgo') +
+    '<h3>Para onde vai cada unidade</h3></div>';
+  plantas.forEach(p => {
+    const linhas = RES.alocFinal.filter(a => a.sigla === p.sigla);
+    h += '<div class="plant"><div class="prow">' +
+      '<span class="sg">' + p.sigla + '</span>' +
+      '<span class="cd">' + esc(titulo(p.cidade)) + '</span>' +
+      '<span class="tn num">' + fmt0(p.ton) + ' t</span>' +
+      ((OPS[p.sigla] || []).length
+        ? '<button class="mini" data-ed="' + p.sigla + '">' +
+        (EDIT === p.sigla ? 'fechar' : 'trocar destino') + '</button>' : '') +
+      '</div>';
+    linhas.forEach(a => {
+      const g = grupo(a.cli);
+      h += '<div class="dest"><span class="dot ' + g + '"></span>' +
+        '<span class="nm">' + esc(a.cli) + (a.man ? ' <span class="tagm">alterado</span>' : '') + '</span>' +
+        '<span class="mn num">' + rs(a.net) + '/t</span>' +
+        '<span class="tn num">' + fmt0(a.ton) + ' t</span></div>';
+    });
+    if (EDIT === p.sigla) h += editorHtml(p.sigla, p.ton);
+    h += '</div>';
+  });
+
+  box.innerHTML = h;
+  $$('[data-ed]').forEach(b => b.onclick = () => {
+    EDIT = (EDIT === b.dataset.ed ? null : b.dataset.ed); renderDetalhe(uf);
+  });
+  ligarEditor(uf);
+}
+
+function titulo(s) {
+  return String(s).toLowerCase().replace(/(^|[ '-])([a-zà-ú])/g, (m, a, b) => a + b.toUpperCase());
+}
+
+/* ---------- editor de terceiros ---------- */
+function editorHtml(sigla, total) {
+  const ops = OPS[sigla] || [];
+  const best = ops.length ? ops[0].net : 0;
+  const atual = ST.manual[sigla];
+  const volDe = cli => {
+    if (atual) { const m = atual.find(x => x.cli === cli); return m ? m.ton : 0; }
+    const a = RES.alocFinal.find(x => x.sigla === sigla && x.cli === cli);
+    return a ? a.ton : 0;
+  };
+  let h = '<div class="editor"><h4>Destinos de ' + sigla + ' — ' + fmt0(total) + ' t na semana</h4>' +
+    '<p class="hint">Todas as ofertas para esta unidade, ranqueadas por NET. Ajuste os volumes ' +
+    'até fechar o total. O que você fixar aqui vira regra, e o modelo redistribui o resto. ' +
+    'Carreta cheia = 35 t.</p>';
+  ops.forEach((o, i) => {
+    const v = volDe(o.cli);
+    const car = carretas(v);
+    const quebr = v > 0.01 && Math.abs(car - Math.round(car)) > 0.01;
+    const linhaMapa = MAPA.rows[o.src];
+    const ofAtual = linhaMapa.ofEdit != null ? linhaMapa.ofEdit : linhaMapa.of;
+    h += '<div class="opt' + (v > 0.01 ? '' : ' off') + '">' +
+      '<span class="rk">' + (i + 1) + '</span>' +
+      '<span class="dot ' + grupo(o.cli) + '"></span>' +
+      '<span class="nm">' + esc(o.cli) + '</span>' +
+      '<span class="nt num">' + rs(o.net) + '</span>' +
+      '<span class="gp num">' + (i ? '−' + fmt0(best - o.net) : '') + '</span>' +
+      '<input class="of num" type="number" step="10" value="' + Math.round(ofAtual) +
+      '" data-of="' + o.src + '" title="oferta na planilha">' +
+      '<input class="vol num" type="number" min="0" step="35" value="' + Math.round(v) +
+      '" data-vol="' + esc(o.cli) + '">' +
+      '<span class="cr' + (quebr ? ' bad' : '') + '">' + (v > 0.01 ? fmt1(car) + ' carretas' + (quebr ? ' ⚠' : '') : '') + '</span>' +
+      '</div>';
+  });
+  const soma = ops.reduce((s, o) => s + volDe(o.cli), 0);
+  const dif = total - soma;
+  h += '<div class="edfoot">';
+  if (Math.abs(dif) > 0.01) h += '<span class="rest">' +
+    (dif > 0 ? 'falta destinar ' + fmt0(dif) + ' t' : 'passou ' + fmt0(-dif) + ' t do que a unidade produz') +
+    '</span>';
+  h += '<button class="mini" data-reset="' + sigla + '">voltar à indicação</button>';
+  h += '<span class="dim">a oferta em azul recalcula o NET e refaz a alocação</span></div></div>';
+  return h;
+}
+
+function ligarEditor(uf) {
+  $$('[data-vol]').forEach(inp => inp.onchange = () => {
+    const sigla = EDIT, ops = OPS[sigla] || [];
+    const cur = {};
+    ops.forEach(o => {
+      const el = document.querySelector('[data-vol="' + CSS.escape(o.cli) + '"]');
+      cur[o.cli] = el ? (parseFloat(el.value) || 0) : 0;
+    });
+    ST.manual[sigla] = ops.map(o => ({ cli: o.cli, ton: cur[o.cli] })).filter(x => x.ton > 0.01);
+    recalcular();
+  });
+  $$('[data-of]').forEach(inp => inp.onchange = () => {
+    const i = +inp.dataset.of, v = parseFloat(inp.value);
+    if (isFinite(v) && v > 0) ST.ofEdits[i] = v; else delete ST.ofEdits[i];
+    recalcular();
+  });
+  $$('[data-reset]').forEach(b => b.onclick = () => {
+    delete ST.manual[b.dataset.reset]; recalcular();
+  });
+}
+
+/* ====================== SALVAR / DISTRIBUIR ====================== */
+function b64(buf) {
+  const d = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < d.length; i += 8192) s += String.fromCharCode.apply(null, d.subarray(i, i + 8192));
+  return btoa(s);
+}
+
+function deB64(s) {
+  const bin = atob(s), d = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i);
+  return d.buffer;
+}
+
+function agora() {
+  const d = new Date();
+  return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function persistir() {
+  try { localStorage.setItem('sebo_estado', JSON.stringify(ST)); } catch (e) { }
+}
+
+function baixar(nome, texto, tipo) {
+  const b = new Blob([texto], { type: tipo });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = nome;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+
+function salvarAndamento() {
+  ST.usuario = $('#who').value; ST.salvoEm = agora();
+  persistir(); carimbo();
+  const pac = { tipo: 'andamento-sebo', v: 1, estado: ST, arquivos: RAW.arquivos };
+  baixar('andamento_sebo_semana_' + (ST.semana || 'x') + '.json',
+    JSON.stringify(pac), 'application/json');
+}
+
+async function abrirAndamento(file) {
+  try {
+    const pac = JSON.parse(await file.text());
+    if (pac.tipo !== 'andamento-sebo') throw new Error('não é um arquivo de andamento');
+    ST = pac.estado;
+    if ($('#who')) $('#who').value = ST.usuario;
+    if (PROD && MAPA) recalcular();
+    else {
+      erro('Andamento carregado. Agora importe as duas planilhas para reabrir o cálculo.');
+      $('#importBox').classList.remove('hide');
+    }
+  } catch (e) { erro('Não consegui abrir: ' + e.message); }
+}
+
+async function exportarProg() {
+  const b = $('#bProg');
+  const txt = b.textContent;
+  b.disabled = true; b.textContent = 'montando…';
+  try {
+    const r = await programacaoPreenchida(PROGBUF, PROD, RES.alocFinal, OPS, MAPA.data, MAPA.dataSerial);
+    ULT_EXPORT = r;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(r.arquivo);
+    a.download = 'Programacao_preenchida_semana_' + (ST.semana || 'x') + '.xlsx';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  } catch (e) {
+    alert('Não consegui montar a planilha: ' + e.message);
+  }
+  b.disabled = false; b.textContent = txt;
+  if (ULT_EXPORT) renderAvisos();
+}
+
+function distribuir() {
+  ST.usuario = $('#who').value; ST.salvoEm = agora();
+  persistir(); carimbo();
+  const boot = {
+    prod: PROD, progb64: PROGBUF ? b64(PROGBUF) : null,
+    mapa: { rows: MAPA.rows.map(r => { const c = Object.assign({}, r); delete c.ofEdit; return c; }), data: MAPA.data },
+    estado: ST, arquivos: RAW.arquivos
+  };
+  const json = JSON.stringify(boot).replace(/</g, '\\u003c');
+  const ab = '<scr' + 'ipt id="bd" type="application/json">';
+  const fe = '</scr' + 'ipt>';
+  const i = PRISTINE.indexOf(ab);
+  const j = PRISTINE.indexOf(fe, i);
+  if (i < 0 || j < 0) { erro('Não consegui montar o arquivo para distribuir.'); return; }
+  const html = '<!doctype html>' +
+    PRISTINE.slice(0, i + ab.length) + json + PRISTINE.slice(j);
+  baixar('painel_sebo_semana_' + (ST.semana || 'x') + '.html', html, 'text/html');
+}
+
+/* ====================== BOOT ====================== */
+function boot() {
+  $('#lgFriboi').src = 'data:image/png;base64,' + LOGOS.friboi.b64;
+  $('#lgBio').src = 'data:image/png;base64,' + LOGOS.biopower.b64;
+  $('#lgFlora').src = 'data:image/png;base64,' + LOGOS.flora.b64;
+  setupImport();
+  ligarAddNec();
+  const bd = document.getElementById('bd');
+  const txt = bd && bd.textContent.trim();
+  if (txt) {
+    const b = JSON.parse(txt);
+    PROD = b.prod; MAPA = b.mapa; ST = b.estado; arquivos = b.arquivos || {};
+    if (b.progb64) PROGBUF = deB64(b.progb64);
+    MAPA.rows.forEach((r, i) => r.i = i);
+    iniciar();
+    return;
+  }
+  try {
+    const s = localStorage.getItem('sebo_estado');
+    if (s) ST = JSON.parse(s);
+  } catch (e) { }
+}
+
+function arrancar() {
+  PRISTINE = document.documentElement.outerHTML;
+  boot();
+}
+if (!window.CSS || !CSS.escape) {
+  window.CSS = window.CSS || {};
+  CSS.escape = s => String(s).replace(/[^a-zA-Z0-9_\u00a0-\uffff-]/g, c => '\\' + c);
+}
+if (document.readyState === 'loading')
+  document.addEventListener('DOMContentLoaded', arrancar);
+else arrancar();

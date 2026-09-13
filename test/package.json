@@ -1,0 +1,12 @@
+{
+  "name": "painel-sebo-testes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Baterias de teste do painel. Separado da raiz para nao afetar o build do Railway.",
+  "scripts": {
+    "test": "node rodar.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}
