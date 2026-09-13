@@ -1,40 +1,200 @@
 // Painel de alocacao de sebo - servidor
-// Fase 1: entrega o painel. O banco entra na fase 2.
+// Fase 2: banco, login, cadastro com aprovacao.
 
 const express = require('express');
 const path = require('path');
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const PROD = process.env.NODE_ENV === 'production';
 
-// senha unica opcional: defina SENHA nas variaveis do Railway.
-// se nao definir, o painel fica aberto para quem tiver a URL.
-const SENHA = process.env.SENHA;
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '10mb' }));
 
-if (SENHA) {
-  app.use((req, res, next) => {
-    const cab = req.headers.authorization || '';
-    const [tipo, dados] = cab.split(' ');
-    if (tipo === 'Basic' && dados) {
-      const [, pass] = Buffer.from(dados, 'base64').toString().split(':');
-      if (pass === SENHA) return next();
-    }
-    res.set('WWW-Authenticate', 'Basic realm="Painel de sebo"');
-    res.status(401).send('Acesso restrito.');
+// ---------- cookies ----------
+
+function lerCookies(req) {
+  const cru = req.headers.cookie || '';
+  const fora = {};
+  cru.split(';').forEach(p => {
+    const i = p.indexOf('=');
+    if (i > 0) fora[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
   });
+  return fora;
 }
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+function porCookie(res, token, expira) {
+  const partes = [
+    'sessao=' + encodeURIComponent(token),
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Expires=' + expira.toUTCString()
+  ];
+  if (PROD) partes.push('Secure');
+  res.setHeader('Set-Cookie', partes.join('; '));
+}
+
+function tiraCookie(res) {
+  res.setHeader('Set-Cookie',
+    'sessao=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+}
+
+// ---------- quem esta logado ----------
+
+app.use(async (req, res, next) => {
+  try {
+    req.usuario = await db.lerSessao(lerCookies(req).sessao);
+  } catch (e) {
+    req.usuario = null;
+  }
+  next();
+});
+
+function exigeLogin(req, res, next) {
+  if (!req.usuario) return res.status(401).json({ erro: 'Faça login para continuar.' });
+  next();
+}
+
+function exigeMaster(req, res, next) {
+  if (!req.usuario) return res.status(401).json({ erro: 'Faça login para continuar.' });
+  if (req.usuario.papel !== 'master') {
+    return res.status(403).json({ erro: 'Só o administrador pode fazer isso.' });
+  }
+  next();
+}
+
+// ---------- rotas abertas ----------
 
 app.get('/saude', (req, res) => {
   res.json({ ok: true, quando: new Date().toISOString() });
 });
 
-app.get('*', (req, res) => {
+app.post('/api/cadastrar', async (req, res) => {
+  const { nome, email, senha } = req.body || {};
+  if (!nome || String(nome).trim().length < 2) {
+    return res.status(400).json({ erro: 'Informe seu nome.' });
+  }
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email).trim())) {
+    return res.status(400).json({ erro: 'E-mail inválido.' });
+  }
+  if (!senha || String(senha).length < 8) {
+    return res.status(400).json({ erro: 'A senha precisa de pelo menos 8 caracteres.' });
+  }
+  try {
+    const u = await db.criarUsuario(nome, email, senha);
+    if (u.situacao === 'ativo') {
+      const s = await db.abrirSessao(u.id);
+      porCookie(res, s.token, s.expira);
+      return res.json({ ok: true, situacao: 'ativo', usuario: u });
+    }
+    res.json({ ok: true, situacao: 'pendente' });
+  } catch (e) {
+    if (e && e.code === '23505') {
+      return res.status(409).json({ erro: 'Já existe conta com esse e-mail.' });
+    }
+    console.error('cadastrar:', e.message);
+    res.status(500).json({ erro: 'Não foi possível criar a conta.' });
+  }
+});
+
+app.post('/api/entrar', async (req, res) => {
+  const { email, senha } = req.body || {};
+  try {
+    const u = await db.porEmail(email || '');
+    if (!u || !db.conferirSenha(String(senha || ''), u.senha_hash)) {
+      return res.status(401).json({ erro: 'E-mail ou senha incorretos.' });
+    }
+    if (u.situacao === 'pendente') {
+      return res.status(403).json({ erro: 'Sua conta ainda aguarda aprovação do administrador.' });
+    }
+    if (u.situacao !== 'ativo') {
+      return res.status(403).json({ erro: 'Seu acesso está bloqueado.' });
+    }
+    const s = await db.abrirSessao(u.id);
+    porCookie(res, s.token, s.expira);
+    res.json({ ok: true, usuario: { id: u.id, nome: u.nome, email: u.email, papel: u.papel } });
+  } catch (e) {
+    console.error('entrar:', e.message);
+    res.status(500).json({ erro: 'Não foi possível entrar.' });
+  }
+});
+
+app.post('/api/sair', async (req, res) => {
+  await db.fecharSessao(lerCookies(req).sessao);
+  tiraCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/eu', (req, res) => {
+  res.json({ usuario: req.usuario || null });
+});
+
+// ---------- rotas do master ----------
+
+app.get('/api/usuarios', exigeMaster, async (req, res) => {
+  res.json({ usuarios: await db.listar() });
+});
+
+app.post('/api/usuarios/:id/aprovar', exigeMaster, async (req, res) => {
+  const u = await db.decidir(Number(req.params.id), 'ativo', req.usuario.id);
+  if (!u) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+  res.json({ ok: true, usuario: u });
+});
+
+app.post('/api/usuarios/:id/bloquear', exigeMaster, async (req, res) => {
+  const u = await db.decidir(Number(req.params.id), 'bloqueado', req.usuario.id);
+  if (!u) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+  res.json({ ok: true, usuario: u });
+});
+
+app.post('/api/senha', exigeLogin, async (req, res) => {
+  const { atual, nova } = req.body || {};
+  if (!nova || String(nova).length < 8) {
+    return res.status(400).json({ erro: 'A nova senha precisa de pelo menos 8 caracteres.' });
+  }
+  const u = await db.porEmail(req.usuario.email);
+  if (!db.conferirSenha(String(atual || ''), u.senha_hash)) {
+    return res.status(401).json({ erro: 'Senha atual incorreta.' });
+  }
+  await db.trocarSenha(u.id, nova);
+  tiraCookie(res);
+  res.json({ ok: true });
+});
+
+// ---------- paginas ----------
+
+app.get('/entrar', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'entrar.html'));
+});
+
+app.get('/admin', (req, res) => {
+  if (!req.usuario || req.usuario.papel !== 'master') return res.redirect('/entrar');
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// O painel so sai daqui para quem esta logado.
+app.get(['/', '/index.html'], (req, res) => {
+  if (!req.usuario) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log('Painel no ar na porta ' + PORT);
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+app.get('*', (req, res) => {
+  res.redirect(req.usuario ? '/' : '/entrar');
 });
+
+// ---------- sobe ----------
+
+db.iniciar()
+  .then(q => {
+    console.log('Banco pronto. Usuários cadastrados: ' + q);
+    setInterval(() => db.limparSessoes().catch(() => {}), 6 * 3600 * 1000);
+    app.listen(PORT, () => console.log('Painel no ar na porta ' + PORT));
+  })
+  .catch(e => {
+    console.error('Falha ao preparar o banco:', e.message);
+    process.exit(1);
+  });

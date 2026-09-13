@@ -40,3 +40,14 @@ Nao adiante fases. Nao adicione Postgres agora.
 ## Idioma
 
 Responda sempre em portugues do Brasil.
+
+## Fase 2 — o que ja existe (nao refazer)
+
+- `db.js` — schema, usuarios, sessoes. Senha com scrypt nativo do Node.
+- `public/entrar.html` — login e cadastro.
+- `public/admin.html` — aprovacao de usuarios, so para o master.
+- `server.js` — rotas de auth. O painel em `/` exige login.
+
+Variaveis necessarias no Railway: `DATABASE_URL` (o Postgres injeta
+sozinho) e `EMAIL_MASTER`. A variavel `SENHA` da fase 1 nao e mais usada
+e deve ser removida.

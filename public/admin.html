@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Painel de sebo — usuários</title>
+<style>
+:root{
+  --paper:#ffffff; --tinta:#16181d; --fraco:#6b7280;
+  --linha:#e3e5ea; --azul:#1e1e7b; --campo:#f7f8fa;
+  --erro:#b42318; --bom:#0f7b40; --espera:#8a5a00;
+}
+*{box-sizing:border-box}
+html,body{background:var(--paper);color:var(--tinta);margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{background:var(--paper);min-height:100vh;max-width:820px;margin:0 auto;padding:18px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-bottom:14px;border-bottom:1px solid var(--linha);margin-bottom:20px;flex-wrap:wrap}
+h1{font-size:18px;margin:0}
+.quem{font-size:12.5px;color:var(--fraco)}
+.links{display:flex;gap:8px}
+.btn{padding:8px 13px;border:1px solid var(--linha);background:var(--paper);
+  color:var(--tinta);border-radius:7px;font-size:13px;cursor:pointer;
+  text-decoration:none;font-family:inherit;min-height:38px;display:inline-flex;
+  align-items:center}
+.btn.pri{background:var(--azul);color:#fff;border-color:var(--azul)}
+h2{font-size:14px;margin:24px 0 10px;color:var(--fraco);font-weight:600;
+  text-transform:uppercase;letter-spacing:.4px}
+.linha{border:1px solid var(--linha);border-radius:10px;padding:13px 15px;
+  margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap}
+.linha .nome{font-size:14.5px;font-weight:600}
+.linha .mail{font-size:12.5px;color:var(--fraco);margin-top:2px}
+.acoes{display:flex;gap:7px}
+.tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.3px}
+.tag.pendente{background:#fdf6e7;color:var(--espera)}
+.tag.ativo{background:#eef8f2;color:var(--bom)}
+.tag.bloqueado{background:#fdf1f0;color:var(--erro)}
+.tag.master{background:#eeeef8;color:var(--azul)}
+.vazio{color:var(--fraco);font-size:13.5px;padding:14px 0}
+.aviso{padding:11px 13px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
+.aviso.erro{background:#fdf1f0;color:var(--erro);border:1px solid #f5cfcb;display:block}
+.aviso.bom{background:#eef8f2;color:var(--bom);border:1px solid #c6e6d5;display:block}
+@media(max-width:520px){
+  .linha{flex-direction:column;align-items:flex-start}
+  .acoes{width:100%}
+  .acoes .btn{flex:1;justify-content:center}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Usuários</h1>
+      <div class="quem" id="quem"></div>
+    </div>
+    <div class="links">
+      <a class="btn" href="/">Ir ao painel</a>
+      <button class="btn" id="btnSair">Sair</button>
+    </div>
+  </header>
+
+  <div class="aviso" id="aviso"></div>
+
+  <h2>Aguardando aprovação</h2>
+  <div id="pendentes"></div>
+
+  <h2>Com acesso</h2>
+  <div id="ativos"></div>
+
+  <h2>Bloqueados</h2>
+  <div id="bloqueados"></div>
+</div>
+
+<script>
+var av = document.getElementById('aviso');
+
+function diz(txt, tipo){
+  av.textContent = txt;
+  av.className = 'aviso ' + (tipo || 'erro');
+  setTimeout(function(){ av.className = 'aviso'; }, 4000);
+}
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function data(v){
+  if(!v) return '';
+  var d = new Date(v);
+  return d.toLocaleDateString('pt-BR') + ' ' +
+         d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+}
+
+function monta(u){
+  var ehMaster = u.papel === 'master';
+  var bloco = '<div class="linha"><div>' +
+    '<div class="nome">' + esc(u.nome) +
+      ' <span class="tag ' + (ehMaster ? 'master' : esc(u.situacao)) + '">' +
+      (ehMaster ? 'administrador' : esc(u.situacao)) + '</span></div>' +
+    '<div class="mail">' + esc(u.email) + ' · pediu em ' + data(u.criado_em) + '</div>' +
+    '</div>';
+
+  if(!ehMaster){
+    bloco += '<div class="acoes">';
+    if(u.situacao !== 'ativo'){
+      bloco += '<button class="btn pri" data-acao="aprovar" data-id="' + u.id + '">Aprovar</button>';
+    }
+    if(u.situacao !== 'bloqueado'){
+      bloco += '<button class="btn" data-acao="bloquear" data-id="' + u.id + '">Bloquear</button>';
+    }
+    bloco += '</div>';
+  }
+  return bloco + '</div>';
+}
+
+async function carregar(){
+  var r = await fetch('/api/eu');
+  var e = await r.json();
+  if(!e.usuario || e.usuario.papel !== 'master'){ location.href = '/entrar'; return; }
+  document.getElementById('quem').textContent = e.usuario.nome + ' · ' + e.usuario.email;
+
+  var r2 = await fetch('/api/usuarios');
+  if(!r2.ok){ diz('Não foi possível carregar a lista.'); return; }
+  var lista = (await r2.json()).usuarios || [];
+
+  var grupos = {pendente:[], ativo:[], bloqueado:[]};
+  lista.forEach(function(u){ (grupos[u.situacao] || grupos.ativo).push(u); });
+
+  function poe(id, arr, vazio){
+    document.getElementById(id).innerHTML =
+      arr.length ? arr.map(monta).join('') : '<div class="vazio">' + vazio + '</div>';
+  }
+  poe('pendentes',  grupos.pendente,  'Nenhum pedido no momento.');
+  poe('ativos',     grupos.ativo,     'Ninguém com acesso ainda.');
+  poe('bloqueados', grupos.bloqueado, 'Ninguém bloqueado.');
+}
+
+document.addEventListener('click', async function(ev){
+  var b = ev.target.closest('button[data-acao]');
+  if(!b) return;
+  b.disabled = true;
+  var r = await fetch('/api/usuarios/' + b.dataset.id + '/' + b.dataset.acao, {method:'POST'});
+  var d = await r.json();
+  if(!r.ok){ diz(d.erro || 'Não foi possível concluir.'); b.disabled = false; return; }
+  diz(b.dataset.acao === 'aprovar' ? 'Acesso liberado.' : 'Acesso bloqueado.', 'bom');
+  carregar();
+});
+
+document.getElementById('btnSair').onclick = async function(){
+  await fetch('/api/sair', {method:'POST'});
+  location.href = '/entrar';
+};
+
+carregar();
+</script>
+</body>
+</html>

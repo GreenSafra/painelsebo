@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Painel de sebo — acesso</title>
+<style>
+:root{
+  --paper:#ffffff; --tinta:#16181d; --fraco:#6b7280;
+  --linha:#e3e5ea; --azul:#1e1e7b; --campo:#f7f8fa;
+  --erro:#b42318; --bom:#0f7b40;
+}
+*{box-sizing:border-box}
+html,body{background:#eef0f4;color:var(--tinta);margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.tela{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.caixa{background:var(--paper);width:100%;max-width:400px;border-radius:14px;
+  border:1px solid var(--linha);padding:28px;box-shadow:0 4px 20px rgba(0,0,0,.07)}
+h1{font-size:19px;margin:0 0 4px}
+.sub{font-size:13.5px;color:var(--fraco);margin:0 0 22px}
+.abas{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:20px;
+  background:var(--campo);padding:4px;border-radius:9px}
+.aba{padding:9px;text-align:center;font-size:13.5px;font-weight:600;color:var(--fraco);
+  border-radius:6px;cursor:pointer;border:0;background:transparent;font-family:inherit}
+.aba.on{background:var(--paper);color:var(--azul);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+label{display:block;font-size:12.5px;font-weight:600;margin:0 0 5px;color:#3a3b45}
+input{width:100%;padding:11px 12px;font-size:16px;border:1px solid var(--linha);
+  border-radius:8px;background:var(--campo);color:var(--tinta);
+  margin-bottom:14px;font-family:inherit}
+input:focus{outline:2px solid var(--azul);outline-offset:-1px;background:var(--paper)}
+.btn{width:100%;padding:12px;background:var(--azul);color:#fff;border:0;border-radius:8px;
+  font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;min-height:44px}
+.btn:disabled{opacity:.55;cursor:default}
+.aviso{padding:11px 13px;border-radius:8px;font-size:13px;margin-bottom:16px;
+  line-height:1.45;display:none}
+.aviso.erro{background:#fdf1f0;color:var(--erro);border:1px solid #f5cfcb;display:block}
+.aviso.bom{background:#eef8f2;color:var(--bom);border:1px solid #c6e6d5;display:block}
+.dica{font-size:12px;color:var(--fraco);margin:-8px 0 14px}
+.rodape{text-align:center;font-size:11.5px;color:var(--fraco);margin-top:20px;
+  padding-top:16px;border-top:1px solid var(--linha)}
+</style>
+</head>
+<body>
+<div class="tela">
+  <div class="caixa">
+    <h1>Painel de alocação de sebo</h1>
+    <p class="sub">Acesso restrito.</p>
+
+    <div class="abas">
+      <button class="aba on" id="abaEntrar">Entrar</button>
+      <button class="aba" id="abaCriar">Criar conta</button>
+    </div>
+
+    <div class="aviso" id="aviso"></div>
+
+    <div id="formEntrar">
+      <label for="e1">E-mail</label>
+      <input id="e1" type="email" autocomplete="username">
+      <label for="s1">Senha</label>
+      <input id="s1" type="password" autocomplete="current-password">
+      <button class="btn" id="btnEntrar">Entrar</button>
+    </div>
+
+    <div id="formCriar" style="display:none">
+      <label for="n2">Nome completo</label>
+      <input id="n2" type="text" autocomplete="name">
+      <label for="e2">E-mail</label>
+      <input id="e2" type="email" autocomplete="username">
+      <label for="s2">Senha</label>
+      <input id="s2" type="password" autocomplete="new-password">
+      <p class="dica">Mínimo de 8 caracteres.</p>
+      <button class="btn" id="btnCriar">Pedir acesso</button>
+    </div>
+
+    <div class="rodape">Uso interno.</div>
+  </div>
+</div>
+
+<script>
+var av = document.getElementById('aviso');
+
+function diz(txt, tipo){
+  av.textContent = txt;
+  av.className = 'aviso ' + (tipo || 'erro');
+}
+function limpa(){ av.className = 'aviso'; av.textContent = ''; }
+
+function troca(qual){
+  limpa();
+  var ent = qual === 'entrar';
+  document.getElementById('abaEntrar').className = 'aba' + (ent ? ' on' : '');
+  document.getElementById('abaCriar').className  = 'aba' + (ent ? '' : ' on');
+  document.getElementById('formEntrar').style.display = ent ? '' : 'none';
+  document.getElementById('formCriar').style.display  = ent ? 'none' : '';
+}
+
+document.getElementById('abaEntrar').onclick = function(){ troca('entrar'); };
+document.getElementById('abaCriar').onclick  = function(){ troca('criar'); };
+
+async function manda(url, corpo, botao){
+  botao.disabled = true;
+  try{
+    var r = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(corpo)
+    });
+    var d = await r.json();
+    if(!r.ok){ diz(d.erro || 'Não foi possível concluir.'); return null; }
+    return d;
+  }catch(e){
+    diz('Falha de conexão. Tente de novo.');
+    return null;
+  }finally{
+    botao.disabled = false;
+  }
+}
+
+document.getElementById('btnEntrar').onclick = async function(){
+  limpa();
+  var d = await manda('/api/entrar', {
+    email: document.getElementById('e1').value,
+    senha: document.getElementById('s1').value
+  }, this);
+  if(d) location.href = '/';
+};
+
+document.getElementById('btnCriar').onclick = async function(){
+  limpa();
+  var d = await manda('/api/cadastrar', {
+    nome:  document.getElementById('n2').value,
+    email: document.getElementById('e2').value,
+    senha: document.getElementById('s2').value
+  }, this);
+  if(!d) return;
+  if(d.situacao === 'ativo'){ location.href = '/'; return; }
+  troca('entrar');
+  diz('Pedido enviado. Você poderá entrar assim que o administrador aprovar.', 'bom');
+};
+
+['s1','e1'].forEach(function(id){
+  document.getElementById(id).addEventListener('keydown', function(ev){
+    if(ev.key === 'Enter') document.getElementById('btnEntrar').click();
+  });
+});
+['n2','e2','s2'].forEach(function(id){
+  document.getElementById(id).addEventListener('keydown', function(ev){
+    if(ev.key === 'Enter') document.getElementById('btnCriar').click();
+  });
+});
+</script>
+</body>
+</html>
