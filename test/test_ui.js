@@ -214,4 +214,18 @@ const T = (nome, cond, extra) => console.log((cond ? '  ok  ' : '  FALHA ') + no
   T('gerou painel fechado', baixados.some(b => /painel_sebo_semana/.test(b.nome)));
   T('carimbo com data', /\d{2}\/\d{2}\/\d{4}/.test(d.querySelector('#stamp').textContent));
   console.log('carimbo final:', d.querySelector('#stamp').textContent.replace(/\s+/g, ' '));
+
+  // terceiro acrescentado nao pode herdar logo de fabrica propria
+  T('BioPower e do grupo bio', w.grupo('JBS - BioPower Lins') === 'bio');
+  T('Flora e do grupo flo', w.grupo('Flora GO') === 'flo');
+  // o bug real: terceiro acrescentado entra na lista de destinos (DS.proprios),
+  // e o codigo antigo concluia dai que era fabrica propria
+  w.DS.proprios.set('Bahia Rendering - BA', { cliente: 'Bahia Rendering - BA', ton: 0 });
+  T('terceiro na lista de destinos ainda e terceiro',
+    w.grupo('Bahia Rendering - BA') === 'ter',
+    'grupo() devolveu ' + w.grupo('Bahia Rendering - BA'));
+  T('terceiro nao ganha logo', w.selo('Bahia Rendering - BA', 'ter').indexOf('<img') < 0);
+  T('terceiro ganha marcador com a inicial',
+    /class="tercm"[^>]*>B</.test(w.selo('Bahia Rendering - BA', 'ter')));
+  T('propria continua com logo', w.selo('Flora GO', 'flo').indexOf('<img') === 0);
 })().catch(e => { console.error('ERRO:', e.message, e.stack); process.exit(1); });

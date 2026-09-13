@@ -16,9 +16,12 @@ var esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '
 var $ = s => document.querySelector(s);
 var $$ = s => [].slice.call(document.querySelectorAll(s));
 
+// Proprio se o nome diz que e — mesmo criterio de detectarProprios no core.
+// Nao basta estar na lista de destinos: terceiro acrescentado entra la tambem.
 function grupo(cli) {
-  if (!DS.proprios.has(cli)) return 'ter';
-  return /biopower/i.test(cli) ? 'bio' : 'flo';
+  if (/biopower/i.test(cli)) return 'bio';
+  if (/flora/i.test(cli)) return 'flo';
+  return 'ter';
 }
 function logoDe(g) { return g === 'bio' ? LOGOS.biopower : g === 'flo' ? LOGOS.flora : null; }
 // Terceiro nao tem logo propria: usa um marcador neutro com a inicial.
@@ -596,7 +599,7 @@ function renderDetalhe(uf) {
   h += '<div class="cmp">';
   ord.forEach(cli => {
     const g = grupo(cli);
-    h += '<div class="cbox ' + g + '">' + img(logoDe(g), 'lg') +
+    h += '<div class="cbox ' + g + '">' + selo(cli, g) +
       '<div class="nm">' + esc(cli) + '</div>' +
       '<div class="vl num">' + fmt0(dest[cli]) + ' t</div>' +
       '<div class="sb">' + fmt1(carretas(dest[cli])) + ' carretas · ' +
