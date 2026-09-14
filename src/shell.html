@@ -49,6 +49,9 @@ header{border-bottom:1px solid var(--line);margin-bottom:26px}
 .btn.pri:hover{background:#16165C}
 .btn:disabled{opacity:.4;cursor:default}
 .btn:disabled:hover{border-color:var(--line);color:var(--ink);background:var(--paper)}
+.fechamsg{font-size:12px;margin-left:8px;opacity:.85}
+.fechamsg.ok{color:#5FBF7F}
+.fechamsg.ruim{color:#E06C6C}
 select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   font:inherit;font-size:13.5px;background:var(--card)}
 .spacer{flex:1}
@@ -349,6 +352,8 @@ footer img{height:17px;width:auto;opacity:.75}
     <button class="btn" id="bSave" disabled>Salvar andamento</button>
     <button class="btn" id="bLoad">Abrir andamento</button>
     <button class="btn" id="bProg" disabled>Exportar programação</button>
+    <button class="btn" id="bFechar">Fechar semana</button>
+    <span id="fechaMsg" class="fechamsg"></span>
     <button class="btn pri" id="bDist" disabled>Gerar painel para distribuir</button>
     <div class="spacer"></div>
     <select class="who" id="who" aria-label="Quem está operando">

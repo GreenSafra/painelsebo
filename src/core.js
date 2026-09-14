@@ -608,6 +608,67 @@ function repartir(prod, aloc) {
   return porLinha;
 }
 
+// Monta o pacote que vai para o banco quando a semana e fechada.
+// Desce ao nivel da linha de embarque porque o consolidado apura o mes pela
+// data de cada carga — uma semana pode atravessar a virada do mes, e apurar
+// pela semana inteira jogaria volume no mes errado.
+function montarSemana(prod, aloc, ops, mapa) {
+  const porLinha = repartir(prod, aloc);
+  const ondeUn = {};
+  prod.plants.forEach(p => ondeUn[p.sigla] = p);
+  const rows = (mapa && mapa.rows) || [];
+
+  const linhas = [];
+  let ano = null;
+  prod.linhas.forEach(l => {
+    const partes = porLinha[l.r] || [];
+    const d = (l.emb != null) ? serialToDate(l.emb) : null;
+    const iso = d ? d.toISOString().slice(0, 10) : null;
+    if (iso && !ano) ano = Number(iso.slice(0, 4));
+    const un = ondeUn[l.sigla] || {};
+    partes.forEach(p => {
+      if (!(p.ton > 0.01) || !p.dest) return;
+      const src = rows[p.dest.src] || {};
+      // melhor alternativa ao destino escolhido, guardada mesmo sem exibir:
+      // se um dia a media por UF parecer estranha, da para cruzar sem
+      // reprocessar mes nenhum.
+      let alt = null;
+      ((ops && ops[p.dest.sigla]) || []).forEach(o => {
+        if (o.cli === p.dest.cli) return;
+        if (!alt || o.net > alt.net) alt = o;
+      });
+      linhas.push({
+        dataEmbarque: iso,
+        sigla: l.sigla,
+        origemCidade: un.cidade || null,
+        origemUf: un.uf || null,
+        produto: null,
+        cliente: p.dest.cli,
+        proprio: !!p.dest.prop,
+        destino: p.dest.dst || null,
+        destinoUf: (String(p.dest.dst || '').match(/([A-Z]{2})\s*$/) || [])[1] || null,
+        toneladas: Math.round(p.ton * 1000) / 1000,
+        oferta: src.ofEdit != null ? src.ofEdit : (src.of != null ? src.of : null),
+        net: p.dest.net,
+        net2: alt ? alt.net : null,
+        cliente2: alt ? alt.cli : null,
+        icms: src.icms != null ? src.icms : null,
+        modal: p.dest.modal || src.modal || null
+      });
+    });
+  });
+
+  return {
+    cabecalho: {
+      ano: ano || new Date().getFullYear(),
+      semana: Number(prod.semana),
+      periodo: prod.periodo || null,
+      mapaData: (mapa && mapa.data) || null
+    },
+    linhas: linhas
+  };
+}
+
 function escXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

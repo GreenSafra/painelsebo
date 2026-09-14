@@ -60,6 +60,46 @@ function setupImport() {
   $('#loadIn').onchange = e => { if (e.target.files[0]) abrirAndamento(e.target.files[0]); };
   $('#bSave').onclick = salvarAndamento;
   $('#bProg').onclick = exportarProg;
+  document.getElementById('bFechar').onclick = async () => {
+    const msg = document.getElementById('fechaMsg');
+    const bt = document.getElementById('bFechar');
+    if (!PROD || !RES || !RES.alocFinal || !RES.alocFinal.length) {
+      msg.className = 'fechamsg ruim';
+      msg.textContent = 'Rode a alocação antes de fechar a semana.';
+      return;
+    }
+    const pac = montarSemana(PROD, RES.alocFinal, OPS, MAPA);
+    if (!pac.linhas.length) {
+      msg.className = 'fechamsg ruim';
+      msg.textContent = 'Nenhuma linha com destino para gravar.';
+      return;
+    }
+    // Fechar de novo nao sobrescreve: o banco cria uma versao nova e so ela
+    // passa a valer no consolidado.
+    if (!confirm('Fechar a semana ' + pac.cabecalho.semana + ' com ' +
+        pac.linhas.length + ' linhas?\n\nSe esta semana já foi fechada antes, ' +
+        'isto cria uma versão nova e ela passa a valer.')) return;
+    bt.disabled = true;
+    msg.className = 'fechamsg';
+    msg.textContent = 'Gravando...';
+    try {
+      const r = await fetch('/api/semanas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pac)
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.erro || 'Falha ao gravar.');
+      msg.className = 'fechamsg ok';
+      msg.textContent = 'Semana ' + j.semana + ' gravada (versão ' + j.versao +
+        ', ' + j.linhas + ' linhas).';
+    } catch (e) {
+      msg.className = 'fechamsg ruim';
+      msg.textContent = e.message || 'Não consegui gravar.';
+    } finally {
+      bt.disabled = false;
+    }
+  };
   $('#bDist').onclick = distribuir;
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
 }
