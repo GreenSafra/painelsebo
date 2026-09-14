@@ -170,11 +170,12 @@ function render(d) {
   h += '<h2>Fábricas próprias — realizado e ótimo</h2>';
   h += '<p class="nota">Cada carga que foi para uma fábrica própria é comparada com a ' +
     'melhor oferta de terceiro para <b>aquela mesma carga</b> — mesma origem, mesmo ' +
-    'frete, mesma semana. O ótimo é o que a alocação do modelo indicava antes de ' +
-    'qualquer troca manual.</p>';
+    'frete, mesma semana. <b>Melhor terceiro</b> é o teto disponível para essas ' +
+    'cargas, não o preço médio praticado no mês. O ótimo é o que a alocação do ' +
+    'modelo indicava antes de qualquer troca manual.</p>';
   h += '<table><thead><tr>' +
     '<th>Fábrica</th>' +
-    '<th>Volume</th><th>NET médio</th><th>Terceiro pagaria</th><th>Ganho</th>' +
+    '<th>Volume</th><th>NET médio</th><th>Melhor terceiro</th><th>Ganho</th>' +
     '<th class="g">Volume</th><th>NET médio</th><th>Ganho</th>' +
     '</tr><tr>' +
     '<th></th><th colspan="4">Realizado</th><th class="g" colspan="3">Ótimo do modelo</th>' +

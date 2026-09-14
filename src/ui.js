@@ -157,6 +157,11 @@ async function identificar() {
     const j = await r.json();
     if (!j || !j.usuario || !j.usuario.nome) return;
     const nome = j.usuario.nome;
+    // gerenciar usuarios so faz sentido para o master
+    if (j.usuario.papel === 'master') {
+      const la = document.getElementById('lnkAdmin');
+      if (la) la.classList.remove('hide');
+    }
     const sel = $('#who'), lbl = $('#quem');
     if (!sel || !lbl) return;
     // o valor precisa existir como opcao, senao o carimbo nao consegue
@@ -252,10 +257,14 @@ function renderKpis() {
   const prop = RES.alocFinal.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
   const ter = tot - prop;
   const nTer = new Set(RES.alocFinal.filter(a => !a.prop).map(a => a.cli)).size;
+  // fabricas que de fato receberam carga. Contar pelo volume digitado dava
+  // zero no Mercado livre, onde ninguem digita volume.
+  const nProp = new Set(RES.alocFinal.filter(a => a.prop).map(a => a.cli)).size;
   const k = [
     ['Toneladas da semana', fmt0(tot) + ' t', DS.plants.length + ' unidades produzindo'],
     ['Comprometido com fábrica própria', fmt0(prop) + ' t',
-      NEC.filter(d => d.ton > 0).length + ' fábricas · ' + fmt1(carretas(prop)) + ' carretas'],
+      nProp + (nProp === 1 ? ' fábrica' : ' fábricas') +
+      ' · ' + fmt1(carretas(prop)) + ' carretas'],
     ['Excedente para terceiros', fmt0(ter) + ' t',
       nTer + (nTer === 1 ? ' cliente' : ' clientes') + ' · ' + fmt1(carretas(ter)) + ' carretas']
   ];
