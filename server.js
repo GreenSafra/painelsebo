@@ -163,6 +163,35 @@ app.post('/api/senha', exigeLogin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- semanas fechadas ----------
+
+app.post('/api/semanas', exigeLogin, async (req, res) => {
+  const { cabecalho, linhas } = req.body || {};
+  if (!cabecalho) return res.status(400).json({ erro: 'Cabeçalho da semana ausente.' });
+  try {
+    const r = await db.fecharSemana(cabecalho, linhas, req.usuario.id);
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    res.status(400).json({ erro: e.message || 'Não consegui gravar a semana.' });
+  }
+});
+
+app.get('/api/semanas', exigeLogin, async (req, res) => {
+  res.json(await db.listarSemanas());
+});
+
+app.get('/api/meses', exigeLogin, async (req, res) => {
+  res.json(await db.mesesComDado());
+});
+
+app.get('/api/consolidado', exigeLogin, async (req, res) => {
+  try {
+    res.json(await db.consolidado(req.query.mes));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // ---------- paginas ----------
 
 app.get('/entrar', (req, res) => {
