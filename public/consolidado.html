@@ -58,6 +58,25 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 .vazio{background:var(--card);border:1px solid var(--line);padding:34px;
   text-align:center;color:var(--mute);font-size:14px}
 .carregando{color:var(--mute);font-size:14px;padding:30px 0}
+
+.fab{background:var(--card);border:1px solid var(--line);margin-bottom:10px}
+.fab .top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:13px 16px;border-bottom:1px solid var(--line);background:#F8F9FB}
+.fab .nome{font-size:15px;font-weight:600}
+.fab .veredito{margin-left:auto;font-size:13.5px;font-weight:600;text-align:right}
+.fab .frase{padding:12px 16px 4px;font-size:13.5px;line-height:1.55}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border-top:1px solid var(--line);margin-top:10px}
+.duo>div{background:var(--card);padding:12px 16px}
+.duo .cab{font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--mute);font-weight:600;margin-bottom:8px}
+.lin{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:2px 0}
+.lin span:first-child{color:var(--mute)}
+.lin.forte{font-weight:600;border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+.fab.sem{opacity:.62}
+.resumo{background:var(--card);border:1px solid var(--line);padding:14px 16px;
+  font-size:13.5px;line-height:1.6;margin-bottom:14px}
+@media(max-width:640px){.duo{grid-template-columns:1fr}}
 @media(max-width:700px){
   .wrap{padding:16px 12px 50px}
   table{font-size:12.5px} th,td{padding:8px 9px}
@@ -97,6 +116,17 @@ function selo(cli) {
   if (/biopower/i.test(cli)) return '<span class="selo s-bio"></span>';
   if (/flora/i.test(cli)) return '<span class="selo s-flo"></span>';
   return '<span class="selo s-ter"></span>';
+}
+function bloco(cab, t, net, ter, sav) {
+  const f = v => v == null ? '—' : rs(v);
+  let o = '<div><div class="cab">' + cab + '</div>';
+  o += '<div class="lin"><span>Volume</span><span>' + (t > 0 ? ton(t) : '—') + '</span></div>';
+  o += '<div class="lin"><span>NET médio</span><span>' + f(net) + '</span></div>';
+  o += '<div class="lin"><span>Melhor terceiro</span><span>' + f(ter) + '</span></div>';
+  o += '<div class="lin forte"><span>Diferença</span><span class="' +
+    (sav == null ? '' : (sav < 0 ? 'neg' : 'pos')) + '">' +
+    (sav == null ? '—' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+  return o + '</div>';
 }
 function sinal(v) {
   if (v == null) return '<td>—</td>';
@@ -167,38 +197,59 @@ function render(d) {
       '</div>';
   }
 
-  h += '<h2>Fábricas próprias — realizado e ótimo</h2>';
-  h += '<p class="nota">Cada carga que foi para uma fábrica própria é comparada com a ' +
-    'melhor oferta de terceiro para <b>aquela mesma carga</b> — mesma origem, mesmo ' +
-    'frete, mesma semana. <b>Melhor terceiro</b> é o teto disponível para essas ' +
-    'cargas, não o preço médio praticado no mês. O ótimo é o que a alocação do ' +
-    'modelo indicava antes de qualquer troca manual.</p>';
-  h += '<table><thead><tr>' +
-    '<th>Fábrica</th>' +
-    '<th>Volume</th><th>NET médio</th><th>Melhor terceiro</th><th>Ganho</th>' +
-    '<th class="g">Volume</th><th>NET médio</th><th>Ganho</th>' +
-    '</tr><tr>' +
-    '<th></th><th colspan="4">Realizado</th><th class="g" colspan="3">Ótimo do modelo</th>' +
-    '</tr></thead><tbody>';
+  h += '<h2>Fábricas próprias</h2>';
+  h += '<p class="nota">Para cada carga que foi para uma fábrica própria, o painel ' +
+    'sabe qual era a melhor oferta de terceiro para <b>aquela mesma carga</b> — mesma ' +
+    'origem, mesmo frete, mesma semana. A diferença entre as duas é o que a decisão ' +
+    'valeu. Aqui isso aparece duas vezes: no que foi feito, e no que o modelo mandava ' +
+    'fazer antes de qualquer troca manual.</p>';
 
   props.forEach(p => {
     const tr = Number(p.ton_realizado || 0), to = Number(p.ton_otimo || 0);
-    h += '<tr' + (tr === 0 && to === 0 ? ' class="zero"' : '') + '>';
-    h += '<td>' + selo(p.cliente) + esc(p.cliente) + '</td>';
-    h += '<td>' + (tr > 0 ? ton(tr) : '—') + '</td>';
-    h += '<td>' + rs(num(p.net_realizado)) + '</td>';
-    h += '<td>' + rs(num(p.net_ter_realizado)) + '</td>';
-    h += sinal(num(p.saving_realizado));
-    h += '<td class="g">' + (to > 0 ? ton(to) : '—') + '</td>';
-    h += '<td>' + rs(num(p.net_otimo)) + '</td>';
-    h += sinal(num(p.saving_otimo));
-    h += '</tr>';
+    const sr = num(p.saving_realizado), so = num(p.saving_otimo);
+    const dif = (so != null ? so : 0) - (sr != null ? sr : 0);
+
+    // O veredito e a frase sao a leitura pronta: quem bater o olho tem que
+    // entender sem cruzar coluna com coluna.
+    let veredito = '', frase = '';
+    if (tr === 0 && to === 0) {
+      veredito = '<span style="color:var(--mute)">não entrou na semana</span>';
+      frase = 'Não recebeu carga, e o modelo também não mandaria nada para cá.';
+    } else if (tr === 0) {
+      veredito = '<span class="neg">' + rs(Math.abs(dif)) + ' deixados na mesa</span>';
+      frase = 'Não recebeu nada. O modelo mandaria <b>' + ton(to) + '</b> para cá.';
+    } else if (to === 0) {
+      veredito = (dif > 0 ? '<span class="neg">custou ' + rs(dif) + '</span>'
+                          : '<span class="pos">acima do modelo</span>');
+      frase = 'Recebeu <b>' + ton(tr) + '</b>, mas o modelo não mandaria nada para cá — ' +
+        'para essas cargas havia terceiro pagando mais.';
+    } else {
+      const d = to - tr;
+      veredito = Math.abs(dif) < 1 ? '<span class="pos">no ponto</span>'
+        : (dif > 0 ? '<span class="neg">' + rs(dif) + ' deixados na mesa</span>'
+                   : '<span class="pos">+' + rs(-dif) + ' acima do modelo</span>');
+      frase = 'Recebeu <b>' + ton(tr) + '</b>; o modelo mandaria <b>' + ton(to) + '</b>' +
+        (Math.abs(d) < 0.5 ? ' — o mesmo volume.'
+          : (d > 0 ? ' — <b>' + ton(d) + '</b> a mais do que recebeu.'
+                   : ' — <b>' + ton(-d) + '</b> a menos do que recebeu.'));
+    }
+
+    h += '<div class="fab' + (tr === 0 && to === 0 ? ' sem' : '') + '">';
+    h += '<div class="top"><span class="nome">' + selo(p.cliente) + esc(p.cliente) +
+      '</span><span class="veredito">' + veredito + '</span></div>';
+    h += '<div class="frase">' + frase + '</div>';
+    h += '<div class="duo">';
+    h += bloco('O que foi feito', tr, num(p.net_realizado), num(p.net_ter_realizado), sr);
+    h += bloco('O que o modelo mandava', to, num(p.net_otimo), num(p.net_ter_otimo), so);
+    h += '</div></div>';
   });
-  h += '</tbody><tfoot><tr><td>Total</td>' +
-    '<td>' + ton(tProp) + '</td><td></td><td></td>' + sinal(savR) +
-    '<td class="g">' + ton(props.reduce((s, p) => s + Number(p.ton_otimo || 0), 0)) +
-    '</td><td></td>' + (temSavO ? sinal(savO) : '<td>—</td>') +
-    '</tr></tfoot></table>';
+
+  const totO = props.reduce((s2, p) => s2 + Number(p.ton_otimo || 0), 0);
+  h += '<div class="resumo">No mês, <b>' + ton(tProp) + '</b> foram para fábrica própria e ' +
+    'renderam <b class="' + (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') +
+    rs(savR) + '</b> em relação ao que o mercado pagaria pelas mesmas cargas. ' +
+    'A alocação do modelo mandaria <b>' + ton(totO) + '</b> e renderia <b class="pos">+' +
+    rs(savO) + '</b>.</div>';
 
   // Terceiros num bloco so, como combinado.
   const ters = (d.porPlanta || []).filter(x => x.proprio === false);
