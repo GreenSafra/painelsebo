@@ -324,10 +324,30 @@ async function consolidado(mes) {
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
       WHERE s.atual AND a.data_embarque >= $1 AND a.data_embarque < $2`, janela);
 
+  // Cada planta propria contra a melhor alternativa de terceiro das MESMAS
+  // cargas. Comparar contra a media geral de terceiro distorce: se a propria
+  // ficou com as origens longas, a media dela afunda pelo frete e nao pela
+  // decisao comercial.
+  const porPropria = await pool.query(
+    `SELECT a.cliente,
+            sum(a.toneladas) AS toneladas,
+            sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
+            sum(a.net2 * a.toneladas) FILTER (WHERE a.net2 IS NOT NULL)
+              / nullif(sum(a.toneladas) FILTER (WHERE a.net2 IS NOT NULL),0)
+              AS net_terceiro,
+            sum(a.toneladas) FILTER (WHERE a.net2 IS NOT NULL) AS ton_comparavel,
+            sum((a.net - a.net2) * a.toneladas) FILTER (WHERE a.net2 IS NOT NULL)
+              AS saving
+       FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
+      WHERE s.atual AND a.proprio
+        AND a.data_embarque >= $1 AND a.data_embarque < $2
+      GROUP BY 1 ORDER BY 2 DESC`, janela);
+
   return {
     mes,
     porUf: porUf.rows,
     porPlanta: porPlanta.rows,
+    porPropria: porPropria.rows,
     total: total.rows[0] || { toneladas: 0, net_medio: null, semanas: 0 }
   };
 }

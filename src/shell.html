@@ -54,6 +54,7 @@ header{border-bottom:1px solid var(--line);margin-bottom:26px}
 .fechamsg.ruim{color:#E06C6C}
 select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   font:inherit;font-size:13.5px;background:var(--card)}
+.quem{display:inline-flex;align-items:center;padding:0 10px;font-weight:600}
 .spacer{flex:1}
 
 /* ---------- importar ---------- */
@@ -359,6 +360,7 @@ footer img{height:17px;width:auto;opacity:.75}
     <select class="who" id="who" aria-label="Quem está operando">
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
     </select>
+    <span class="who quem hide" id="quem"></span>
   </div>
 </header>
 

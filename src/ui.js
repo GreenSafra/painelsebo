@@ -144,6 +144,33 @@ function iniciar() {
   $('#bSave').disabled = false; $('#bDist').disabled = false;
   $('#bProg').disabled = !PROGBUF;
   recalcular();
+  identificar();
+}
+
+// Com login, quem esta operando vem da sessao, nao de um seletor. O <select>
+// so continua existindo para o caso de o painel ser aberto solto, fora do
+// servidor (arquivo local), onde nao ha sessao.
+async function identificar() {
+  try {
+    const r = await fetch('/api/eu');
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j || !j.usuario || !j.usuario.nome) return;
+    const nome = j.usuario.nome;
+    const sel = $('#who'), lbl = $('#quem');
+    if (!sel || !lbl) return;
+    // o valor precisa existir como opcao, senao o carimbo nao consegue
+    // refletir ST.usuario de volta no seletor
+    if (![].some.call(sel.options, o => o.value === nome)) {
+      const o = document.createElement('option');
+      o.value = nome; o.textContent = nome; sel.appendChild(o);
+    }
+    sel.value = nome;
+    sel.classList.add('hide');
+    lbl.textContent = nome;
+    lbl.classList.remove('hide');
+    if (ST) { ST.usuario = nome; carimbo(); }
+  } catch (e) { /* painel solto, sem servidor: segue com o seletor */ }
 }
 
 function novoEstado() {
