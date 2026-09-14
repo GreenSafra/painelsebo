@@ -199,6 +199,11 @@ app.get('/entrar', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'entrar.html'));
 });
 
+app.get('/consolidado', (req, res) => {
+  if (!req.usuario) return res.redirect('/entrar');
+  res.sendFile(path.join(__dirname, 'public', 'consolidado.html'));
+});
+
 app.get('/admin', (req, res) => {
   if (!req.usuario || req.usuario.papel !== 'master') return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));

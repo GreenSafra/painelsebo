@@ -52,6 +52,7 @@ header{border-bottom:1px solid var(--line);margin-bottom:26px}
 .fechamsg{font-size:12px;margin-left:8px;opacity:.85}
 .fechamsg.ok{color:#5FBF7F}
 .fechamsg.ruim{color:#E06C6C}
+.btn.lnk{text-decoration:none;display:inline-flex;align-items:center}
 select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   font:inherit;font-size:13.5px;background:var(--card)}
 .quem{display:inline-flex;align-items:center;padding:0 10px;font-weight:600}
@@ -356,6 +357,7 @@ footer img{height:17px;width:auto;opacity:.75}
     <button class="btn" id="bFechar">Fechar semana</button>
     <span id="fechaMsg" class="fechamsg"></span>
     <button class="btn pri" id="bDist" disabled>Gerar painel para distribuir</button>
+    <a class="btn lnk" href="/consolidado">Consolidado mensal</a>
     <div class="spacer"></div>
     <select class="who" id="who" aria-label="Quem está operando">
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>

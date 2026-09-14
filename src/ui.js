@@ -92,7 +92,7 @@ function setupImport() {
       if (!r.ok) throw new Error(j.erro || 'Falha ao gravar.');
       msg.className = 'fechamsg ok';
       msg.textContent = 'Semana ' + j.semana + ' gravada (versão ' + j.versao +
-        ', ' + j.linhas + ' linhas).';
+        ', ' + j.linhas + ' linhas + ótimo).';
     } catch (e) {
       msg.className = 'fechamsg ruim';
       msg.textContent = e.message || 'Não consegui gravar.';

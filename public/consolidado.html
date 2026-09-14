@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Consolidado mensal — sebo</title>
+<style>
+:root{
+  --paper:#DFE0E4; --card:#FFFFFF; --ink:#23242B; --mute:#6B6D78; --line:#C4C6D0;
+  --azul:#1E1E7B; --bio:#2F9E44; --flora:#0B5C86; --sebo:#7A7D88;
+  --pos:#0F7B40; --neg:#C31419; --posbg:#EAF6EF; --negbg:#FDEDEE;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+header{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+h1{font-size:23px;margin:0;letter-spacing:-.2px}
+.sub{font-size:13.5px;color:var(--mute);margin:3px 0 0}
+.spacer{flex:1}
+.volta{font-size:13px;color:var(--azul);text-decoration:none;font-weight:600}
+.volta:hover{text-decoration:underline}
+select{font-family:inherit;font-size:14px;padding:8px 11px;border:1px solid var(--line);
+  border-radius:var(--r);background:var(--card);color:var(--ink)}
+hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);margin-bottom:22px}
+.c{background:var(--card);padding:16px 18px}
+.c .lab{font-size:13px;color:var(--mute)}
+.c .big{font-size:27px;font-weight:600;margin:5px 0 2px;letter-spacing:-.5px}
+.c .pe{font-size:12.5px;color:var(--mute)}
+.big.pos{color:var(--pos)} .big.neg{color:var(--neg)}
+
+h2{font-size:15px;margin:26px 0 4px;font-weight:600}
+.nota{font-size:12.5px;color:var(--mute);margin:0 0 12px;max-width:760px;line-height:1.5}
+
+table{width:100%;border-collapse:collapse;background:var(--card);
+  border:1px solid var(--line);font-size:13.5px}
+th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);
+  white-space:nowrap}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--mute);
+  font-weight:600;background:#F4F5F8}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+tbody tr:last-child td{border-bottom:0}
+.g{border-left:1px solid var(--line)}
+.pos{color:var(--pos);font-weight:600}
+.neg{color:var(--neg);font-weight:600}
+.zero td{color:var(--mute)}
+.selo{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.s-bio{background:var(--bio)} .s-flo{background:var(--flora)} .s-ter{background:var(--sebo)}
+tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
+
+.aviso{background:var(--card);border-left:3px solid var(--azul);padding:12px 15px;
+  font-size:13.5px;margin:14px 0;line-height:1.55}
+.vazio{background:var(--card);border:1px solid var(--line);padding:34px;
+  text-align:center;color:var(--mute);font-size:14px}
+.carregando{color:var(--mute);font-size:14px;padding:30px 0}
+@media(max-width:700px){
+  .wrap{padding:16px 12px 50px}
+  table{font-size:12.5px} th,td{padding:8px 9px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Consolidado mensal</h1>
+    <p class="sub" id="sub">Carregando…</p>
+  </div>
+  <div class="spacer"></div>
+  <select id="mes" aria-label="Mês"></select>
+  <a class="volta" href="/">← voltar ao painel</a>
+</header>
+<hr>
+
+<div id="conteudo"><p class="carregando">Carregando…</p></div>
+
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const nf = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const n1 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+const num = v => (v == null || v === '') ? null : Number(v);
+const ton = v => v == null ? '—' : n1.format(v) + ' t';
+// negativo sai como −R$ 1.234, nao R$ -1.234
+const rs  = v => v == null ? '—'
+  : (v < 0 ? '−R$ ' : 'R$ ') + nf.format(Math.abs(v));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+function selo(cli) {
+  if (/biopower/i.test(cli)) return '<span class="selo s-bio"></span>';
+  if (/flora/i.test(cli)) return '<span class="selo s-flo"></span>';
+  return '<span class="selo s-ter"></span>';
+}
+function sinal(v) {
+  if (v == null) return '<td>—</td>';
+  return '<td class="' + (v < 0 ? 'neg' : 'pos') + '">' +
+    (v > 0 ? '+' : '') + rs(v) + '</td>';
+}
+function nomeMes(m) {
+  const [a, b] = m.split('-');
+  const M = ['janeiro','fevereiro','março','abril','maio','junho','julho',
+    'agosto','setembro','outubro','novembro','dezembro'];
+  return M[Number(b) - 1] + ' de ' + a;
+}
+
+async function carregarMeses() {
+  const r = await fetch('/api/meses');
+  const j = await r.json();
+  const sel = $('#mes');
+  if (!j.length) { sel.innerHTML = '<option>—</option>'; return null; }
+  sel.innerHTML = j.map(x =>
+    '<option value="' + x.mes + '">' + nomeMes(x.mes) + '</option>').join('');
+  return j[0].mes;
+}
+
+function render(d) {
+  const cont = $('#conteudo');
+  const props = d.porPropria || [];
+  const temDado = props.some(p => Number(p.ton_realizado) > 0);
+  if (!temDado) {
+    cont.innerHTML = '<div class="vazio">Nenhuma semana fechada neste mês ainda.<br>' +
+      'O consolidado passa a mostrar dado depois que você fechar a primeira semana.</div>';
+    return;
+  }
+
+  // Totais. O saving so existe onde havia alternativa de terceiro para comparar.
+  let savR = 0, savO = 0, temSavO = false;
+  props.forEach(p => {
+    if (num(p.saving_realizado) != null) savR += num(p.saving_realizado);
+    if (num(p.saving_otimo) != null) { savO += num(p.saving_otimo); temSavO = true; }
+  });
+  const tot = d.total || {};
+  const tProp = props.reduce((s, p) => s + Number(p.ton_realizado || 0), 0);
+  const tTudo = Number(tot.toneladas || 0);
+  const tTer = tTudo - tProp;
+  const perdido = temSavO ? (savO - savR) : null;
+
+  let h = '';
+  h += '<div class="cards">';
+  h += '<div class="c"><div class="lab">Volume do mês</div><div class="big">' +
+       ton(tTudo) + '</div><div class="pe">' + (tot.semanas || 0) +
+       ' semana(s) fechada(s)</div></div>';
+  h += '<div class="c"><div class="lab">Para fábrica própria</div><div class="big">' +
+       ton(tProp) + '</div><div class="pe">' +
+       (tTudo ? n1.format(tProp / tTudo * 100) + '% do total' : '—') + '</div></div>';
+  h += '<div class="c"><div class="lab">Para terceiros</div><div class="big">' +
+       ton(tTer) + '</div><div class="pe">NET médio geral ' +
+       rs(num(tot.net_medio)) + '</div></div>';
+  h += '<div class="c"><div class="lab">Ganho sobre o mercado</div><div class="big ' +
+       (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') + rs(savR) +
+       '</div><div class="pe">realizado, nas cargas que foram para própria</div></div>';
+  h += '</div>';
+
+  if (perdido != null && Math.abs(perdido) > 1) {
+    h += '<div class="aviso"><b>' + rs(Math.abs(perdido)) + '</b> ' +
+      (perdido > 0
+        ? 'é a diferença entre o que a alocação do modelo geraria e o que foi feito. ' +
+          'Vem das trocas manuais de destino durante a semana.'
+        : 'foi ganho acima do que o modelo indicava, por trocas feitas na mão.') +
+      '</div>';
+  }
+
+  h += '<h2>Fábricas próprias — realizado e ótimo</h2>';
+  h += '<p class="nota">Cada carga que foi para uma fábrica própria é comparada com a ' +
+    'melhor oferta de terceiro para <b>aquela mesma carga</b> — mesma origem, mesmo ' +
+    'frete, mesma semana. O ótimo é o que a alocação do modelo indicava antes de ' +
+    'qualquer troca manual.</p>';
+  h += '<table><thead><tr>' +
+    '<th>Fábrica</th>' +
+    '<th>Volume</th><th>NET médio</th><th>Terceiro pagaria</th><th>Ganho</th>' +
+    '<th class="g">Volume</th><th>NET médio</th><th>Ganho</th>' +
+    '</tr><tr>' +
+    '<th></th><th colspan="4">Realizado</th><th class="g" colspan="3">Ótimo do modelo</th>' +
+    '</tr></thead><tbody>';
+
+  props.forEach(p => {
+    const tr = Number(p.ton_realizado || 0), to = Number(p.ton_otimo || 0);
+    h += '<tr' + (tr === 0 && to === 0 ? ' class="zero"' : '') + '>';
+    h += '<td>' + selo(p.cliente) + esc(p.cliente) + '</td>';
+    h += '<td>' + (tr > 0 ? ton(tr) : '—') + '</td>';
+    h += '<td>' + rs(num(p.net_realizado)) + '</td>';
+    h += '<td>' + rs(num(p.net_ter_realizado)) + '</td>';
+    h += sinal(num(p.saving_realizado));
+    h += '<td class="g">' + (to > 0 ? ton(to) : '—') + '</td>';
+    h += '<td>' + rs(num(p.net_otimo)) + '</td>';
+    h += sinal(num(p.saving_otimo));
+    h += '</tr>';
+  });
+  h += '</tbody><tfoot><tr><td>Total</td>' +
+    '<td>' + ton(tProp) + '</td><td></td><td></td>' + sinal(savR) +
+    '<td class="g">' + ton(props.reduce((s, p) => s + Number(p.ton_otimo || 0), 0)) +
+    '</td><td></td>' + (temSavO ? sinal(savO) : '<td>—</td>') +
+    '</tr></tfoot></table>';
+
+  // Terceiros num bloco so, como combinado.
+  const ters = (d.porPlanta || []).filter(x => x.proprio === false);
+  if (ters.length) {
+    const tt = ters.reduce((s, x) => s + Number(x.toneladas || 0), 0);
+    const netT = ters.reduce((s, x) =>
+      s + Number(x.net_medio || 0) * Number(x.toneladas || 0), 0) / (tt || 1);
+    h += '<h2>Terceiros</h2>';
+    h += '<p class="nota">' + ters.length + ' cliente(s) no mês, somados. ' +
+      'NET médio ponderado pelo volume.</p>';
+    h += '<table><thead><tr><th>Destino</th><th>Volume</th><th>NET médio</th>' +
+      '</tr></thead><tbody>';
+    h += '<tr><td>' + selo('terceiro') + 'Terceiros (todos)</td><td>' + ton(tt) +
+      '</td><td>' + rs(netT) + '</td></tr>';
+    h += '</tbody></table>';
+  }
+
+  cont.innerHTML = h;
+}
+
+async function carregar(mes) {
+  $('#conteudo').innerHTML = '<p class="carregando">Carregando…</p>';
+  try {
+    const r = await fetch('/api/consolidado?mes=' + encodeURIComponent(mes));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || 'Falha ao carregar.');
+    $('#sub').textContent = nomeMes(j.mes) + ' · apurado pela data de embarque de cada carga';
+    render(j);
+  } catch (e) {
+    $('#conteudo').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>';
+  }
+}
+
+(async () => {
+  const m = await carregarMeses();
+  if (!m) {
+    $('#sub').textContent = 'nenhuma semana fechada ainda';
+    $('#conteudo').innerHTML = '<div class="vazio">Nenhuma semana fechada ainda.<br>' +
+      'Feche a primeira semana no painel para o consolidado começar a existir.</div>';
+    return;
+  }
+  $('#mes').onchange = () => carregar($('#mes').value);
+  carregar(m);
+})();
+</script>
+</body>
+</html>
