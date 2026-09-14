@@ -224,6 +224,15 @@ app.get('/api/rascunho', exigeLogin, async (req, res) => {
   }
 });
 
+app.delete('/api/rascunho', exigeLogin, async (req, res) => {
+  try {
+    await db.apagarRascunho(Number(req.query.ano), Number(req.query.semana));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // ---------- paginas ----------
 
 app.get('/entrar', (req, res) => {

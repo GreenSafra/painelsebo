@@ -335,13 +335,14 @@ footer img{height:17px;width:auto;opacity:.75}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-.reiniciar{font-size:12px;color:var(--mute);text-decoration:underline}
-.reiniciar:hover{color:var(--azul)}
-
 .rascunhos{display:flex;flex-direction:column;gap:6px;margin:14px 0 20px}
-.rascunho{text-align:left;background:var(--paper);border:1px solid var(--line);
+.rascunho{display:flex;align-items:stretch;gap:8px}
+.rascunho-abrir{flex:1;text-align:left;background:var(--paper);border:1px solid var(--line);
   border-radius:var(--r);padding:9px 13px;font:inherit;font-size:13px;cursor:pointer}
-.rascunho:hover{border-color:var(--azul);color:var(--azul)}
+.rascunho-abrir:hover{border-color:var(--azul);color:var(--azul)}
+.rascunho-descartar{flex:none;background:none;border:0;color:var(--mute);font-size:12px;
+  text-decoration:underline;cursor:pointer;padding:0 4px}
+.rascunho-descartar:hover{color:var(--red)}
 
 /* Resumo da semana no painel — mesma leitura de public/consolidado.html.
    Classes com prefixo rs- de proposito: .pos/.neg ja existem acima com
@@ -401,6 +402,7 @@ footer img{height:17px;width:auto;opacity:.75}
   </div>
   <div class="acts">
     <button class="btn" id="bImport">Importar planilhas</button>
+    <button class="btn" id="bNovaSemana" disabled>Nova semana</button>
     <button class="btn" id="bSave" disabled>Salvar</button>
     <span id="msgSalvar" class="fechamsg"></span>
     <button class="btn" id="bProg" disabled>Exportar programação</button>
@@ -444,7 +446,6 @@ footer img{height:17px;width:auto;opacity:.75}
   <div class="err hide" id="impErr"></div>
   <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
-  <a class="reiniciar" href="#" id="lnkReiniciarImport">começar de novo</a>
 </section>
 
 <main id="app" class="hide">
@@ -512,7 +513,6 @@ footer img{height:17px;width:auto;opacity:.75}
 
 <footer>
   <span id="foot"></span>
-  <a class="reiniciar" href="#" id="lnkReiniciarPainel">começar de novo</a>
   <span class="spacer"></span>
   <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
 </footer>

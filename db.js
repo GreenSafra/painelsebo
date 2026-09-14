@@ -480,11 +480,16 @@ async function lerRascunho(ano, semana) {
   return { dados: JSON.parse(r.rows[0].dados), salvoEm: r.rows[0].salvo_em, salvoPor: r.rows[0].salvo_por };
 }
 
+async function apagarRascunho(ano, semana) {
+  if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
+  await pool.query(`DELETE FROM rascunhos WHERE ano=$1 AND semana=$2`, [ano, semana]);
+}
+
 module.exports = {
   pool, iniciar, MASTER,
   criarUsuario, porEmail, porId, listar, decidir, trocarSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
   fecharSemana, listarSemanas, consolidado, mesesComDado,
-  salvarRascunho, listarRascunhos, lerRascunho
+  salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho
 };

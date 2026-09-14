@@ -166,6 +166,7 @@ const respFake = (status, corpo) => ({
   T('sem conflito: confirm nunca e chamado', !confirmChamado && tentativas.length === 1);
 
   // ============ 4. <script id="bd"> continua abrindo sem o gerador ============
+  // (usa w.PROD/w.MAPA de agora, antes de zerar tudo nos testes seguintes)
   const pacoteReal = w.montarPacoteDados();
   const jsonInline = JSON.stringify(pacoteReal).replace(/</g, '\\u003c');
   const htmlComBd = fs.readFileSync(PAINEL, 'utf8').replace(
@@ -185,6 +186,53 @@ const respFake = (status, corpo) => ({
   T('#bd continua abrindo: app visivel, import escondido',
     !w2.document.getElementById('app').classList.contains('hide') &&
     w2.document.getElementById('importBox').classList.contains('hide'));
+
+  // ============ 5. Nova semana: zera tudo, nao auto-carrega ============
+  w.RASCUNHO_SUJO = false;
+  const urlsChamadas = [];
+  w.fetch = async (url) => {
+    urlsChamadas.push(url);
+    if (url === '/api/rascunhos') return respFake(200, []);
+    return respFake(404, {});
+  };
+  w.novaSemana();
+  T('nova semana: PROD zerado', w.PROD === null);
+  T('nova semana: MAPA zerado', w.MAPA === null);
+  T('nova semana: PROGBUF zerado', w.PROGBUF === null);
+  T('nova semana: sebo_estado limpo', w.localStorage.getItem('sebo_estado') === null);
+  T('nova semana: sebo_dados limpo', w.localStorage.getItem('sebo_dados') === null);
+  T('nova semana: volta pra tela de importacao', !d.querySelector('#importBox').classList.contains('hide'));
+  T('nova semana: esconde o painel', d.querySelector('#app').classList.contains('hide'));
+  T('nova semana: nao auto-carrega nenhum rascunho especifico',
+    !urlsChamadas.some(u => u.indexOf('/api/rascunho?') === 0), urlsChamadas.join(', '));
+
+  // ============ 6. Nova semana: confirmacao so quando ha algo nao salvo ============
+  let confirmChamadoNS = false;
+  w.confirm = () => { confirmChamadoNS = true; return true; };
+  w.RASCUNHO_SUJO = true;
+  w.novaSemana();
+  T('com alteracao nao salva, nova semana avisa antes', confirmChamadoNS);
+
+  confirmChamadoNS = false;
+  w.RASCUNHO_SUJO = false;
+  w.novaSemana();
+  T('com tudo salvo, nova semana nao avisa', !confirmChamadoNS);
+
+  // ============ 7. Descartar rascunho ============
+  const deletes = [];
+  w.fetch = async (url, opts) => {
+    if (opts && opts.method === 'DELETE') { deletes.push(url); return respFake(200, { ok: true }); }
+    if (url === '/api/rascunhos') return respFake(200, []);
+    return respFake(404, {});
+  };
+  w.confirm = () => false;
+  await w.descartarRascunho(2026, 38);
+  T('descartar: cancelar a confirmacao nao chama DELETE', deletes.length === 0);
+
+  w.confirm = () => true;
+  await w.descartarRascunho(2026, 38);
+  T('descartar: confirmar chama DELETE com ano e semana certos',
+    deletes.length === 1 && deletes[0] === '/api/rascunho?ano=2026&semana=38', deletes.join(', '));
 
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);

@@ -98,19 +98,7 @@ function setupImport() {
     }
   };
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
-  ['lnkReiniciarImport', 'lnkReiniciarPainel'].forEach(id => {
-    const l = document.getElementById(id);
-    if (l) l.onclick = e => { e.preventDefault(); comecarDeNovo(); };
-  });
-}
-
-// Apaga tudo que foi salvo (planilhas + progresso) e recomeca do zero.
-// Sem isso o usuario fica preso na semana velha ao reabrir o painel.
-function comecarDeNovo() {
-  if (!confirm('Apagar os dados salvos deste painel e recomeçar do zero?')) return;
-  try { localStorage.removeItem('sebo_estado'); } catch (e) { }
-  try { localStorage.removeItem('sebo_dados'); } catch (e) { }
-  location.reload();
+  $('#bNovaSemana').onclick = novaSemana;
 }
 
 async function receber(k, file) {
@@ -152,6 +140,7 @@ function iniciar(restaurando) {
   $('#app').classList.remove('hide');
   $('#bSave').disabled = false;
   $('#bProg').disabled = !PROGBUF;
+  $('#bNovaSemana').disabled = false;
   recalcular();
   identificar();
   // restaurando = reabrindo o que ja estava salvo: regravar aqui so
@@ -376,6 +365,7 @@ function renderResumoSemana() {
 }
 
 function carimbo() {
+  if (!ST) return;
   const sem = ST.semana ? 'Semana ' + fmt0(ST.semana) : 'Semana';
   $('#sub').textContent = sem + (ST.periodo ? ' · ' + ST.periodo : '') +
     (ST.dataMapa ? ' · cotações de ' + ST.dataMapa : '');
@@ -1004,7 +994,7 @@ function montarPacoteDados() {
   return {
     prod: PROD, progb64: PROGBUF ? b64(PROGBUF) : null,
     mapa: { rows: MAPA.rows.map(r => { const c = Object.assign({}, r); delete c.ofEdit; return c; }), data: MAPA.data },
-    estado: ST, arquivos: RAW.arquivos
+    estado: ST, arquivos: RAW ? RAW.arquivos : {}
   };
 }
 
@@ -1066,6 +1056,7 @@ async function salvarRascunho() {
     }
     const j = await r.json();
     if (!r.ok) throw new Error(j.erro || 'Não consegui salvar.');
+    if (!ST) return;  // a sessao foi zerada (Nova semana) enquanto isto estava no ar
     RASCUNHO_SALVO_EM = j.salvoEm; RASCUNHO_SALVO_POR = j.salvoPor; RASCUNHO_SUJO = false;
     ST.usuario = $('#who').value; ST.salvoEm = agora();
     persistir(); carimbo(); atualizarCarimboRascunho();
@@ -1093,13 +1084,56 @@ function renderRascunhos(lista) {
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
   ul.innerHTML = lista.map(r =>
-    '<button class="rascunho" data-ano="' + r.ano + '" data-semana="' + r.semana + '">' +
-    'Semana ' + r.semana + '/' + r.ano + ' — salvo por ' + esc(r.salvo_por || '—') +
-    ' às ' + esc(fmtDataHora(r.salvo_em)) + '</button>'
+    '<div class="rascunho">' +
+      '<button class="rascunho-abrir" data-ano="' + r.ano + '" data-semana="' + r.semana + '">' +
+        'Semana ' + r.semana + '/' + r.ano + ' — salvo por ' + esc(r.salvo_por || '—') +
+        ' às ' + esc(fmtDataHora(r.salvo_em)) +
+      '</button>' +
+      '<button class="rascunho-descartar" data-ano="' + r.ano + '" data-semana="' + r.semana + '" ' +
+        'title="Apagar este rascunho do servidor">descartar</button>' +
+    '</div>'
   ).join('');
-  [].forEach.call(ul.querySelectorAll('[data-ano]'), b => {
+  [].forEach.call(ul.querySelectorAll('.rascunho-abrir'), b => {
     b.onclick = () => carregarRascunho(Number(b.dataset.ano), Number(b.dataset.semana));
   });
+  [].forEach.call(ul.querySelectorAll('.rascunho-descartar'), b => {
+    b.onclick = () => descartarRascunho(Number(b.dataset.ano), Number(b.dataset.semana));
+  });
+}
+
+async function descartarRascunho(ano, semana) {
+  if (!confirm('Apagar o rascunho da semana ' + semana + '/' + ano +
+      ' salvo no servidor? Isso não pode ser desfeito.')) return;
+  try {
+    const r = await fetch('/api/rascunho?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
+    if (!r.ok) { erro('Não consegui apagar esse rascunho.'); return; }
+  } catch (e) { erro('Não consegui apagar esse rascunho: ' + e.message); return; }
+  carregarListaRascunhos();
+}
+
+// Volta pra tela de importacao sem mexer no rascunho do servidor — esse
+// continua intacto, disponivel pra retomar dali a pouco ou depois. So zera
+// o que esta em memoria e no localStorage. Sem location.reload(): assim
+// boot() (e o auto-carregamento) nao rodam de novo agora — so no proximo
+// carregamento de verdade da pagina, quando o rascunho ainda vai estar la
+// pra quem quiser retomar. Como a pagina nao recarrega, #bSave/#bProg/
+// #bNovaSemana (que ficam fora de #app, continuam clicaveis) voltam a
+// ficar disabled — sem isso, clicar neles depois leria PROD/RAW/OPS nulos.
+function novaSemana() {
+  if (RASCUNHO_SUJO && !confirm(
+    'Você tem alterações não salvas nesta semana — elas serão perdidas. Continuar mesmo assim?'
+  )) return;
+  try { localStorage.removeItem('sebo_estado'); } catch (e) { }
+  try { localStorage.removeItem('sebo_dados'); } catch (e) { }
+  PROD = null; MAPA = null; PROGBUF = null; ST = null;
+  RES = null; DS = null; OPS = null; NEC = null; RAW = null;
+  arquivos = {};
+  RASCUNHO_SALVO_EM = null; RASCUNHO_SALVO_POR = null; RASCUNHO_SUJO = false;
+  $('#bSave').disabled = true; $('#bProg').disabled = true; $('#bNovaSemana').disabled = true;
+  $('#sub').textContent = ''; $('#stamp').innerHTML = ''; $('#foot').textContent = '';
+  $('#app').classList.add('hide');
+  $('#importBox').classList.remove('hide');
+  carregarListaRascunhos();  // atualiza a lista (pode ter mudado nesta sessao)
 }
 
 async function carregarRascunho(ano, semana) {
