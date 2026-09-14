@@ -193,6 +193,37 @@ app.get('/api/consolidado', exigeLogin, async (req, res) => {
   }
 });
 
+// ---------- rascunhos ----------
+
+app.post('/api/rascunho', exigeLogin, async (req, res) => {
+  const { ano, semana, dados, baseSalvoEm, forcar } = req.body || {};
+  if (!ano || !semana || !dados) return res.status(400).json({ erro: 'Dados incompletos.' });
+  try {
+    const r = await db.salvarRascunho({
+      ano: Number(ano), semana: Number(semana), dados,
+      usuarioId: req.usuario.id, baseSalvoEm, forcar: !!forcar
+    });
+    if (r.conflito) return res.status(409).json({ conflito: true, salvoPor: r.salvoPor, salvoEm: r.salvoEm });
+    res.json({ ok: true, salvoEm: r.salvoEm, salvoPor: req.usuario.nome });
+  } catch (e) {
+    res.status(400).json({ erro: e.message || 'Não consegui salvar o rascunho.' });
+  }
+});
+
+app.get('/api/rascunhos', exigeLogin, async (req, res) => {
+  res.json(await db.listarRascunhos());
+});
+
+app.get('/api/rascunho', exigeLogin, async (req, res) => {
+  try {
+    const r = await db.lerRascunho(Number(req.query.ano), Number(req.query.semana));
+    if (!r) return res.status(404).json({ erro: 'Rascunho não encontrado.' });
+    res.json(r);
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // ---------- paginas ----------
 
 app.get('/entrar', (req, res) => {

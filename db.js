@@ -118,6 +118,24 @@ async function iniciar() {
     `CREATE INDEX IF NOT EXISTS ix_aloc_cenario ON alocacoes(semana_id, cenario)`
   );
 
+  // Rascunho da semana em andamento: uma linha por ano+semana, salvar
+  // sobrescreve — nao versionado como semanas/alocacoes, porque isto e
+  // trabalho em progresso; so a versao fechada entra no historico. Guarda o
+  // mesmo pacote que montarPacoteDados() monta no painel (prod, progb64,
+  // mapa, estado, arquivos), serializado como texto: tem base64 do xlsx
+  // dentro e nunca vai ser consultado por campo, por isso TEXT e nao JSONB.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rascunhos (
+      id         SERIAL PRIMARY KEY,
+      ano        INTEGER NOT NULL,
+      semana     INTEGER NOT NULL,
+      dados      TEXT NOT NULL,
+      usuario_id INTEGER REFERENCES usuarios(id),
+      salvo_em   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (ano, semana)
+    )
+  `);
+
   // Promove o master caso ele ja tenha se cadastrado.
   await pool.query(
     `UPDATE usuarios SET papel='master', situacao='ativo' WHERE lower(email)=$1`,
@@ -282,6 +300,11 @@ async function fecharSemana(cab, linhas, usuarioId) {
     }
     await gravar(linhas, 'realizado');
     await gravar(cab.linhasOtimo || [], 'otimo');
+    // A semana virou versao fechada: o rascunho perdeu a funcao (senao ele
+    // continuaria sendo "o mais recente" e o painel reabriria uma semana ja
+    // fechada sozinho). Se reabrirem e mexerem, um rascunho novo nasce
+    // quando salvarem de novo.
+    await c.query(`DELETE FROM rascunhos WHERE ano=$1 AND semana=$2`, [ano, semana]);
     await c.query('COMMIT');
     return { id, ano, semana, versao: s.rows[0].versao, linhas: linhas.length };
   } catch (e) {
@@ -402,10 +425,66 @@ async function mesesComDado() {
   return r.rows;
 }
 
+// ---------- rascunhos ----------
+
+async function salvarRascunho({ ano, semana, dados, usuarioId, baseSalvoEm, forcar }) {
+  if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new Error('Ano invalido.');
+  if (!Number.isInteger(semana) || semana < 1 || semana > 53) throw new Error('Semana invalida.');
+
+  // Trava de sobrescrita: se ja existe rascunho mais novo que o que o
+  // cliente carregou (ou o cliente nunca carregou nada e ja existe algo),
+  // avisa em vez de gravar por cima calado — a nao ser que forcar=true.
+  const atual = await pool.query(
+    `SELECT r.salvo_em, u.nome AS salvo_por
+       FROM rascunhos r LEFT JOIN usuarios u ON u.id = r.usuario_id
+      WHERE r.ano=$1 AND r.semana=$2`,
+    [ano, semana]
+  );
+  if (atual.rows.length && !forcar) {
+    const a = atual.rows[0];
+    if (!baseSalvoEm || new Date(a.salvo_em) > new Date(baseSalvoEm)) {
+      return { conflito: true, salvoPor: a.salvo_por, salvoEm: a.salvo_em };
+    }
+  }
+
+  const texto = JSON.stringify(dados);
+  const r = await pool.query(
+    `INSERT INTO rascunhos (ano, semana, dados, usuario_id, salvo_em)
+       VALUES ($1,$2,$3,$4,now())
+     ON CONFLICT (ano, semana) DO UPDATE
+       SET dados=$3, usuario_id=$4, salvo_em=now()
+     RETURNING salvo_em`,
+    [ano, semana, texto, usuarioId || null]
+  );
+  return { conflito: false, salvoEm: r.rows[0].salvo_em };
+}
+
+async function listarRascunhos() {
+  const r = await pool.query(
+    `SELECT r.ano, r.semana, r.salvo_em, u.nome AS salvo_por
+       FROM rascunhos r LEFT JOIN usuarios u ON u.id = r.usuario_id
+      ORDER BY r.salvo_em DESC`
+  );
+  return r.rows;
+}
+
+async function lerRascunho(ano, semana) {
+  if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
+  const r = await pool.query(
+    `SELECT r.dados, r.salvo_em, u.nome AS salvo_por
+       FROM rascunhos r LEFT JOIN usuarios u ON u.id = r.usuario_id
+      WHERE r.ano=$1 AND r.semana=$2`,
+    [ano, semana]
+  );
+  if (!r.rows.length) return null;
+  return { dados: JSON.parse(r.rows[0].dados), salvoEm: r.rows[0].salvo_em, salvoPor: r.rows[0].salvo_por };
+}
+
 module.exports = {
   pool, iniciar, MASTER,
   criarUsuario, porEmail, porId, listar, decidir, trocarSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
-  fecharSemana, listarSemanas, consolidado, mesesComDado
+  fecharSemana, listarSemanas, consolidado, mesesComDado,
+  salvarRascunho, listarRascunhos, lerRascunho
 };

@@ -12,8 +12,7 @@ const T=(n,c,x)=>console.log((c?'  ok  ':'  FALHA ')+n+(x?' — '+x:''));
  const d=w.document;
  T('tela de importação visível', !d.querySelector('#importBox').classList.contains('hide'));
  T('painel escondido', d.querySelector('#app').classList.contains('hide'));
- T('salvar e distribuir desabilitados',
-   d.querySelector('#bSave').disabled && d.querySelector('#bDist').disabled);
+ T('salvar desabilitado', d.querySelector('#bSave').disabled);
  T('duas áreas de upload', d.querySelectorAll('.drop').length===2);
  T('logo no topo', (d.querySelector('#lgFriboi').src||'').indexOf('data:image')===0);
  T('logos no rodapé', (d.querySelector('#lgBio').src||'').indexOf('data:image')===0 &&

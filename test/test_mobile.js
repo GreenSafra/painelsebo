@@ -52,7 +52,6 @@ chaves.forEach(k=>T('regra móvel: '+k.split('{')[0], css.indexOf(k)>=0));
  T('sem fundo transparente no botao', !/\.btn\{background:transparent/.test(html));
  T('barra de botoes em grade no celular',
    /\.acts\{display:grid;grid-template-columns:1fr 1fr/.test(css));
- T('gerar painel ocupa a linha inteira', /\.acts \.btn\.pri\{grid-column:1\/-1\}/.test(css));
  T('seletor de usuario na linha inteira', /select\.who\{grid-column:1\/-1/.test(css));
  T('alvo de toque de 44px', (css.match(/min-height:44px/g)||[]).length>=2);
  T('wrap com fundo proprio contra inversao',

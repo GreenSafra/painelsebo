@@ -272,7 +272,6 @@ footer img{height:17px;width:auto;opacity:.75}
   .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:14px}
   .acts .btn{width:100%;padding:11px 8px;font-size:13.5px;text-align:center;
     line-height:1.25;min-height:44px}
-  .acts .btn.pri{grid-column:1/-1}
   .acts .spacer{display:none}
   select.who{grid-column:1/-1;width:100%;padding:10px 9px;font-size:16px;min-height:44px}
 
@@ -339,6 +338,11 @@ footer img{height:17px;width:auto;opacity:.75}
 .reiniciar{font-size:12px;color:var(--mute);text-decoration:underline}
 .reiniciar:hover{color:var(--azul)}
 
+.rascunhos{display:flex;flex-direction:column;gap:6px;margin:14px 0 20px}
+.rascunho{text-align:left;background:var(--paper);border:1px solid var(--line);
+  border-radius:var(--r);padding:9px 13px;font:inherit;font-size:13px;cursor:pointer}
+.rascunho:hover{border-color:var(--azul);color:var(--azul)}
+
 /* Resumo da semana no painel — mesma leitura de public/consolidado.html.
    Classes com prefixo rs- de proposito: .pos/.neg ja existem acima com
    outro sentido (cores diferentes), nomes novos evitam colisao. */
@@ -397,12 +401,11 @@ footer img{height:17px;width:auto;opacity:.75}
   </div>
   <div class="acts">
     <button class="btn" id="bImport">Importar planilhas</button>
-    <button class="btn" id="bSave" disabled>Salvar andamento</button>
-    <button class="btn" id="bLoad">Abrir andamento</button>
+    <button class="btn" id="bSave" disabled>Salvar</button>
+    <span id="msgSalvar" class="fechamsg"></span>
     <button class="btn" id="bProg" disabled>Exportar programação</button>
     <button class="btn" id="bFechar">Fechar semana</button>
     <span id="fechaMsg" class="fechamsg"></span>
-    <button class="btn pri" id="bDist" disabled>Gerar painel para distribuir</button>
     <a class="btn lnk" href="/consolidado" target="_blank" rel="noopener">Consolidado mensal</a>
     <a class="btn lnk hide" href="/admin" target="_blank" rel="noopener" id="lnkAdmin">Usuários</a>
     <div class="spacer"></div>
@@ -418,6 +421,10 @@ footer img{height:17px;width:auto;opacity:.75}
   <p>Solte os dois arquivos abaixo, ou clique para escolher. A necessidade das fábricas
      próprias você digita depois, aqui mesmo no painel. Tudo é lido dentro do seu
      navegador — nada é enviado para fora.</p>
+  <div id="rascunhosBox" class="hide">
+    <h3>Retomar um rascunho salvo</h3>
+    <div id="rascunhosList" class="rascunhos"></div>
+  </div>
   <div class="drops">
     <div class="drop" data-k="prog">
       <h3>Programação</h3>
@@ -438,7 +445,6 @@ footer img{height:17px;width:auto;opacity:.75}
   <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
   <a class="reiniciar" href="#" id="lnkReiniciarImport">começar de novo</a>
-  <input type="file" accept=".json" class="hide" id="loadIn">
 </section>
 
 <main id="app" class="hide">

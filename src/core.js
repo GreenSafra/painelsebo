@@ -608,6 +608,15 @@ function repartir(prod, aloc) {
   return porLinha;
 }
 
+// Ano da semana, direto da Programacao — nao depende de alocacao nenhuma
+// (nem de repartir/aloc), entao Salvar funciona a qualquer momento depois
+// do import, mesmo antes de rodar ou com RES.alocFinal vazio.
+function anoDaSemana(prod) {
+  const l = (prod.linhas || []).find(x => x.emb != null);
+  const d = l ? serialToDate(l.emb) : null;
+  return d ? d.getFullYear() : new Date().getFullYear();
+}
+
 // Monta o pacote que vai para o banco quando a semana e fechada.
 // Desce ao nivel da linha de embarque porque o consolidado apura o mes pela
 // data de cada carga — uma semana pode atravessar a virada do mes, e apurar

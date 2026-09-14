@@ -15,14 +15,6 @@ w.URL.createObjectURL = () => 'blob:x';
 w.URL.revokeObjectURL = () => { };
 w.HTMLElement.prototype.scrollIntoView = function () { };w.Element.prototype.scrollIntoView = function () { };
 
-const baixados = [];
-const origCreate = w.document.createElement.bind(w.document);
-w.document.createElement = function (t) {
-  const el = origCreate(t);
-  if (t === 'a') el.click = function () { baixados.push({ nome: el.download, href: el.href }); };
-  return el;
-};
-
 function fake(name, path) {
   const b = fs.readFileSync(path);
   return {
@@ -209,12 +201,10 @@ const T = (nome, cond, extra) => console.log((cond ? '  ok  ' : '  FALHA ') + no
   const depois = [...d.querySelectorAll('#detail .opt')].map(o => o.querySelector('.nm').textContent);
   T('oferta editada reordena o ranking', antes[0] !== depois[0], antes[0] + ' -> ' + depois[0]);
 
-  // ---- salvar e distribuir
-  w.salvarAndamento();
-  T('baixou andamento', baixados.some(b => /andamento_sebo/.test(b.nome)),
-    baixados.map(b => b.nome).join(','));
-  w.distribuir();
-  T('gerou painel fechado', baixados.some(b => /painel_sebo_semana/.test(b.nome)));
+  // ---- carimbo (salvar no servidor agora e via salvarRascunho(), testado
+  // a parte em test_rascunho.js com fetch mockado; aqui so confere que
+  // carimbo() mostra data quando ST.salvoEm existe, sem depender de rede)
+  w.ST.usuario = 'Usuário 2'; w.ST.salvoEm = w.agora(); w.carimbo();
   T('carimbo com data', /\d{2}\/\d{2}\/\d{4}/.test(d.querySelector('#stamp').textContent));
   console.log('carimbo final:', d.querySelector('#stamp').textContent.replace(/\s+/g, ' '));
 

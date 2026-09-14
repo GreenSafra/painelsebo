@@ -1,5 +1,4 @@
 /* ====================== ESTADO ====================== */
-var PRISTINE = null;
 var STATES = /*__STATES__*/{};
 var LOGOS = /*__LOGOS__*/{};
 var CIDADES = /*__CIDADES__*/{};
@@ -56,9 +55,7 @@ function setupImport() {
     $('#importBox').classList.remove('hide');
     $('#importBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  $('#bLoad').onclick = () => $('#loadIn').click();
-  $('#loadIn').onchange = e => { if (e.target.files[0]) abrirAndamento(e.target.files[0]); };
-  $('#bSave').onclick = salvarAndamento;
+  $('#bSave').onclick = salvarRascunho;
   $('#bProg').onclick = exportarProg;
   document.getElementById('bFechar').onclick = async () => {
     const msg = document.getElementById('fechaMsg');
@@ -100,7 +97,6 @@ function setupImport() {
       bt.disabled = false;
     }
   };
-  $('#bDist').onclick = distribuir;
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
   ['lnkReiniciarImport', 'lnkReiniciarPainel'].forEach(id => {
     const l = document.getElementById(id);
@@ -154,13 +150,17 @@ function iniciar(restaurando) {
   ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
   $('#importBox').classList.add('hide');
   $('#app').classList.remove('hide');
-  $('#bSave').disabled = false; $('#bDist').disabled = false;
+  $('#bSave').disabled = false;
   $('#bProg').disabled = !PROGBUF;
   recalcular();
   identificar();
   // restaurando = reabrindo o que ja estava salvo: regravar aqui so
   // recodificaria o xlsx em base64 a toa a cada abertura de pagina.
   if (!restaurando) persistirDados();
+  // iniciar() sempre termina "limpo": nada foi mudado pelo usuario ainda,
+  // seja import novo, arquivo #bd, restauracao local ou rascunho carregado.
+  RASCUNHO_SUJO = false;
+  atualizarCarimboRascunho();
 }
 
 // Com login, quem esta operando vem da sessao, nao de um seletor. O <select>
@@ -240,6 +240,7 @@ function recalcular() {
 
 /* ====================== RENDER ====================== */
 function render() {
+  RASCUNHO_SUJO = true;
   carimbo();
   renderNecessidade();
   aplicarModo();  // depois da lista: o resumo conta as linhas ja renderizadas
@@ -251,6 +252,7 @@ function render() {
   else { const b = $('#detail'); b.classList.add('hide'); b.innerHTML = ''; }
   renderResumoSemana();
   persistir();
+  atualizarCarimboRascunho();
 }
 
 // Mesma leitura de public/consolidado.html (cards, aviso, bloco por fabrica
@@ -976,36 +978,6 @@ function persistir() {
   try { localStorage.setItem('sebo_estado', JSON.stringify(ST)); } catch (e) { }
 }
 
-function baixar(nome, texto, tipo) {
-  const b = new Blob([texto], { type: tipo });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(b); a.download = nome;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
-}
-
-function salvarAndamento() {
-  ST.usuario = $('#who').value; ST.salvoEm = agora();
-  persistir(); carimbo();
-  const pac = { tipo: 'andamento-sebo', v: 1, estado: ST, arquivos: RAW.arquivos };
-  baixar('andamento_sebo_semana_' + (ST.semana || 'x') + '.json',
-    JSON.stringify(pac), 'application/json');
-}
-
-async function abrirAndamento(file) {
-  try {
-    const pac = JSON.parse(await file.text());
-    if (pac.tipo !== 'andamento-sebo') throw new Error('não é um arquivo de andamento');
-    ST = pac.estado;
-    if ($('#who')) $('#who').value = ST.usuario;
-    if (PROD && MAPA) recalcular();
-    else {
-      erro('Andamento carregado. Agora importe as duas planilhas para reabrir o cálculo.');
-      $('#importBox').classList.remove('hide');
-    }
-  } catch (e) { erro('Não consegui abrir: ' + e.message); }
-}
-
 async function exportarProg() {
   const b = $('#bProg');
   const txt = b.textContent;
@@ -1026,8 +998,8 @@ async function exportarProg() {
 }
 
 // Pacote com tudo que precisa para reabrir o painel do zero: as duas
-// planilhas e o progresso. distribuir() usa isso para gerar o arquivo
-// autocontido; persistirDados() usa o mesmo pacote para o localStorage.
+// planilhas e o progresso. persistirDados() usa isso para o localStorage;
+// salvarRascunho() manda o mesmo pacote para o servidor.
 function montarPacoteDados() {
   return {
     prod: PROD, progb64: PROGBUF ? b64(PROGBUF) : null,
@@ -1049,23 +1021,103 @@ function persistirDados() {
   }
 }
 
-function distribuir() {
-  ST.usuario = $('#who').value; ST.salvoEm = agora();
-  persistir(); carimbo();
-  const boot = montarPacoteDados();
-  const json = JSON.stringify(boot).replace(/</g, '\\u003c');
-  const ab = '<scr' + 'ipt id="bd" type="application/json">';
-  const fe = '</scr' + 'ipt>';
-  const i = PRISTINE.indexOf(ab);
-  const j = PRISTINE.indexOf(fe, i);
-  if (i < 0 || j < 0) { erro('Não consegui montar o arquivo para distribuir.'); return; }
-  const html = '<!doctype html>' +
-    PRISTINE.slice(0, i + ab.length) + json + PRISTINE.slice(j);
-  baixar('painel_sebo_semana_' + (ST.semana || 'x') + '.html', html, 'text/html');
+/* ====================== RASCUNHO NO SERVIDOR ====================== */
+var RASCUNHO_SALVO_EM = null, RASCUNHO_SALVO_POR = null, RASCUNHO_SUJO = false;
+
+const fmtHora = iso => new Date(iso).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const fmtDataHora = iso => new Date(iso).toLocaleString('pt-BR',
+  { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+function atualizarCarimboRascunho() {
+  const el = document.getElementById('msgSalvar');
+  if (!el) return;
+  if (RASCUNHO_SUJO) {
+    el.className = 'fechamsg ruim';
+    el.textContent = 'há alterações não salvas';
+  } else if (RASCUNHO_SALVO_EM) {
+    el.className = 'fechamsg';
+    el.textContent = 'salvo por ' + (RASCUNHO_SALVO_POR || '—') + ' às ' + fmtHora(RASCUNHO_SALVO_EM);
+  } else {
+    el.className = 'fechamsg';
+    el.textContent = '';
+  }
+}
+
+async function salvarRascunho() {
+  const bt = document.getElementById('bSave');
+  // ano/semana vem da Programacao, nao da alocacao: Salvar funciona a
+  // qualquer momento depois do import, mesmo antes de rodar.
+  const ano = anoDaSemana(PROD), semana = Number(PROD.semana);
+  const dados = montarPacoteDados();
+  bt.disabled = true;
+  try {
+    const enviar = forcar => fetch('/api/rascunho', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ano, semana, dados, baseSalvoEm: RASCUNHO_SALVO_EM, forcar })
+    });
+    let r = await enviar(false);
+    if (r.status === 409) {
+      const j = await r.json();
+      // Duas pessoas mexendo na mesma semana e cenario real: avisa quem
+      // salvou por ultimo em vez de gravar por cima calado.
+      if (!confirm((j.salvoPor || 'Alguém') + ' salvou por último às ' + fmtHora(j.salvoEm) +
+          '.\n\nSobrescrever mesmo assim?')) return;
+      r = await enviar(true);
+    }
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.erro || 'Não consegui salvar.');
+    RASCUNHO_SALVO_EM = j.salvoEm; RASCUNHO_SALVO_POR = j.salvoPor; RASCUNHO_SUJO = false;
+    ST.usuario = $('#who').value; ST.salvoEm = agora();
+    persistir(); carimbo(); atualizarCarimboRascunho();
+  } catch (e) {
+    erro('Não consegui salvar no servidor: ' + e.message);
+  } finally {
+    bt.disabled = false;
+  }
+}
+
+async function carregarListaRascunhos() {
+  try {
+    const r = await fetch('/api/rascunhos');
+    if (!r.ok) return null;
+    const lista = await r.json();
+    renderRascunhos(lista);
+    return lista;
+  } catch (e) { return null; }
+}
+
+function renderRascunhos(lista) {
+  const box = document.getElementById('rascunhosBox');
+  const ul = document.getElementById('rascunhosList');
+  if (!box || !ul) return;
+  if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
+  box.classList.remove('hide');
+  ul.innerHTML = lista.map(r =>
+    '<button class="rascunho" data-ano="' + r.ano + '" data-semana="' + r.semana + '">' +
+    'Semana ' + r.semana + '/' + r.ano + ' — salvo por ' + esc(r.salvo_por || '—') +
+    ' às ' + esc(fmtDataHora(r.salvo_em)) + '</button>'
+  ).join('');
+  [].forEach.call(ul.querySelectorAll('[data-ano]'), b => {
+    b.onclick = () => carregarRascunho(Number(b.dataset.ano), Number(b.dataset.semana));
+  });
+}
+
+async function carregarRascunho(ano, semana) {
+  try {
+    const r = await fetch('/api/rascunho?ano=' + ano + '&semana=' + semana);
+    if (!r.ok) { erro('Não consegui abrir esse rascunho.'); return; }
+    const j = await r.json();
+    const b = j.dados;
+    PROD = b.prod; MAPA = b.mapa; ST = b.estado; arquivos = b.arquivos || {};
+    if (b.progb64) PROGBUF = deB64(b.progb64);
+    MAPA.rows.forEach((r2, i) => r2.i = i);
+    RASCUNHO_SALVO_EM = j.salvoEm; RASCUNHO_SALVO_POR = j.salvoPor;
+    iniciar(true);
+  } catch (e) { erro('Não consegui abrir esse rascunho: ' + e.message); }
 }
 
 /* ====================== BOOT ====================== */
-function boot() {
+async function boot() {
   $('#lgFriboi').src = 'data:image/png;base64,' + LOGOS.friboi.b64;
   $('#lgBio').src = 'data:image/png;base64,' + LOGOS.biopower.b64;
   $('#lgFlora').src = 'data:image/png;base64,' + LOGOS.flora.b64;
@@ -1089,6 +1141,7 @@ function boot() {
   // salvo no ultimo import. Qualquer erro aqui (cota do localStorage, dado
   // corrompido) so faz cair na tela de importacao normalmente — nunca
   // deixa o painel quebrado por causa disso.
+  let restaurouLocal = false;
   try {
     const d = localStorage.getItem('sebo_dados');
     if (d) {
@@ -1097,15 +1150,23 @@ function boot() {
       if (b.progb64) PROGBUF = deB64(b.progb64);
       MAPA.rows.forEach((r, i) => r.i = i);
       iniciar(true);  // restauracao: nao regravar sebo_dados
+      restaurouLocal = true;
     }
   } catch (e) {
     try { localStorage.removeItem('sebo_estado'); } catch (e2) { }
     try { localStorage.removeItem('sebo_dados'); } catch (e2) { }
   }
+  // localStorage e rede de seguranca da maquina local; o servidor e a
+  // fonte que a equipe compartilha. A lista sempre popula a tela de
+  // importacao; se nao tinha nada local, carrega o rascunho mais recente
+  // do servidor sozinho.
+  const lista = await carregarListaRascunhos();
+  if (!restaurouLocal && lista && lista.length) {
+    await carregarRascunho(lista[0].ano, lista[0].semana);
+  }
 }
 
 function arrancar() {
-  PRISTINE = document.documentElement.outerHTML;
   boot();
 }
 if (!window.CSS || !CSS.escape) {

@@ -17,6 +17,18 @@ function mk(html){
 }
 const fake=(n,p)=>{const b=fs.readFileSync(p);return{name:n,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength),text:async()=>b.toString('utf8')}};
 const T=(n,c,x)=>console.log((c?'  ok  ':'  FALHA ')+n+(x?' — '+x:''));
+// O gerador (distribuir()) foi removido, mas arquivos painel_sebo_semana_*.html
+// ja distribuidos por ai tem que continuar abrindo — o leitor (boot() lendo
+// #bd) fica. Monta o mesmo #bd que distribuir() montava, na mao, com
+// montarPacoteDados() (que continua existindo e e o que o Salvar no
+// servidor usa tambem).
+function montarBd(srcHtml, pacote){
+  const json=JSON.stringify(pacote).replace(/</g,'\\u003c');
+  return srcHtml.replace(
+    '<script id="bd" type="application/json"></script>',
+    '<script id="bd" type="application/json">'+json+'</script>'
+  );
+}
 (async()=>{
   const A=mk(SRC);const w=A.w;
   await new Promise(r=>setTimeout(r,50));
@@ -29,11 +41,9 @@ const T=(n,c,x)=>console.log((c?'  ok  ':'  FALHA ')+n+(x?' — '+x:''));
   // faz uma alteração manual
   w.ST.manual['CFS']=[{cli:'Be8 MT At. Arag.(63.228.664/0001-22)',ton:210}];
   w.ST.usuario='Usuário 2'; w.recalcular();
-  // captura o html distribuído
-  let html=null;
-  w.baixar=(nome,texto)=>{ if(/\.html$/.test(nome)) html=texto; };
-  w.distribuir();
-  T('gerou html', !!html, html? (html.length/1024).toFixed(0)+' KB':'');
+  const pacote=w.montarPacoteDados();
+  const html=montarBd(SRC,pacote);
+  T('montou o pacote (prod+mapa+estado)', !!pacote.prod && !!pacote.mapa && !!pacote.estado);
   fs.writeFileSync('dist_test.html',html);
 
   const B=mk(html); const w2=B.w;
@@ -49,29 +59,6 @@ const T=(n,c,x)=>console.log((c?'  ok  ':'  FALHA ')+n+(x?' — '+x:''));
   T('mapa desenhou', d.querySelectorAll('#map path.uf').length===27);
   T('semana no subtítulo', d.querySelector('#sub').textContent.indexOf('Semana 36')===0,
     d.querySelector('#sub').textContent);
-  // re-exportar a partir do fechado
-  let html2=null; w2.baixar=(n,t)=>{if(/\.html$/.test(n))html2=t;};
-  w2.distribuir();
-  T('reexporta sem inchar', html2 && Math.abs(html2.length-html.length)<3000,
-    html2?((html2.length-html.length)+' bytes de diferença'):'');
-  // andamento json
-  let js=null; w2.baixar=(n,t)=>{if(/\.json$/.test(n))js=t;};
-  w2.salvarAndamento();
-  const pac=JSON.parse(js);
-  T('andamento salvo com os volumes', pac.tipo==='andamento-sebo' && !!pac.estado.manual['CFS']
-    && pac.estado.nec['Flora GO']===1000, (js.length/1024).toFixed(1)+' KB');
-  // reabrir andamento em sessão nova
-  const C=mk(SRC);const w3=C.w;await new Promise(r=>setTimeout(r,50));
-  await w3.receber('prog',fake('prog.xlsx','in/prog3.xlsx'));
-  await w3.receber('mapa',fake('mapa.xlsx','in/mapa.xlsx'));
-  await new Promise(r=>setTimeout(r,100));
-  await w3.abrirAndamento({text:async()=>js});
-  await new Promise(r=>setTimeout(r,60));
-  T('andamento reaberto restaura a alteração',
-    w3.document.querySelector('#avisos').textContent.indexOf('fora da indicação')>0);
-  T('andamento reaberto restaura os volumes digitados',
-    w3.document.querySelector('#necTot').textContent.indexOf('3.890')>=0,
-    w3.document.querySelector('#necTot').textContent);
   T('painel distribuído mantém a necessidade editável',
     B.w.document.querySelectorAll('#necRows .nrow').length===5);
   T('painel distribuído ainda exporta a programação',
