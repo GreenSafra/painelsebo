@@ -68,7 +68,7 @@ function setupImport() {
       msg.textContent = 'Rode a alocação antes de fechar a semana.';
       return;
     }
-    const pac = montarSemana(PROD, RES.alocFinal, OPS, MAPA);
+    const pac = montarSemana(PROD, RES.alocFinal, RES.otimoAloc, OPS, MAPA);
     if (!pac.linhas.length) {
       msg.className = 'fechamsg ruim';
       msg.textContent = 'Nenhuma linha com destino para gravar.';
@@ -207,6 +207,9 @@ function recalcular() {
   RES = resolver(DS, ST.travas, ST.manual, ST.modo);
   RES.alocFinal = RES.aloc;
   RES.otimoNet = otimo.net;
+  // a alocacao otima inteira, nao so o total: e ela que o consolidado compara
+  // contra o realizado para separar o efeito das trocas manuais
+  RES.otimoAloc = otimo.aloc;
   RES.netFinal = RES.net;
   const usados = {};
   RES.aloc.forEach(a => (usados[a.sigla] || (usados[a.sigla] = [])).push(a.cli));

@@ -169,7 +169,8 @@ app.post('/api/semanas', exigeLogin, async (req, res) => {
   const { cabecalho, linhas } = req.body || {};
   if (!cabecalho) return res.status(400).json({ erro: 'Cabeçalho da semana ausente.' });
   try {
-    const r = await db.fecharSemana(cabecalho, linhas, req.usuario.id);
+    const cab = Object.assign({}, cabecalho, { linhasOtimo: req.body.linhasOtimo });
+    const r = await db.fecharSemana(cab, linhas, req.usuario.id);
     res.json({ ok: true, ...r });
   } catch (e) {
     res.status(400).json({ erro: e.message || 'Não consegui gravar a semana.' });

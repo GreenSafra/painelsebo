@@ -107,6 +107,17 @@ async function iniciar() {
   await pool.query(`CREATE INDEX IF NOT EXISTS ix_aloc_semana ON alocacoes(semana_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS ix_aloc_data ON alocacoes(data_embarque)`);
 
+  // Colunas acrescentadas depois da primeira versao: ADD COLUMN IF NOT EXISTS
+  // deixa o deploy passar tanto em banco novo quanto no que ja tem dado.
+  await pool.query(
+    `ALTER TABLE alocacoes ADD COLUMN IF NOT EXISTS cenario TEXT NOT NULL DEFAULT 'realizado'`
+  );
+  await pool.query(`ALTER TABLE alocacoes ADD COLUMN IF NOT EXISTS net_ter NUMERIC(12,2)`);
+  await pool.query(`ALTER TABLE alocacoes ADD COLUMN IF NOT EXISTS cliente_ter TEXT`);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS ix_aloc_cenario ON alocacoes(semana_id, cenario)`
+  );
+
   // Promove o master caso ele ja tenha se cadastrado.
   await pool.query(
     `UPDATE usuarios SET papel='master', situacao='ativo' WHERE lower(email)=$1`,
@@ -251,21 +262,26 @@ async function fecharSemana(cab, linhas, usuarioId) {
 
     const num = x => (x == null || x === '' || !isFinite(Number(x))) ? null : Number(x);
     const txt = x => (x == null || x === '') ? null : String(x).slice(0, 200);
-    for (const L of linhas) {
-      const ton = num(L.toneladas);
-      if (!(ton > 0)) continue;
-      await c.query(
-        `INSERT INTO alocacoes
-           (semana_id, data_embarque, sigla, origem_cidade, origem_uf, produto,
-            cliente, proprio, destino, destino_uf, toneladas, oferta, net, net2,
-            cliente2, icms, modal)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-        [id, L.dataEmbarque || null, txt(L.sigla), txt(L.origemCidade), txt(L.origemUf),
-         txt(L.produto), txt(L.cliente), !!L.proprio, txt(L.destino), txt(L.destinoUf),
-         ton, num(L.oferta), num(L.net), num(L.net2), txt(L.cliente2), num(L.icms),
-         txt(L.modal)]
-      );
+    async function gravar(lista, cenario) {
+      for (const L of (lista || [])) {
+        const ton = num(L.toneladas);
+        if (!(ton > 0)) continue;
+        await c.query(
+          `INSERT INTO alocacoes
+             (semana_id, cenario, data_embarque, sigla, origem_cidade, origem_uf,
+              produto, cliente, proprio, destino, destino_uf, toneladas, oferta,
+              net, net2, cliente2, net_ter, cliente_ter, icms, modal)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+          [id, cenario, L.dataEmbarque || null, txt(L.sigla), txt(L.origemCidade),
+           txt(L.origemUf), txt(L.produto), txt(L.cliente), !!L.proprio,
+           txt(L.destino), txt(L.destinoUf), ton, num(L.oferta), num(L.net),
+           num(L.net2), txt(L.cliente2), num(L.netTer), txt(L.clienteTer),
+           num(L.icms), txt(L.modal)]
+        );
+      }
     }
+    await gravar(linhas, 'realizado');
+    await gravar(cab.linhasOtimo || [], 'otimo');
     await c.query('COMMIT');
     return { id, ano, semana, versao: s.rows[0].versao, linhas: linhas.length };
   } catch (e) {
@@ -306,7 +322,8 @@ async function consolidado(mes) {
             sum(a.toneladas) AS toneladas,
             sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.data_embarque >= $1 AND a.data_embarque < $2
+      WHERE s.atual AND a.cenario = 'realizado'
+        AND a.data_embarque >= $1 AND a.data_embarque < $2
       GROUP BY 1,2 ORDER BY 1,2`, janela);
 
   const porPlanta = await pool.query(
@@ -314,7 +331,8 @@ async function consolidado(mes) {
             sum(a.toneladas) AS toneladas,
             sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.data_embarque >= $1 AND a.data_embarque < $2
+      WHERE s.atual AND a.cenario = 'realizado'
+        AND a.data_embarque >= $1 AND a.data_embarque < $2
       GROUP BY 1,2 ORDER BY 3 DESC`, janela);
 
   const total = await pool.query(
@@ -322,26 +340,47 @@ async function consolidado(mes) {
             sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
             count(DISTINCT s.id)::int AS semanas
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.data_embarque >= $1 AND a.data_embarque < $2`, janela);
+      WHERE s.atual AND a.cenario = 'realizado'
+        AND a.data_embarque >= $1 AND a.data_embarque < $2`, janela);
 
-  // Cada planta propria contra a melhor alternativa de terceiro das MESMAS
-  // cargas. Comparar contra a media geral de terceiro distorce: se a propria
-  // ficou com as origens longas, a media dela afunda pelo frete e nao pela
-  // decisao comercial.
+  // As quatro proprias sempre presentes, mesmo sem volume no mes: linha
+  // zerada e informacao, some da tela seria perder o fato.
+  // Realizado e otimo lado a lado — a diferenca entre os dois e o custo das
+  // trocas feitas na mao, que senao ficaria embutido no comparativo.
   const porPropria = await pool.query(
-    `SELECT a.cliente,
-            sum(a.toneladas) AS toneladas,
-            sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
-            sum(a.net2 * a.toneladas) FILTER (WHERE a.net2 IS NOT NULL)
-              / nullif(sum(a.toneladas) FILTER (WHERE a.net2 IS NOT NULL),0)
-              AS net_terceiro,
-            sum(a.toneladas) FILTER (WHERE a.net2 IS NOT NULL) AS ton_comparavel,
-            sum((a.net - a.net2) * a.toneladas) FILTER (WHERE a.net2 IS NOT NULL)
-              AS saving
-       FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.proprio
-        AND a.data_embarque >= $1 AND a.data_embarque < $2
-      GROUP BY 1 ORDER BY 2 DESC`, janela);
+    `WITH plantas(cliente) AS (
+       VALUES ('Flora GO'),('Flora SP'),
+              ('JBS - BioPower Campo Verde'),('JBS - BioPower Lins')
+     ),
+     dados AS (
+       SELECT a.cliente, a.cenario,
+              sum(a.toneladas) AS ton,
+              sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
+              sum(a.net_ter * a.toneladas) FILTER (WHERE a.net_ter IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter IS NOT NULL),0)
+                AS net_ter,
+              sum(a.toneladas) FILTER (WHERE a.net_ter IS NOT NULL) AS ton_comp,
+              sum((a.net - a.net_ter) * a.toneladas)
+                FILTER (WHERE a.net_ter IS NOT NULL) AS saving
+         FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
+        WHERE s.atual AND a.proprio
+          AND a.data_embarque >= $1 AND a.data_embarque < $2
+        GROUP BY 1,2
+     )
+     SELECT p.cliente,
+            coalesce(r.ton,0)  AS ton_realizado,
+            r.net_medio        AS net_realizado,
+            r.net_ter          AS net_ter_realizado,
+            r.ton_comp         AS ton_comp_realizado,
+            r.saving           AS saving_realizado,
+            coalesce(o.ton,0)  AS ton_otimo,
+            o.net_medio        AS net_otimo,
+            o.net_ter          AS net_ter_otimo,
+            o.saving           AS saving_otimo
+       FROM plantas p
+       LEFT JOIN dados r ON r.cliente = p.cliente AND r.cenario = 'realizado'
+       LEFT JOIN dados o ON o.cliente = p.cliente AND o.cenario = 'otimo'
+      ORDER BY p.cliente`, janela);
 
   return {
     mes,
