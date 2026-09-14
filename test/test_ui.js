@@ -120,8 +120,11 @@ const T = (nome, cond, extra) => console.log((cond ? '  ok  ' : '  FALHA ') + no
       c.getAttribute('cx') + ',' + c.getAttribute('cy'))).size === 39);
   T('arcos ligam unidade a fábrica própria', d.querySelectorAll('#map path.arc').length > 10,
     d.querySelectorAll('#map path.arc').length + ' arcos');
-  T('nenhuma menção a diferença',
-    d.querySelector('#app').textContent.toLowerCase().indexOf('diferen') < 0);
+  // "Diferenca" tambem e o rotulo fixo de uma coluna do resumo da semana
+  // (sempre presente); o que este teste quer garantir e que o AVISO de
+  // custo de troca manual (renderAvisos) ainda nao apareceu.
+  T('nenhuma menção a diferença nos avisos',
+    d.querySelector('#avisos').textContent.toLowerCase().indexOf('diferen') < 0);
 
   // ---- detalhe MT
   d.querySelector('#map path[data-uf="MT"]').dispatchEvent(new w.Event('click'));

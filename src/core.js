@@ -684,6 +684,65 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
   };
 }
 
+// Agrega as linhas de montarSemana() por fabrica propria, no realizado e no
+// otimo, com a mesma conta (peso por tonelada) que db.js usa em
+// consolidado() -> CTE "dados". Pura: sem rede, sem banco — tem que
+// funcionar so com o que ja esta em memoria, antes de fechar a semana.
+// PROPRIAS e a uniao dos clientes do Mapa e dos clientes que aparecem nas
+// linhas, filtrados pelo regex canonico de propria — nao uma lista
+// cravada (evita uma 3a definicao de "propria" divergente, tipo BioPower
+// Mafra ausente de uma lista fixa) e nao um casamento de nomes entre Mapa
+// e alocacao (nome abreviado no Mapa nao pode virar zero calado).
+function agregarSemana(linhas, linhasOtimo, mapaRows) {
+  const ehPropria = c => /biopower|flora/i.test(String(c || ''));
+  const doMapa = (mapaRows || []).map(r => r.cli);
+  const daAlocacao = [].concat(linhas || [], linhasOtimo || []).map(l => l.cliente);
+  const PROPRIAS = Array.from(new Set(doMapa.concat(daAlocacao).filter(ehPropria))).sort();
+
+  function porCliente(lista) {
+    const g = {};
+    (lista || []).forEach(l => {
+      if (!l.proprio) return;
+      const d = g[l.cliente] || (g[l.cliente] = { ton: 0, somaNet: 0, tonComp: 0, somaTer: 0, saving: 0 });
+      d.ton += l.toneladas;
+      d.somaNet += l.net * l.toneladas;
+      if (l.netTer != null) {
+        d.tonComp += l.toneladas;
+        d.somaTer += l.netTer * l.toneladas;
+        d.saving += (l.net - l.netTer) * l.toneladas;
+      }
+    });
+    return g;
+  }
+  const somaTonTotal = lista => (lista || []).reduce((s, l) => s + l.toneladas, 0);
+  const netPonderado = lista => {
+    let ton = 0, soma = 0;
+    (lista || []).forEach(l => { ton += l.toneladas; soma += l.net * l.toneladas; });
+    return ton > 0 ? soma / ton : null;
+  };
+
+  const r = porCliente(linhas), o = porCliente(linhasOtimo);
+  const porPropria = PROPRIAS.map(cliente => {
+    const dr = r[cliente], do_ = o[cliente];
+    return {
+      cliente,
+      ton_realizado: dr ? dr.ton : 0,
+      net_realizado: dr && dr.ton > 0 ? dr.somaNet / dr.ton : null,
+      net_ter_realizado: dr && dr.tonComp > 0 ? dr.somaTer / dr.tonComp : null,
+      saving_realizado: dr && dr.tonComp > 0 ? dr.saving : null,
+      ton_otimo: do_ ? do_.ton : 0,
+      net_otimo: do_ && do_.ton > 0 ? do_.somaNet / do_.ton : null,
+      net_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaTer / do_.tonComp : null,
+      saving_otimo: do_ && do_.tonComp > 0 ? do_.saving : null
+    };
+  });
+
+  return {
+    total: { toneladas: somaTonTotal(linhas), net_medio: netPonderado(linhas) },
+    porPropria
+  };
+}
+
 function escXml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

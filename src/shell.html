@@ -335,6 +335,52 @@ footer img{height:17px;width:auto;opacity:.75}
   footer{gap:10px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.reiniciar{font-size:12px;color:var(--mute);text-decoration:underline}
+.reiniciar:hover{color:var(--azul)}
+
+/* Resumo da semana no painel — mesma leitura de public/consolidado.html.
+   Classes com prefixo rs- de proposito: .pos/.neg ja existem acima com
+   outro sentido (cores diferentes), nomes novos evitam colisao. */
+#resumoSemana{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);padding:20px 22px;margin-top:20px}
+#resumoSemana h2{font-size:15px;margin:0 0 4px;font-weight:600}
+#resumoSemana .rs-nota{font-size:12.5px;color:var(--mute);margin:0 0 16px;
+  max-width:760px;line-height:1.5}
+#resumoSemana .rs-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
+#resumoSemana .rs-c{background:var(--card);padding:14px 16px}
+#resumoSemana .rs-lab{font-size:12.5px;color:var(--mute)}
+#resumoSemana .rs-big{font-size:23px;font-weight:600;margin:4px 0 2px;letter-spacing:-.4px}
+#resumoSemana .rs-pe{font-size:12px;color:var(--mute)}
+#resumoSemana .rs-big.rs-pos{color:#0F7B40} #resumoSemana .rs-big.rs-neg{color:#C31419}
+#resumoSemana .rs-aviso{background:var(--paper);border-left:3px solid var(--azul);
+  padding:11px 14px;font-size:13px;margin:0 0 16px;line-height:1.5}
+#resumoSemana .rs-fab{background:var(--card);border:1px solid var(--line);margin-bottom:9px}
+#resumoSemana .rs-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:11px 14px;border-bottom:1px solid var(--line);background:var(--paper)}
+#resumoSemana .rs-nome{font-size:14px;font-weight:600}
+#resumoSemana .rs-veredito{margin-left:auto;font-size:13px;font-weight:600;text-align:right}
+#resumoSemana .rs-frase{padding:10px 14px 2px;font-size:13px;line-height:1.5}
+#resumoSemana .rs-duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border-top:1px solid var(--line);margin-top:8px}
+#resumoSemana .rs-duo>div{background:var(--card);padding:10px 14px}
+#resumoSemana .rs-cab{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--mute);font-weight:600;margin-bottom:7px}
+#resumoSemana .rs-lin{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;padding:2px 0}
+#resumoSemana .rs-lin span:first-child{color:var(--mute)}
+#resumoSemana .rs-lin.rs-forte{font-weight:600;border-top:1px solid var(--line);
+  margin-top:5px;padding-top:5px}
+#resumoSemana .rs-fab.rs-sem{opacity:.62}
+#resumoSemana .rs-resumo{background:var(--paper);border:1px solid var(--line);
+  padding:13px 15px;font-size:13px;line-height:1.55;margin-top:4px}
+#resumoSemana .rs-pos{color:#0F7B40;font-weight:600}
+#resumoSemana .rs-neg{color:#C31419;font-weight:600}
+#resumoSemana .rs-mute{color:var(--mute)}
+#resumoSemana .rs-selo{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+#resumoSemana .rs-s-bio{background:var(--bio)} #resumoSemana .rs-s-flo{background:var(--flora)}
+#resumoSemana .rs-s-ter{background:var(--sebo)}
+@media(max-width:640px){#resumoSemana .rs-duo{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -391,6 +437,7 @@ footer img{height:17px;width:auto;opacity:.75}
   <div class="err hide" id="impErr"></div>
   <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
+  <a class="reiniciar" href="#" id="lnkReiniciarImport">começar de novo</a>
   <input type="file" accept=".json" class="hide" id="loadIn">
 </section>
 
@@ -454,10 +501,12 @@ footer img{height:17px;width:auto;opacity:.75}
   </div>
 
   <section class="detail hide" id="detail"></section>
+  <section id="resumoSemana" class="hide"></section>
 </main>
 
 <footer>
   <span id="foot"></span>
+  <a class="reiniciar" href="#" id="lnkReiniciarPainel">começar de novo</a>
   <span class="spacer"></span>
   <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
 </footer>

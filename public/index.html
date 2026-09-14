@@ -335,6 +335,52 @@ footer img{height:17px;width:auto;opacity:.75}
   footer{gap:10px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.reiniciar{font-size:12px;color:var(--mute);text-decoration:underline}
+.reiniciar:hover{color:var(--azul)}
+
+/* Resumo da semana no painel — mesma leitura de public/consolidado.html.
+   Classes com prefixo rs- de proposito: .pos/.neg ja existem acima com
+   outro sentido (cores diferentes), nomes novos evitam colisao. */
+#resumoSemana{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);padding:20px 22px;margin-top:20px}
+#resumoSemana h2{font-size:15px;margin:0 0 4px;font-weight:600}
+#resumoSemana .rs-nota{font-size:12.5px;color:var(--mute);margin:0 0 16px;
+  max-width:760px;line-height:1.5}
+#resumoSemana .rs-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
+#resumoSemana .rs-c{background:var(--card);padding:14px 16px}
+#resumoSemana .rs-lab{font-size:12.5px;color:var(--mute)}
+#resumoSemana .rs-big{font-size:23px;font-weight:600;margin:4px 0 2px;letter-spacing:-.4px}
+#resumoSemana .rs-pe{font-size:12px;color:var(--mute)}
+#resumoSemana .rs-big.rs-pos{color:#0F7B40} #resumoSemana .rs-big.rs-neg{color:#C31419}
+#resumoSemana .rs-aviso{background:var(--paper);border-left:3px solid var(--azul);
+  padding:11px 14px;font-size:13px;margin:0 0 16px;line-height:1.5}
+#resumoSemana .rs-fab{background:var(--card);border:1px solid var(--line);margin-bottom:9px}
+#resumoSemana .rs-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:11px 14px;border-bottom:1px solid var(--line);background:var(--paper)}
+#resumoSemana .rs-nome{font-size:14px;font-weight:600}
+#resumoSemana .rs-veredito{margin-left:auto;font-size:13px;font-weight:600;text-align:right}
+#resumoSemana .rs-frase{padding:10px 14px 2px;font-size:13px;line-height:1.5}
+#resumoSemana .rs-duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border-top:1px solid var(--line);margin-top:8px}
+#resumoSemana .rs-duo>div{background:var(--card);padding:10px 14px}
+#resumoSemana .rs-cab{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--mute);font-weight:600;margin-bottom:7px}
+#resumoSemana .rs-lin{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;padding:2px 0}
+#resumoSemana .rs-lin span:first-child{color:var(--mute)}
+#resumoSemana .rs-lin.rs-forte{font-weight:600;border-top:1px solid var(--line);
+  margin-top:5px;padding-top:5px}
+#resumoSemana .rs-fab.rs-sem{opacity:.62}
+#resumoSemana .rs-resumo{background:var(--paper);border:1px solid var(--line);
+  padding:13px 15px;font-size:13px;line-height:1.55;margin-top:4px}
+#resumoSemana .rs-pos{color:#0F7B40;font-weight:600}
+#resumoSemana .rs-neg{color:#C31419;font-weight:600}
+#resumoSemana .rs-mute{color:var(--mute)}
+#resumoSemana .rs-selo{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+#resumoSemana .rs-s-bio{background:var(--bio)} #resumoSemana .rs-s-flo{background:var(--flora)}
+#resumoSemana .rs-s-ter{background:var(--sebo)}
+@media(max-width:640px){#resumoSemana .rs-duo{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -391,6 +437,7 @@ footer img{height:17px;width:auto;opacity:.75}
   <div class="err hide" id="impErr"></div>
   <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
+  <a class="reiniciar" href="#" id="lnkReiniciarImport">começar de novo</a>
   <input type="file" accept=".json" class="hide" id="loadIn">
 </section>
 
@@ -454,10 +501,12 @@ footer img{height:17px;width:auto;opacity:.75}
   </div>
 
   <section class="detail hide" id="detail"></section>
+  <section id="resumoSemana" class="hide"></section>
 </main>
 
 <footer>
   <span id="foot"></span>
+  <a class="reiniciar" href="#" id="lnkReiniciarPainel">começar de novo</a>
   <span class="spacer"></span>
   <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
 </footer>
@@ -1145,6 +1194,65 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
     },
     linhas: linhas,
     linhasOtimo: linhasOtimo
+  };
+}
+
+// Agrega as linhas de montarSemana() por fabrica propria, no realizado e no
+// otimo, com a mesma conta (peso por tonelada) que db.js usa em
+// consolidado() -> CTE "dados". Pura: sem rede, sem banco — tem que
+// funcionar so com o que ja esta em memoria, antes de fechar a semana.
+// PROPRIAS e a uniao dos clientes do Mapa e dos clientes que aparecem nas
+// linhas, filtrados pelo regex canonico de propria — nao uma lista
+// cravada (evita uma 3a definicao de "propria" divergente, tipo BioPower
+// Mafra ausente de uma lista fixa) e nao um casamento de nomes entre Mapa
+// e alocacao (nome abreviado no Mapa nao pode virar zero calado).
+function agregarSemana(linhas, linhasOtimo, mapaRows) {
+  const ehPropria = c => /biopower|flora/i.test(String(c || ''));
+  const doMapa = (mapaRows || []).map(r => r.cli);
+  const daAlocacao = [].concat(linhas || [], linhasOtimo || []).map(l => l.cliente);
+  const PROPRIAS = Array.from(new Set(doMapa.concat(daAlocacao).filter(ehPropria))).sort();
+
+  function porCliente(lista) {
+    const g = {};
+    (lista || []).forEach(l => {
+      if (!l.proprio) return;
+      const d = g[l.cliente] || (g[l.cliente] = { ton: 0, somaNet: 0, tonComp: 0, somaTer: 0, saving: 0 });
+      d.ton += l.toneladas;
+      d.somaNet += l.net * l.toneladas;
+      if (l.netTer != null) {
+        d.tonComp += l.toneladas;
+        d.somaTer += l.netTer * l.toneladas;
+        d.saving += (l.net - l.netTer) * l.toneladas;
+      }
+    });
+    return g;
+  }
+  const somaTonTotal = lista => (lista || []).reduce((s, l) => s + l.toneladas, 0);
+  const netPonderado = lista => {
+    let ton = 0, soma = 0;
+    (lista || []).forEach(l => { ton += l.toneladas; soma += l.net * l.toneladas; });
+    return ton > 0 ? soma / ton : null;
+  };
+
+  const r = porCliente(linhas), o = porCliente(linhasOtimo);
+  const porPropria = PROPRIAS.map(cliente => {
+    const dr = r[cliente], do_ = o[cliente];
+    return {
+      cliente,
+      ton_realizado: dr ? dr.ton : 0,
+      net_realizado: dr && dr.ton > 0 ? dr.somaNet / dr.ton : null,
+      net_ter_realizado: dr && dr.tonComp > 0 ? dr.somaTer / dr.tonComp : null,
+      saving_realizado: dr && dr.tonComp > 0 ? dr.saving : null,
+      ton_otimo: do_ ? do_.ton : 0,
+      net_otimo: do_ && do_.ton > 0 ? do_.somaNet / do_.ton : null,
+      net_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaTer / do_.tonComp : null,
+      saving_otimo: do_ && do_.tonComp > 0 ? do_.saving : null
+    };
+  });
+
+  return {
+    total: { toneladas: somaTonTotal(linhas), net_medio: netPonderado(linhas) },
+    porPropria
   };
 }
 
@@ -1884,6 +1992,19 @@ function setupImport() {
   };
   $('#bDist').onclick = distribuir;
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
+  ['lnkReiniciarImport', 'lnkReiniciarPainel'].forEach(id => {
+    const l = document.getElementById(id);
+    if (l) l.onclick = e => { e.preventDefault(); comecarDeNovo(); };
+  });
+}
+
+// Apaga tudo que foi salvo (planilhas + progresso) e recomeca do zero.
+// Sem isso o usuario fica preso na semana velha ao reabrir o painel.
+function comecarDeNovo() {
+  if (!confirm('Apagar os dados salvos deste painel e recomeçar do zero?')) return;
+  try { localStorage.removeItem('sebo_estado'); } catch (e) { }
+  try { localStorage.removeItem('sebo_dados'); } catch (e) { }
+  location.reload();
 }
 
 async function receber(k, file) {
@@ -1911,7 +2032,7 @@ function erro(m) {
   e.textContent = m; e.classList.toggle('hide', !m);
 }
 
-function iniciar() {
+function iniciar(restaurando) {
   RAW = { prod: PROD, mapa: MAPA, arquivos: arquivos };
   if (!ST) ST = novoEstado();
   if (!ST.nec) ST.nec = {};
@@ -1927,6 +2048,9 @@ function iniciar() {
   $('#bProg').disabled = !PROGBUF;
   recalcular();
   identificar();
+  // restaurando = reabrindo o que ja estava salvo: regravar aqui so
+  // recodificaria o xlsx em base64 a toa a cada abertura de pagina.
+  if (!restaurando) persistirDados();
 }
 
 // Com login, quem esta operando vem da sessao, nao de um seletor. O <select>
@@ -2015,7 +2139,128 @@ function render() {
   renderTabela();
   if (UFSEL) renderDetalhe(UFSEL);
   else { const b = $('#detail'); b.classList.add('hide'); b.innerHTML = ''; }
+  renderResumoSemana();
   persistir();
+}
+
+// Mesma leitura de public/consolidado.html (cards, aviso, bloco por fabrica
+// com veredito/frase, paragrafo-resumo), mas para a semana que esta na tela
+// agora — antes de fechar, so com o que ja esta em memoria. A conta nao e
+// duplicada: vem de montarSemana()+agregarSemana(), as mesmas do banco.
+// Classes prefixadas com "rs-" de proposito: ui.js ja tem .pos/.neg com
+// outro sentido (shell.html:190-191), entao nomes novos evitam colisao.
+function renderResumoSemana() {
+  const box = $('#resumoSemana');
+  if (!box) return;
+  const pac = montarSemana(PROD, RES.alocFinal, RES.otimoAloc, OPS, MAPA);
+  if (!pac.linhas.length) { box.classList.add('hide'); box.innerHTML = ''; return; }
+  const ag = agregarSemana(pac.linhas, pac.linhasOtimo, MAPA.rows);
+  box.classList.remove('hide');
+
+  const rs = v => v == null ? '—'
+    : (v < 0 ? '−R$ ' : 'R$ ') + Math.round(Math.abs(v)).toLocaleString('pt-BR');
+  const tn = v => v == null ? '—' : fmt1(v) + ' t';
+  const pontoGrupo = cli => {
+    if (/biopower/i.test(cli)) return '<span class="rs-selo rs-s-bio"></span>';
+    if (/flora/i.test(cli)) return '<span class="rs-selo rs-s-flo"></span>';
+    return '<span class="rs-selo rs-s-ter"></span>';
+  };
+  const blocoDuo = (cab, t, net, ter, sav) => {
+    const f = v => v == null ? '—' : rs(v);
+    let o = '<div><div class="rs-cab">' + cab + '</div>';
+    o += '<div class="rs-lin"><span>Volume</span><span>' + (t > 0 ? tn(t) : '—') + '</span></div>';
+    o += '<div class="rs-lin"><span>NET médio</span><span>' + f(net) + '</span></div>';
+    o += '<div class="rs-lin"><span>Melhor terceiro</span><span>' + f(ter) + '</span></div>';
+    o += '<div class="rs-lin rs-forte"><span>Diferença</span><span class="' +
+      (sav == null ? '' : (sav < 0 ? 'rs-neg' : 'rs-pos')) + '">' +
+      (sav == null ? '—' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+    return o + '</div>';
+  };
+
+  const props = ag.porPropria, tot = ag.total;
+  let savR = 0, savO = 0, temSavO = false;
+  props.forEach(p => {
+    if (p.saving_realizado != null) savR += p.saving_realizado;
+    if (p.saving_otimo != null) { savO += p.saving_otimo; temSavO = true; }
+  });
+  const tProp = props.reduce((s, p) => s + p.ton_realizado, 0);
+  const tTudo = tot.toneladas;
+  const tTer = tTudo - tProp;
+  const perdido = temSavO ? (savO - savR) : null;
+
+  let h = '';
+  h += '<h2>Resultado da semana em tela</h2>';
+  h += '<p class="rs-nota">Isto é a semana que está na tela agora' +
+    (ST.semana ? ' (Semana ' + fmt0(ST.semana) + ')' : '') +
+    ' — não o mês fechado, e nada aqui foi salvo ainda. Feche a semana ' +
+    'quando estiver de acordo.</p>';
+
+  h += '<div class="rs-cards">';
+  h += '<div class="rs-c"><div class="rs-lab">Volume da semana</div><div class="rs-big">' +
+    tn(tTudo) + '</div></div>';
+  h += '<div class="rs-c"><div class="rs-lab">Para fábrica própria</div><div class="rs-big">' +
+    tn(tProp) + '</div><div class="rs-pe">' +
+    (tTudo ? fmt1(tProp / tTudo * 100) + '% do total' : '—') + '</div></div>';
+  h += '<div class="rs-c"><div class="rs-lab">Para terceiros</div><div class="rs-big">' +
+    tn(tTer) + '</div><div class="rs-pe">NET médio geral ' + rs(tot.net_medio) + '</div></div>';
+  h += '<div class="rs-c"><div class="rs-lab">Ganho sobre o mercado</div><div class="rs-big ' +
+    (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') + rs(savR) +
+    '</div><div class="rs-pe">realizado, nas cargas que foram para própria</div></div>';
+  h += '</div>';
+
+  if (perdido != null && Math.abs(perdido) > 1) {
+    h += '<div class="rs-aviso"><b>' + rs(Math.abs(perdido)) + '</b> ' +
+      (perdido > 0
+        ? 'é a diferença entre o que a alocação do modelo geraria e o que foi feito até agora ' +
+          'nesta semana. Vem das trocas manuais de destino.'
+        : 'foi ganho acima do que o modelo indicava, por trocas feitas na mão.') +
+      '</div>';
+  }
+
+  props.forEach(p => {
+    const tr = p.ton_realizado, to = p.ton_otimo;
+    const sr = p.saving_realizado, so = p.saving_otimo;
+    const dif = (so != null ? so : 0) - (sr != null ? sr : 0);
+    let veredito = '', frase = '';
+    if (tr === 0 && to === 0) {
+      veredito = '<span class="rs-mute">não entrou na semana</span>';
+      frase = 'Não recebeu carga, e o modelo também não mandaria nada para cá.';
+    } else if (tr === 0) {
+      veredito = '<span class="rs-neg">' + rs(Math.abs(dif)) + ' deixados na mesa</span>';
+      frase = 'Não recebeu nada. O modelo mandaria <b>' + tn(to) + '</b> para cá.';
+    } else if (to === 0) {
+      veredito = (dif > 0 ? '<span class="rs-neg">custou ' + rs(dif) + '</span>'
+                          : '<span class="rs-pos">acima do modelo</span>');
+      frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá — ' +
+        'para essas cargas havia terceiro pagando mais.';
+    } else {
+      const d = to - tr;
+      veredito = Math.abs(dif) < 1 ? '<span class="rs-pos">no ponto</span>'
+        : (dif > 0 ? '<span class="rs-neg">' + rs(dif) + ' deixados na mesa</span>'
+                   : '<span class="rs-pos">+' + rs(-dif) + ' acima do modelo</span>');
+      frase = 'Recebeu <b>' + tn(tr) + '</b>; o modelo mandaria <b>' + tn(to) + '</b>' +
+        (Math.abs(d) < 0.5 ? ' — o mesmo volume.'
+          : (d > 0 ? ' — <b>' + tn(d) + '</b> a mais do que recebeu.'
+                   : ' — <b>' + tn(-d) + '</b> a menos do que recebeu.'));
+    }
+    h += '<div class="rs-fab' + (tr === 0 && to === 0 ? ' rs-sem' : '') + '">';
+    h += '<div class="rs-top"><span class="rs-nome">' + pontoGrupo(p.cliente) + esc(p.cliente) +
+      '</span><span class="rs-veredito">' + veredito + '</span></div>';
+    h += '<div class="rs-frase">' + frase + '</div>';
+    h += '<div class="rs-duo">';
+    h += blocoDuo('O que foi feito', tr, p.net_realizado, p.net_ter_realizado, sr);
+    h += blocoDuo('O que o modelo mandava', to, p.net_otimo, p.net_ter_otimo, so);
+    h += '</div></div>';
+  });
+
+  const totO = props.reduce((s2, p) => s2 + p.ton_otimo, 0);
+  h += '<div class="rs-resumo">Nesta semana, <b>' + tn(tProp) + '</b> foram para fábrica própria ' +
+    'e rendem <b class="' + (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') +
+    rs(savR) + '</b> em relação ao que o mercado pagaria pelas mesmas cargas. A alocação do ' +
+    'modelo mandaria <b>' + tn(totO) + '</b> e renderia <b class="rs-pos">+' + rs(savO) +
+    '</b>.</div>';
+
+  box.innerHTML = h;
 }
 
 function carimbo() {
@@ -2670,14 +2915,34 @@ async function exportarProg() {
   if (ULT_EXPORT) renderAvisos();
 }
 
-function distribuir() {
-  ST.usuario = $('#who').value; ST.salvoEm = agora();
-  persistir(); carimbo();
-  const boot = {
+// Pacote com tudo que precisa para reabrir o painel do zero: as duas
+// planilhas e o progresso. distribuir() usa isso para gerar o arquivo
+// autocontido; persistirDados() usa o mesmo pacote para o localStorage.
+function montarPacoteDados() {
+  return {
     prod: PROD, progb64: PROGBUF ? b64(PROGBUF) : null,
     mapa: { rows: MAPA.rows.map(r => { const c = Object.assign({}, r); delete c.ofEdit; return c; }), data: MAPA.data },
     estado: ST, arquivos: RAW.arquivos
   };
+}
+
+// Planilhas pesadas: gravadas uma vez por import/restauracao, nunca a cada
+// tecla. ST continua leve em sebo_estado, gravado a cada mudanca por
+// persistir() (chamado em todo render()).
+function persistirDados() {
+  try {
+    localStorage.setItem('sebo_dados', JSON.stringify(montarPacoteDados()));
+  } catch (e) {
+    // cota estourada ou erro de serializacao: sem dado pesado salvo, o
+    // painel so vai pedir import de novo na proxima vez — nunca quebra.
+    try { localStorage.removeItem('sebo_dados'); } catch (e2) { }
+  }
+}
+
+function distribuir() {
+  ST.usuario = $('#who').value; ST.salvoEm = agora();
+  persistir(); carimbo();
+  const boot = montarPacoteDados();
   const json = JSON.stringify(boot).replace(/</g, '\\u003c');
   const ab = '<scr' + 'ipt id="bd" type="application/json">';
   const fe = '</scr' + 'ipt>';
@@ -2703,13 +2968,30 @@ function boot() {
     PROD = b.prod; MAPA = b.mapa; ST = b.estado; arquivos = b.arquivos || {};
     if (b.progb64) PROGBUF = deB64(b.progb64);
     MAPA.rows.forEach((r, i) => r.i = i);
-    iniciar();
+    iniciar(true);  // arquivo ja distribuido: nao regravar sebo_dados
     return;
   }
   try {
     const s = localStorage.getItem('sebo_estado');
     if (s) ST = JSON.parse(s);
   } catch (e) { }
+  // sem arquivo distribuido: tenta voltar de onde parou com o que foi
+  // salvo no ultimo import. Qualquer erro aqui (cota do localStorage, dado
+  // corrompido) so faz cair na tela de importacao normalmente — nunca
+  // deixa o painel quebrado por causa disso.
+  try {
+    const d = localStorage.getItem('sebo_dados');
+    if (d) {
+      const b = JSON.parse(d);
+      PROD = b.prod; MAPA = b.mapa; arquivos = b.arquivos || {};
+      if (b.progb64) PROGBUF = deB64(b.progb64);
+      MAPA.rows.forEach((r, i) => r.i = i);
+      iniciar(true);  // restauracao: nao regravar sebo_dados
+    }
+  } catch (e) {
+    try { localStorage.removeItem('sebo_estado'); } catch (e2) { }
+    try { localStorage.removeItem('sebo_dados'); } catch (e2) { }
+  }
 }
 
 function arrancar() {
