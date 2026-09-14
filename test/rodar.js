@@ -5,7 +5,7 @@ const path = require('path');
 
 const BATERIAS = [
   'test_ui.js', 'test_nec.js', 'test_rt.js', 'test_vazio.js', 'test_prog.js',
-  'test_modelo.js', 'test_troca.js', 'test_modal.js', 'test_mobile.js', 'test_modo.js'
+  'test_modelo.js', 'test_troca.js', 'test_modal.js', 'test_mobile.js', 'test_modo.js', 'test_tabela.js'
 ];
 
 let falhou = [];

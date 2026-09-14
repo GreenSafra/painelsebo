@@ -973,6 +973,12 @@ async function programacaoPreenchida(buf, prod, aloc, ops, dataMapa, serialMapa)
         const col = (cel.getAttribute('r') || '').replace(/\d+$/, '');
         f.removeAttribute('t'); f.removeAttribute('si'); f.removeAttribute('ref');
         const t = f.textContent;
+        // A linha de totais da Tabela do Excel usa SUBTOTAL/AGGREGATE e referencia
+        // estruturada (Tabela1[Coluna]). Ela mora na coluna de Toneladas, entao
+        // caia na regra do CTS*35 abaixo e era destruida — o Excel abria pedindo
+        // reparo porque a tabela declara totalsRowCount mas a linha nao era mais
+        // de totais. Formula de agregacao fica intacta e o Excel recalcula sozinho.
+        if (/^\s*(SUBTOTAL|AGGREGATE)\s*\(/i.test(t) || /[A-Za-z0-9_]+\[/.test(t)) return;
         const mSum = /^SUM\(([A-Z]{1,3})\d+:[A-Z]{1,3}\d+\)$/.exec(t);
         if (col === CD.tonProd && CD.cts) f.textContent = CD.cts + n + '*35';
         else if (mSum) f.textContent = 'SUM(' + mSum[1] + '2:' + mSum[1] + ultimaDado + ')';
