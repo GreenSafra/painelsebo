@@ -57,10 +57,10 @@ function exigeLogin(req, res, next) {
   next();
 }
 
-function exigeMaster(req, res, next) {
+function exigeAdmin(req, res, next) {
   if (!req.usuario) return res.status(401).json({ erro: 'Faça login para continuar.' });
-  if (req.usuario.papel !== 'master') {
-    return res.status(403).json({ erro: 'Só o administrador pode fazer isso.' });
+  if (req.usuario.papel !== 'master' && req.usuario.papel !== 'admin') {
+    return res.status(403).json({ erro: 'Só administradores podem fazer isso.' });
   }
   next();
 }
@@ -133,19 +133,43 @@ app.get('/api/eu', (req, res) => {
 
 // ---------- rotas do master ----------
 
-app.get('/api/usuarios', exigeMaster, async (req, res) => {
+app.get('/api/usuarios', exigeAdmin, async (req, res) => {
   res.json({ usuarios: await db.listar() });
 });
 
-app.post('/api/usuarios/:id/aprovar', exigeMaster, async (req, res) => {
+app.post('/api/usuarios/:id/aprovar', exigeAdmin, async (req, res) => {
   const u = await db.decidir(Number(req.params.id), 'ativo', req.usuario.id);
   if (!u) return res.status(404).json({ erro: 'Usuário não encontrado.' });
   res.json({ ok: true, usuario: u });
 });
 
-app.post('/api/usuarios/:id/bloquear', exigeMaster, async (req, res) => {
+app.post('/api/usuarios/:id/bloquear', exigeAdmin, async (req, res) => {
   const u = await db.decidir(Number(req.params.id), 'bloqueado', req.usuario.id);
   if (!u) return res.status(404).json({ erro: 'Usuário não encontrado.' });
+  res.json({ ok: true, usuario: u });
+});
+
+app.post('/api/usuarios/:id/excluir', exigeAdmin, async (req, res) => {
+  if (Number(req.params.id) === req.usuario.id) {
+    return res.status(403).json({ erro: 'Você não pode excluir a si mesmo.' });
+  }
+  const u = await db.decidir(Number(req.params.id), 'excluido', req.usuario.id);
+  if (!u) return res.status(404).json({ erro: 'Usuário não encontrado (ou é o administrador master).' });
+  res.json({ ok: true, usuario: u });
+});
+
+app.post('/api/usuarios/:id/promover', exigeAdmin, async (req, res) => {
+  const u = await db.mudarPapel(Number(req.params.id), 'admin');
+  if (!u) return res.status(404).json({ erro: 'Usuário não encontrado (ou é o administrador master).' });
+  res.json({ ok: true, usuario: u });
+});
+
+app.post('/api/usuarios/:id/rebaixar', exigeAdmin, async (req, res) => {
+  if (Number(req.params.id) === req.usuario.id) {
+    return res.status(403).json({ erro: 'Você não pode tirar seu próprio admin.' });
+  }
+  const u = await db.mudarPapel(Number(req.params.id), 'usuario');
+  if (!u) return res.status(404).json({ erro: 'Usuário não encontrado (ou é o administrador master).' });
   res.json({ ok: true, usuario: u });
 });
 
@@ -254,7 +278,7 @@ app.get('/consolidado', (req, res) => {
 });
 
 app.get('/admin', (req, res) => {
-  if (!req.usuario || req.usuario.papel !== 'master') return res.redirect('/entrar');
+  if (!req.usuario || (req.usuario.papel !== 'master' && req.usuario.papel !== 'admin')) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 

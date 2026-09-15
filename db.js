@@ -210,6 +210,16 @@ async function decidir(id, situacao, porQuem) {
   return r.rows[0] || null;
 }
 
+async function mudarPapel(id, papel) {
+  if (papel !== 'usuario' && papel !== 'admin') throw new Error('Papel invalido.');
+  const r = await pool.query(
+    `UPDATE usuarios SET papel=$2 WHERE id=$1 AND papel <> 'master'
+     RETURNING id, nome, email, papel, situacao`,
+    [id, papel]
+  );
+  return r.rows[0] || null;
+}
+
 async function trocarSenha(id, nova) {
   await pool.query(`UPDATE usuarios SET senha_hash=$2 WHERE id=$1`, [id, criarHash(nova)]);
   await pool.query(`DELETE FROM sessoes WHERE usuario_id=$1`, [id]);
@@ -520,7 +530,7 @@ async function apagarRascunho(ano, semana) {
 
 module.exports = {
   pool, iniciar, MASTER,
-  criarUsuario, porEmail, porId, listar, decidir, trocarSenha,
+  criarUsuario, porEmail, porId, listar, decidir, mudarPapel, trocarSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
   fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,

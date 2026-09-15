@@ -38,7 +38,9 @@ h2{font-size:14px;margin:24px 0 10px;color:var(--fraco);font-weight:600;
 .tag.pendente{background:#fdf6e7;color:var(--espera)}
 .tag.ativo{background:#eef8f2;color:var(--bom)}
 .tag.bloqueado{background:#fdf1f0;color:var(--erro)}
+.tag.excluido{background:#fdf1f0;color:var(--erro)}
 .tag.master{background:#eeeef8;color:var(--azul)}
+.tag.admin{background:#eeeef8;color:var(--azul)}
 .vazio{color:var(--fraco);font-size:13.5px;padding:14px 0}
 .aviso{padding:11px 13px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
 .aviso.erro{background:#fdf1f0;color:var(--erro);border:1px solid #f5cfcb;display:block}
@@ -73,6 +75,9 @@ h2{font-size:14px;margin:24px 0 10px;color:var(--fraco);font-weight:600;
 
   <h2>Bloqueados</h2>
   <div id="bloqueados"></div>
+
+  <h2>Excluídos</h2>
+  <div id="excluidos"></div>
 </div>
 
 <script>
@@ -99,37 +104,62 @@ function data(v){
 
 function monta(u){
   var ehMaster = u.papel === 'master';
+  var souEu = u.id === MEU_ID;
   var bloco = '<div class="linha"><div>' +
     '<div class="nome">' + esc(u.nome) +
       ' <span class="tag ' + (ehMaster ? 'master' : esc(u.situacao)) + '">' +
-      (ehMaster ? 'administrador' : esc(u.situacao)) + '</span></div>' +
+      (ehMaster ? 'administrador' : esc(u.situacao)) + '</span>' +
+      (u.papel === 'admin' ? ' <span class="tag admin">admin</span>' : '') +
+    '</div>' +
     '<div class="mail">' + esc(u.email) + ' · pediu em ' + data(u.criado_em) + '</div>' +
     '</div>';
 
-  if(!ehMaster){
-    bloco += '<div class="acoes">';
-    if(u.situacao !== 'ativo'){
-      bloco += '<button class="btn pri" data-acao="aprovar" data-id="' + u.id + '">Aprovar</button>';
-    }
-    if(u.situacao !== 'bloqueado'){
-      bloco += '<button class="btn" data-acao="bloquear" data-id="' + u.id + '">Bloquear</button>';
-    }
-    bloco += '</div>';
+  if(ehMaster) return bloco + '</div>';
+
+  // Excluido e estado terminal nesta tela: so tem volta, sem as outras acoes.
+  if(u.situacao === 'excluido'){
+    bloco += '<div class="acoes"><button class="btn pri" data-acao="aprovar" data-id="' + u.id + '">Reativar</button></div>';
+    return bloco + '</div>';
   }
+
+  bloco += '<div class="acoes">';
+  if(u.situacao !== 'ativo'){
+    bloco += '<button class="btn pri" data-acao="aprovar" data-id="' + u.id + '">Aprovar</button>';
+  }
+  if(u.situacao !== 'bloqueado'){
+    bloco += '<button class="btn" data-acao="bloquear" data-id="' + u.id + '">Bloquear</button>';
+  }
+  if(u.papel !== 'admin'){
+    bloco += '<button class="btn" data-acao="promover" data-id="' + u.id + '">Tornar admin</button>';
+  } else if(!souEu){
+    bloco += '<button class="btn" data-acao="rebaixar" data-id="' + u.id +
+      '" data-nome="' + esc(u.nome) + '">Tirar admin</button>';
+  }
+  // Excluir e rebaixar sao os que tirariam o proprio acesso — escondidos na propria linha.
+  if(!souEu){
+    bloco += '<button class="btn" data-acao="excluir" data-id="' + u.id +
+      '" data-nome="' + esc(u.nome) + '" data-email="' + esc(u.email) + '">Excluir</button>';
+  }
+  bloco += '</div>';
   return bloco + '</div>';
 }
+
+var MEU_ID = null;
 
 async function carregar(){
   var r = await fetch('/api/eu');
   var e = await r.json();
-  if(!e.usuario || e.usuario.papel !== 'master'){ location.href = '/entrar'; return; }
+  if(!e.usuario || (e.usuario.papel !== 'master' && e.usuario.papel !== 'admin')){
+    location.href = '/entrar'; return;
+  }
+  MEU_ID = e.usuario.id;
   document.getElementById('quem').textContent = e.usuario.nome + ' · ' + e.usuario.email;
 
   var r2 = await fetch('/api/usuarios');
   if(!r2.ok){ diz('Não foi possível carregar a lista.'); return; }
   var lista = (await r2.json()).usuarios || [];
 
-  var grupos = {pendente:[], ativo:[], bloqueado:[]};
+  var grupos = {pendente:[], ativo:[], bloqueado:[], excluido:[]};
   lista.forEach(function(u){ (grupos[u.situacao] || grupos.ativo).push(u); });
 
   function poe(id, arr, vazio){
@@ -139,16 +169,25 @@ async function carregar(){
   poe('pendentes',  grupos.pendente,  'Nenhum pedido no momento.');
   poe('ativos',     grupos.ativo,     'Ninguém com acesso ainda.');
   poe('bloqueados', grupos.bloqueado, 'Ninguém bloqueado.');
+  poe('excluidos',  grupos.excluido,  'Ninguém excluído.');
 }
 
 document.addEventListener('click', async function(ev){
   var b = ev.target.closest('button[data-acao]');
   if(!b) return;
+  var acao = b.dataset.acao;
+  if(acao === 'excluir' && !confirm('Excluir ' + b.dataset.nome + ' (' + b.dataset.email +
+      ')? A pessoa perde o acesso, mas o histórico dela (semanas fechadas, rascunhos) continua.')) return;
+  if(acao === 'rebaixar' && !confirm('Tirar o admin de ' + b.dataset.nome + '?')) return;
   b.disabled = true;
-  var r = await fetch('/api/usuarios/' + b.dataset.id + '/' + b.dataset.acao, {method:'POST'});
+  var r = await fetch('/api/usuarios/' + b.dataset.id + '/' + acao, {method:'POST'});
   var d = await r.json();
   if(!r.ok){ diz(d.erro || 'Não foi possível concluir.'); b.disabled = false; return; }
-  diz(b.dataset.acao === 'aprovar' ? 'Acesso liberado.' : 'Acesso bloqueado.', 'bom');
+  var msgs = {
+    aprovar: 'Acesso liberado.', bloquear: 'Acesso bloqueado.', excluir: 'Usuário excluído.',
+    promover: 'Agora é admin.', rebaixar: 'Não é mais admin.'
+  };
+  diz(msgs[acao] || 'Concluído.', 'bom');
   carregar();
 });
 
