@@ -384,9 +384,88 @@ function netDe(r) {
   return r.net;
 }
 
+/* ====================== COTACOES (serie de precos por cliente) ====================== */
+// Extrai as cotacoes de um Mapa ja parseado — so a oferta BRUTA, sem
+// NET: NET embute frete, que varia por origem, e contaminaria a serie
+// de preco com efeito de logistica em vez de so preco pedido. Se prod
+// (a Programacao) for passado, tenta resolver a sigla da unidade; so
+// grava quando bate com exatamente uma planta — ambiguo (ex.: cidades
+// com duas plantas) ou sem prod vira null, nunca um chute. A data da
+// cotacao e a mesma pra todas as linhas do arquivo, tirada do
+// dataSerial (nunca da string ja formatada, que teve bug de fuso).
+function extrairCotacoes(mapa, prod) {
+  const resolve = (prod && prod.plants && prod.plants.length) ? criarResolvedor(prod.plants) : null;
+  const d = (mapa && mapa.dataSerial != null) ? serialToDate(mapa.dataSerial) : null;
+  const dataCotacao = d ? d.toISOString().slice(0, 10) : null;
+  const out = [];
+  ((mapa && mapa.rows) || []).forEach(r => {
+    if (!(r.of > 0)) return;
+    let sigla = null;
+    if (resolve) {
+      const hit = resolve(r.un);
+      if (hit.length === 1) sigla = hit[0];
+    }
+    out.push({ cliente: r.cli, origem: r.un, sigla, oferta: r.of, dataCotacao });
+  });
+  return out;
+}
+
+// Inicio (segunda) do periodo "dd/mm a dd/mm" de uma semana fechada,
+// como Date UTC. null se o formato nao bater — nao adivinha.
+function inicioDoPeriodo(periodo, ano) {
+  const m = /^(\d{2})\/(\d{2})\s+a\s+\d{2}\/\d{2}/.exec(String(periodo || ''));
+  if (!m) return null;
+  const d = new Date(Date.UTC(ano, Number(m[2]) - 1, Number(m[1])));
+  return isFinite(d.getTime()) ? d : null;
+}
+
+// A cotacao sai sempre na quinta-feira anterior ao inicio da semana.
+function quintaEsperada(inicioSegunda) {
+  return inicioSegunda ? new Date(inicioSegunda.getTime() - 4 * 86400000) : null;
+}
+
+// Semana ISO-8601 de uma data (ano e semana calculados juntos, pra nao
+// descasar nas viradas de ano). Verificado contra as semanas fechadas
+// reais desta empresa: bate com as 9 semanas ja gravadas no banco.
+function isoWeekInfo(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);
+  const primeiraQuinta = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const fdn = (primeiraQuinta.getUTCDay() + 6) % 7;
+  primeiraQuinta.setUTCDate(primeiraQuinta.getUTCDate() - fdn + 3);
+  const semana = 1 + Math.round((d - primeiraQuinta) / (7 * 86400000));
+  return { ano: d.getUTCFullYear(), semana };
+}
+
+// Resolve a semana de um Mapa: casa com uma semana ja fechada (por
+// igualdade exata entre a data da cotacao e a quinta esperada daquela
+// semana); sem correspondencia, CALCULA pela regra da quinta + semana
+// ISO — uma cotacao pode ser de uma semana que ainda nao fechou, ou que
+// nunca vai fechar, e isso e normal, nao pendencia. So fica pendente de
+// verdade quando a data da cotacao e ilegivel (sem calculo possivel).
+function resolverSemanaDoMapa(dataSerial, semanasFechadas) {
+  if (dataSerial == null) return { status: 'pendente' };
+  const dCot = serialToDate(dataSerial);
+  if (!dCot) return { status: 'pendente' };
+  const casada = (semanasFechadas || []).find(s => {
+    const q = quintaEsperada(inicioDoPeriodo(s.periodo, s.ano));
+    return q && q.getTime() === dCot.getTime();
+  });
+  if (casada) return { status: 'casada', ano: casada.ano, semana: casada.semana, periodo: casada.periodo };
+  const seg = new Date(dCot.getTime() + 4 * 86400000);
+  const iso = isoWeekInfo(seg);
+  return { status: 'calculada', ano: iso.ano, semana: iso.semana };
+}
+
 /* ====================== MONTAGEM DO CONJUNTO ====================== */
-function montar(prod, nec, mapa) {
-  const plants = prod.plants;
+// Casa o texto de uma unidade (coluna "Unidades JBS" do Mapa) com a
+// sigla de 3 letras da Programacao — por sigla literal no texto, por
+// nome de cidade exato, por abreviatura de cidade, ou por similaridade.
+// Devolve um array: 0 sighs (nao achou), 1 (resolveu), ou mais de 1
+// quando o texto casa com mais de uma planta na mesma cidade (ambiguo —
+// quem usa decide o que fazer com mais de um resultado).
+function criarResolvedor(plants) {
   const siglas = new Set(plants.map(p => p.sigla));
   const cidadeIdx = new Map();
   plants.forEach(p => {
@@ -396,7 +475,7 @@ function montar(prod, nec, mapa) {
   });
   const cidades = [...cidadeIdx.keys()];
 
-  function resolve(nome) {
+  return function resolve(nome) {
     const toks = String(nome).match(/\b[A-Z]{3}\b/g) || [];
     const hit = toks.filter(t => siglas.has(t));
     if (hit.length) return hit;
@@ -425,8 +504,12 @@ function montar(prod, nec, mapa) {
     let best = null, bs = 0;
     for (const c of cidades) { const s = sim(n, c); if (s > bs) { bs = s; best = c; } }
     return bs >= 0.72 ? cidadeIdx.get(best) : [];
-  }
+  };
+}
 
+function montar(prod, nec, mapa) {
+  const plants = prod.plants;
+  const resolve = criarResolvedor(plants);
   const ufDe = {}; plants.forEach(p => ufDe[p.sigla] = p.uf);
   const naoMapeadas = new Set();
   const q = new Map();           // sigla|cliente -> melhor linha
@@ -693,7 +776,8 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
       mapaData: (mapa && mapa.data) || null
     },
     linhas: linhas,
-    linhasOtimo: linhasOtimo
+    linhasOtimo: linhasOtimo,
+    cotacoes: extrairCotacoes(mapa, prod)
   };
 }
 

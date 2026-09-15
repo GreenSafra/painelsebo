@@ -136,6 +136,33 @@ async function iniciar() {
     )
   `);
 
+  // Uma linha por cotacao: cliente, origem (texto cru da unidade no Mapa
+  // — sempre presente, e a chave que evita duplicidade), sigla resolvida
+  // quando da (null quando ambigua ou sem Programacao pareada), oferta
+  // BRUTA sem NET (NET embute frete, que varia por origem, e
+  // contaminaria a serie de preco com efeito de logistica), e o
+  // ano+semana a que se refere. Sem versao: reimportar o mesmo Mapa
+  // substitui (upsert pela chave unica), nao duplica. Sem FK pra
+  // semanas: uma cotacao pode existir pra uma semana que nunca vai
+  // fechar, e isso e normal — quem faz a serie existir e o Mapa, nao o
+  // fechamento.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS cotacoes (
+      id           SERIAL PRIMARY KEY,
+      ano          INTEGER NOT NULL,
+      semana       INTEGER NOT NULL,
+      cliente      TEXT NOT NULL,
+      origem       TEXT NOT NULL,
+      sigla        TEXT,
+      oferta       NUMERIC(12,2) NOT NULL,
+      data_cotacao DATE,
+      criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (cliente, origem, ano, semana)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ix_cotacoes_semana ON cotacoes(ano, semana)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS ix_cotacoes_cliente ON cotacoes(cliente)`);
+
   // Promove o master caso ele ja tenha se cadastrado.
   await pool.query(
     `UPDATE usuarios SET papel='master', situacao='ativo' WHERE lower(email)=$1`,
@@ -310,6 +337,7 @@ async function fecharSemana(cab, linhas, usuarioId) {
     }
     await gravar(linhas, 'realizado');
     await gravar(cab.linhasOtimo || [], 'otimo');
+    await gravarCotacoes(c, ano, semana, cab.cotacoes);
     // A semana virou versao fechada: o rascunho perdeu a funcao (senao ele
     // continuaria sendo "o mais recente" e o painel reabriria uma semana ja
     // fechada sozinho). Se reabrirem e mexerem, um rascunho novo nasce
@@ -528,11 +556,62 @@ async function apagarRascunho(ano, semana) {
   await pool.query(`DELETE FROM rascunhos WHERE ano=$1 AND semana=$2`, [ano, semana]);
 }
 
+// ---------- cotacoes ----------
+
+// execQuery pode ser o pool ou um client de transacao (reaproveitado por
+// fecharSemana e pelo upload avulso de Mapa). Reimportar o mesmo Mapa
+// substitui pela chave unica (cliente, origem, ano, semana) em vez de
+// duplicar.
+async function gravarCotacoes(execQuery, ano, semana, cotacoes) {
+  for (const q of (cotacoes || [])) {
+    if (!q || !q.cliente || !q.origem || !(q.oferta > 0)) continue;
+    await execQuery.query(
+      `INSERT INTO cotacoes (ano, semana, cliente, origem, sigla, oferta, data_cotacao)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (cliente, origem, ano, semana) DO UPDATE
+         SET sigla=$5, oferta=$6, data_cotacao=$7`,
+      [ano, semana, q.cliente, q.origem, q.sigla || null, q.oferta, q.dataCotacao || null]
+    );
+  }
+}
+
+async function semanasComCotacao() {
+  const r = await pool.query(
+    `SELECT DISTINCT ano, semana FROM cotacoes ORDER BY ano DESC, semana DESC`
+  );
+  return r.rows;
+}
+
+async function gravarCotacoesLote(itens) {
+  const out = [];
+  for (const item of (itens || [])) {
+    const ano = Number(item.ano), semana = Number(item.semana);
+    if (!Number.isInteger(ano) || !Number.isInteger(semana)) {
+      out.push({ ano: item.ano, semana: item.semana, ok: false, erro: 'Ano/semana invalidos.' });
+      continue;
+    }
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await gravarCotacoes(c, ano, semana, item.cotacoes);
+      await c.query('COMMIT');
+      out.push({ ano, semana, ok: true, gravadas: (item.cotacoes || []).length });
+    } catch (e) {
+      await c.query('ROLLBACK');
+      out.push({ ano, semana, ok: false, erro: e.message });
+    } finally {
+      c.release();
+    }
+  }
+  return out;
+}
+
 module.exports = {
   pool, iniciar, MASTER,
   criarUsuario, porEmail, porId, listar, decidir, mudarPapel, trocarSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
   fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,
-  salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho
+  salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
+  gravarCotacoes, semanasComCotacao, gravarCotacoesLote
 };

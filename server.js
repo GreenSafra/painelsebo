@@ -190,10 +190,10 @@ app.post('/api/senha', exigeLogin, async (req, res) => {
 // ---------- semanas fechadas ----------
 
 app.post('/api/semanas', exigeLogin, async (req, res) => {
-  const { cabecalho, linhas } = req.body || {};
+  const { cabecalho, linhas, cotacoes } = req.body || {};
   if (!cabecalho) return res.status(400).json({ erro: 'Cabeçalho da semana ausente.' });
   try {
-    const cab = Object.assign({}, cabecalho, { linhasOtimo: req.body.linhasOtimo });
+    const cab = Object.assign({}, cabecalho, { linhasOtimo: req.body.linhasOtimo, cotacoes });
     const r = await db.fecharSemana(cab, linhas, req.usuario.id);
     res.json({ ok: true, ...r });
   } catch (e) {
@@ -211,6 +211,20 @@ app.delete('/api/semanas', exigeLogin, async (req, res) => {
     res.json({ ok: true, apagadas: r.apagadas });
   } catch (e) {
     res.status(400).json({ erro: e.message });
+  }
+});
+
+// ---------- cotacoes (alimentadas pelo Mapa, com ou sem semana fechada) ----------
+
+app.get('/api/cotacoes/semanas', exigeLogin, async (req, res) => {
+  res.json(await db.semanasComCotacao());
+});
+
+app.post('/api/cotacoes/lote', exigeLogin, async (req, res) => {
+  try {
+    res.json({ ok: true, resultados: await db.gravarCotacoesLote(req.body.itens || []) });
+  } catch (e) {
+    res.status(400).json({ erro: e.message || 'Não consegui gravar as cotações.' });
   }
 });
 
@@ -275,6 +289,11 @@ app.get('/entrar', (req, res) => {
 app.get('/consolidado', (req, res) => {
   if (!req.usuario) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'consolidado.html'));
+});
+
+app.get('/mapas', (req, res) => {
+  if (!req.usuario) return res.redirect('/entrar');
+  res.sendFile(path.join(__dirname, 'public', 'mapas.html'));
 });
 
 app.get('/admin', (req, res) => {
