@@ -39,6 +39,8 @@ header{border-bottom:1px solid var(--line);margin-bottom:26px}
 .htitle p{margin:3px 0 0;color:var(--mute);font-size:13.5px}
 .stamp{text-align:right;font-size:12.5px;color:var(--mute);line-height:1.5}
 .stamp b{color:var(--ink);font-weight:600}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.hlinks{display:flex;gap:10px}
 
 .acts{display:flex;gap:8px;align-items:center;padding-bottom:16px;flex-wrap:wrap}
 .btn{background:var(--paper);color:var(--ink);border:1px solid var(--line);
@@ -268,7 +270,8 @@ footer img{height:17px;width:auto;opacity:.75}
   .htitle{flex:1 1 100%;order:2}
   .htitle h1{font-size:21px}
   .htitle p{font-size:12.5px}
-  .stamp{order:3;flex:1 1 100%;text-align:left;font-size:12px}
+  .hright{order:3;flex:1 1 100%;align-items:flex-start}
+  .stamp{text-align:left;font-size:12px}
   .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:14px}
   .acts .btn{width:100%;padding:11px 8px;font-size:13.5px;text-align:center;
     line-height:1.25;min-height:44px}
@@ -343,8 +346,7 @@ footer img{height:17px;width:auto;opacity:.75}
 .rascunho-descartar{flex:none;background:none;border:0;color:var(--mute);font-size:12px;
   text-decoration:underline;cursor:pointer;padding:0 4px}
 .rascunho-descartar:hover{color:var(--red)}
-.lnkSair{font-size:12px;color:var(--mute);text-decoration:underline;
-  margin-left:6px;cursor:pointer}
+.lnkSair{font-size:12px;color:var(--mute);text-decoration:underline;cursor:pointer}
 .lnkSair:hover{color:var(--azul)}
 
 .ovl{position:fixed;inset:0;background:rgba(20,20,30,.45);display:flex;
@@ -418,7 +420,13 @@ footer img{height:17px;width:auto;opacity:.75}
       <h1>Alocação de sebo</h1>
       <p id="sub">Importe as planilhas da semana para começar</p>
     </div>
-    <div class="stamp" id="stamp"></div>
+    <div class="hright">
+      <div class="stamp" id="stamp"></div>
+      <div class="hlinks">
+        <a class="lnkSair" href="#" id="lnkTrocarSenha">Trocar senha</a>
+        <a class="lnkSair" href="#" id="lnkSair">Sair</a>
+      </div>
+    </div>
   </div>
   <div class="acts">
     <button class="btn" id="bNovaSemana" disabled>Nova semana</button>
@@ -435,9 +443,6 @@ footer img{height:17px;width:auto;opacity:.75}
     <select class="who" id="who" aria-label="Quem está operando">
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
     </select>
-    <span class="who quem hide" id="quem"></span>
-    <a class="lnkSair" href="#" id="lnkTrocarSenha">Trocar senha</a>
-    <a class="lnkSair" href="#" id="lnkSair">Sair</a>
   </div>
 </header>
 
@@ -2247,9 +2252,11 @@ function iniciar(restaurando) {
   atualizarCarimboRascunho();
 }
 
-// Com login, quem esta operando vem da sessao, nao de um seletor. O <select>
-// so continua existindo para o caso de o painel ser aberto solto, fora do
-// servidor (arquivo local), onde nao ha sessao.
+// Com login, quem esta operando vem da sessao, nao de um seletor. O nome
+// aparece no carimbo de ultima alteracao (carimbo(), no canto direito) —
+// nao precisa de rotulo proprio aqui. O <select> so continua existindo
+// para o caso de o painel ser aberto solto, fora do servidor (arquivo
+// local), onde nao ha sessao.
 async function identificar() {
   try {
     const r = await fetch('/api/eu');
@@ -2257,13 +2264,13 @@ async function identificar() {
     const j = await r.json();
     if (!j || !j.usuario || !j.usuario.nome) return;
     const nome = j.usuario.nome;
-    // gerenciar usuarios so faz sentido para o master
-    if (j.usuario.papel === 'master') {
+    // gerenciar usuarios e coisa de master ou admin, igual a trava do servidor
+    if (j.usuario.papel === 'master' || j.usuario.papel === 'admin') {
       const la = document.getElementById('lnkAdmin');
       if (la) la.classList.remove('hide');
     }
-    const sel = $('#who'), lbl = $('#quem');
-    if (!sel || !lbl) return;
+    const sel = $('#who');
+    if (!sel) return;
     // o valor precisa existir como opcao, senao o carimbo nao consegue
     // refletir ST.usuario de volta no seletor
     if (![].some.call(sel.options, o => o.value === nome)) {
@@ -2272,8 +2279,6 @@ async function identificar() {
     }
     sel.value = nome;
     sel.classList.add('hide');
-    lbl.textContent = nome;
-    lbl.classList.remove('hide');
     if (ST) { ST.usuario = nome; carimbo(); }
   } catch (e) { /* painel solto, sem servidor: segue com o seletor */ }
 }

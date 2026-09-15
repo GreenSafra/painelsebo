@@ -213,9 +213,11 @@ function iniciar(restaurando) {
   atualizarCarimboRascunho();
 }
 
-// Com login, quem esta operando vem da sessao, nao de um seletor. O <select>
-// so continua existindo para o caso de o painel ser aberto solto, fora do
-// servidor (arquivo local), onde nao ha sessao.
+// Com login, quem esta operando vem da sessao, nao de um seletor. O nome
+// aparece no carimbo de ultima alteracao (carimbo(), no canto direito) —
+// nao precisa de rotulo proprio aqui. O <select> so continua existindo
+// para o caso de o painel ser aberto solto, fora do servidor (arquivo
+// local), onde nao ha sessao.
 async function identificar() {
   try {
     const r = await fetch('/api/eu');
@@ -223,13 +225,13 @@ async function identificar() {
     const j = await r.json();
     if (!j || !j.usuario || !j.usuario.nome) return;
     const nome = j.usuario.nome;
-    // gerenciar usuarios so faz sentido para o master
-    if (j.usuario.papel === 'master') {
+    // gerenciar usuarios e coisa de master ou admin, igual a trava do servidor
+    if (j.usuario.papel === 'master' || j.usuario.papel === 'admin') {
       const la = document.getElementById('lnkAdmin');
       if (la) la.classList.remove('hide');
     }
-    const sel = $('#who'), lbl = $('#quem');
-    if (!sel || !lbl) return;
+    const sel = $('#who');
+    if (!sel) return;
     // o valor precisa existir como opcao, senao o carimbo nao consegue
     // refletir ST.usuario de volta no seletor
     if (![].some.call(sel.options, o => o.value === nome)) {
@@ -238,8 +240,6 @@ async function identificar() {
     }
     sel.value = nome;
     sel.classList.add('hide');
-    lbl.textContent = nome;
-    lbl.classList.remove('hide');
     if (ST) { ST.usuario = nome; carimbo(); }
   } catch (e) { /* painel solto, sem servidor: segue com o seletor */ }
 }
