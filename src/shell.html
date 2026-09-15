@@ -347,6 +347,23 @@ footer img{height:17px;width:auto;opacity:.75}
   margin-left:6px;cursor:pointer}
 .lnkSair:hover{color:var(--azul)}
 
+.ovl{position:fixed;inset:0;background:rgba(20,20,30,.45);display:flex;
+  align-items:center;justify-content:center;padding:20px;z-index:50}
+.ovl.hide{display:none}
+.caixaSenha{background:var(--card);border-radius:10px;padding:22px;max-width:340px;
+  width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.caixaSenha h3{font-size:16px;margin-bottom:14px}
+.caixaSenha label{display:block;font-size:12.5px;font-weight:600;margin:0 0 5px;color:var(--mute)}
+.caixaSenha input{width:100%;padding:9px 11px;font-size:14px;border:1px solid var(--line);
+  border-radius:var(--r);background:var(--paper);color:var(--ink);
+  margin-bottom:12px;font-family:inherit}
+.caixaSenha input:focus{outline:2px solid var(--azul);outline-offset:-1px;background:var(--card)}
+.caixaSenha .dica{font-size:11.5px;color:var(--mute);margin:-6px 0 12px}
+.caixaSenha .aviso{padding:9px 11px;border-radius:var(--r);font-size:12.5px;margin-bottom:12px}
+.caixaSenha .aviso.ruim{background:var(--alertbg);color:var(--alertd)}
+.caixaSenha .aviso.ok{background:#E6F4EA;color:#1E7B34}
+.caixaSenha-acts{display:flex;justify-content:flex-end;gap:8px}
+
 /* Resumo da semana no painel — mesma leitura de public/consolidado.html.
    Classes com prefixo rs- de proposito: .pos/.neg ja existem acima com
    outro sentido (cores diferentes), nomes novos evitam colisao. */
@@ -419,6 +436,7 @@ footer img{height:17px;width:auto;opacity:.75}
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
     </select>
     <span class="who quem hide" id="quem"></span>
+    <a class="lnkSair" href="#" id="lnkTrocarSenha">Trocar senha</a>
     <a class="lnkSair" href="#" id="lnkSair">Sair</a>
   </div>
 </header>
@@ -521,6 +539,24 @@ footer img{height:17px;width:auto;opacity:.75}
   <span class="spacer"></span>
   <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
 </footer>
+</div>
+
+<div class="ovl hide" id="ovlSenha">
+  <div class="caixaSenha">
+    <h3>Trocar senha</h3>
+    <label for="tsAtual">Senha atual</label>
+    <input id="tsAtual" type="password" autocomplete="current-password">
+    <label for="tsNova">Nova senha</label>
+    <input id="tsNova" type="password" autocomplete="new-password">
+    <label for="tsConf">Confirmar nova senha</label>
+    <input id="tsConf" type="password" autocomplete="new-password">
+    <p class="dica">Mínimo de 8 caracteres.</p>
+    <div class="aviso hide" id="tsAviso"></div>
+    <div class="caixaSenha-acts">
+      <button class="btn" id="tsCancelar">Cancelar</button>
+      <button class="btn pri" id="tsSalvar">Salvar</button>
+    </div>
+  </div>
 </div>
 <script>/*__CORE__*/</script>
 <script>/*__UI__*/</script>

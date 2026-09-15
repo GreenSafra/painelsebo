@@ -73,6 +73,19 @@ input:focus{outline:2px solid var(--azul);outline-offset:-1px;background:var(--p
       <button class="btn" id="btnCriar">Pedir acesso</button>
     </div>
 
+    <div id="formTroca" style="display:none">
+      <p class="sub" style="margin-top:-6px">Sua senha foi redefinida pelo administrador.
+        Defina uma nova senha para continuar.</p>
+      <label for="st">Senha temporária</label>
+      <input id="st" type="password" autocomplete="current-password">
+      <label for="sn">Nova senha</label>
+      <input id="sn" type="password" autocomplete="new-password">
+      <label for="sc">Confirmar nova senha</label>
+      <input id="sc" type="password" autocomplete="new-password">
+      <p class="dica">Mínimo de 8 caracteres.</p>
+      <button class="btn" id="btnTroca">Definir nova senha</button>
+    </div>
+
     <div class="rodape">Uso interno.</div>
   </div>
 </div>
@@ -98,6 +111,16 @@ function troca(qual){
 document.getElementById('abaEntrar').onclick = function(){ troca('entrar'); };
 document.getElementById('abaCriar').onclick  = function(){ troca('criar'); };
 
+// Senha temporaria: esconde abas e login/cadastro, so sobra a troca
+// obrigatoria. Servidor tambem bloqueia (nao e so cosmetico aqui).
+function mostrarTrocaObrigatoria(){
+  document.querySelector('.abas').style.display = 'none';
+  document.getElementById('formEntrar').style.display = 'none';
+  document.getElementById('formCriar').style.display = 'none';
+  document.getElementById('formTroca').style.display = '';
+  limpa();
+}
+
 async function manda(url, corpo, botao){
   botao.disabled = true;
   try{
@@ -122,6 +145,21 @@ document.getElementById('btnEntrar').onclick = async function(){
   var d = await manda('/api/entrar', {
     email: document.getElementById('e1').value,
     senha: document.getElementById('s1').value
+  }, this);
+  if(!d) return;
+  if(d.usuario && d.usuario.senhaTemporaria){ mostrarTrocaObrigatoria(); return; }
+  location.href = '/';
+};
+
+document.getElementById('btnTroca').onclick = async function(){
+  limpa();
+  var nova = document.getElementById('sn').value;
+  var conf = document.getElementById('sc').value;
+  if(nova !== conf){ diz('A confirmação não confere com a nova senha.'); return; }
+  var d = await manda('/api/senha', {
+    atual: document.getElementById('st').value,
+    nova: nova,
+    confirmacao: conf
   }, this);
   if(d) location.href = '/';
 };
@@ -149,6 +187,21 @@ document.getElementById('btnCriar').onclick = async function(){
     if(ev.key === 'Enter') document.getElementById('btnCriar').click();
   });
 });
+['st','sn','sc'].forEach(function(id){
+  document.getElementById(id).addEventListener('keydown', function(ev){
+    if(ev.key === 'Enter') document.getElementById('btnTroca').click();
+  });
+});
+
+// Chegar aqui logado com senha temporaria (o servidor manda pra /entrar
+// nessa situacao) tambem cai direto na troca obrigatoria.
+(async function(){
+  try{
+    var r = await fetch('/api/eu');
+    var e = await r.json();
+    if(e && e.usuario && e.usuario.senhaTemporaria) mostrarTrocaObrigatoria();
+  }catch(e){}
+})();
 </script>
 </body>
 </html>

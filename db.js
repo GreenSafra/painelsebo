@@ -58,6 +58,12 @@ async function iniciar() {
 
   await pool.query(`CREATE INDEX IF NOT EXISTS ix_sessoes_expira ON sessoes(expira_em)`);
 
+  // DEFAULT false: toda conta ja existente nasce com a coluna em false,
+  // ninguem que ja estava logado cai na troca obrigatoria por causa do deploy.
+  await pool.query(
+    `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS senha_temporaria BOOLEAN NOT NULL DEFAULT false`
+  );
+
   // Uma linha por semana fechada. Reabrir e fechar de novo cria uma versao
   // nova em vez de sobrescrever: o historico do que foi decidido na epoca
   // nao se perde. So a versao com atual=true entra no consolidado.
@@ -248,8 +254,45 @@ async function mudarPapel(id, papel) {
 }
 
 async function trocarSenha(id, nova) {
-  await pool.query(`UPDATE usuarios SET senha_hash=$2 WHERE id=$1`, [id, criarHash(nova)]);
+  await pool.query(
+    `UPDATE usuarios SET senha_hash=$2, senha_temporaria=false WHERE id=$1`,
+    [id, criarHash(nova)]
+  );
+}
+
+// Derruba as outras sessoes da conta, preservando a do pedido que trocou a
+// senha — trocar a propria senha nao pode deslogar quem acabou de trocar.
+async function fecharOutrasSessoes(id, tokenAtual) {
+  await pool.query(
+    `DELETE FROM sessoes WHERE usuario_id=$1 AND token <> $2`,
+    [id, tokenAtual || '']
+  );
+}
+
+const SENHA_TEMP_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+
+function gerarSenhaTemporaria() {
+  let s = '';
+  for (let i = 0; i < 12; i++) {
+    s += SENHA_TEMP_CHARS[crypto.randomInt(SENHA_TEMP_CHARS.length)];
+  }
+  return s;
+}
+
+// So mexe em quem nao e master (mesma trava de mudarPapel). Devolve a senha
+// em texto puro UMA vez, pro admin repassar — nao fica guardada em lugar
+// nenhum alem do hash.
+async function redefinirSenha(id) {
+  const senha = gerarSenhaTemporaria();
+  const r = await pool.query(
+    `UPDATE usuarios SET senha_hash=$2, senha_temporaria=true
+      WHERE id=$1 AND papel <> 'master'
+      RETURNING id`,
+    [id, criarHash(senha)]
+  );
+  if (!r.rows[0]) return null;
   await pool.query(`DELETE FROM sessoes WHERE usuario_id=$1`, [id]);
+  return { id, senha };
 }
 
 // ---------- sessoes ----------
@@ -269,7 +312,8 @@ async function abrirSessao(usuarioId) {
 async function lerSessao(token) {
   if (!token) return null;
   const r = await pool.query(
-    `SELECT u.id, u.nome, u.email, u.papel, u.situacao
+    `SELECT u.id, u.nome, u.email, u.papel, u.situacao,
+            u.senha_temporaria AS "senhaTemporaria"
        FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
       WHERE s.token=$1 AND s.expira_em > now() AND u.situacao='ativo'`,
     [token]
@@ -609,6 +653,7 @@ async function gravarCotacoesLote(itens) {
 module.exports = {
   pool, iniciar, MASTER,
   criarUsuario, porEmail, porId, listar, decidir, mudarPapel, trocarSenha,
+  fecharOutrasSessoes, redefinirSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
   fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,

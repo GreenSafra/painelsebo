@@ -101,6 +101,12 @@ function setupImport() {
   $('#bNovaSemana').onclick = novaSemana;
   const ls = document.getElementById('lnkSair');
   if (ls) ls.onclick = e => { e.preventDefault(); sair(); };
+  const lt = document.getElementById('lnkTrocarSenha');
+  if (lt) lt.onclick = e => { e.preventDefault(); abrirTrocaSenha(); };
+  const tsCancelar = document.getElementById('tsCancelar');
+  if (tsCancelar) tsCancelar.onclick = fecharTrocaSenha;
+  const tsSalvar = document.getElementById('tsSalvar');
+  if (tsSalvar) tsSalvar.onclick = salvarTrocaSenha;
 }
 
 // Logout ja existe no servidor (POST /api/sair) — so faltava o botao.
@@ -110,6 +116,50 @@ async function sair() {
   )) return;
   try { await fetch('/api/sair', { method: 'POST' }); } catch (e) { }
   location.href = '/entrar';
+}
+
+function trocaSenhaAviso(msg, tipo) {
+  const av = document.getElementById('tsAviso');
+  if (!av) return;
+  av.textContent = msg || '';
+  av.className = 'aviso' + (msg ? ' ' + (tipo || 'ruim') : ' hide');
+}
+
+function abrirTrocaSenha() {
+  ['tsAtual', 'tsNova', 'tsConf'].forEach(id => { const i = document.getElementById(id); if (i) i.value = ''; });
+  trocaSenhaAviso('');
+  const ov = document.getElementById('ovlSenha');
+  if (ov) ov.classList.remove('hide');
+}
+
+function fecharTrocaSenha() {
+  const ov = document.getElementById('ovlSenha');
+  if (ov) ov.classList.add('hide');
+}
+
+async function salvarTrocaSenha() {
+  const atual = document.getElementById('tsAtual').value;
+  const nova = document.getElementById('tsNova').value;
+  const conf = document.getElementById('tsConf').value;
+  if (!atual) { trocaSenhaAviso('Informe a senha atual.'); return; }
+  if (nova.length < 8) { trocaSenhaAviso('A nova senha precisa de pelo menos 8 caracteres.'); return; }
+  if (nova !== conf) { trocaSenhaAviso('A confirmação não confere com a nova senha.'); return; }
+  const bt = document.getElementById('tsSalvar');
+  bt.disabled = true;
+  try {
+    const r = await fetch('/api/senha', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ atual, nova, confirmacao: conf })
+    });
+    const d = await r.json();
+    if (!r.ok) { trocaSenhaAviso(d.erro || 'Não foi possível trocar a senha.'); return; }
+    trocaSenhaAviso('Senha trocada. As outras sessões desta conta foram encerradas.', 'ok');
+    setTimeout(fecharTrocaSenha, 1500);
+  } catch (e) {
+    trocaSenhaAviso('Falha de conexão. Tente de novo.');
+  } finally {
+    bt.disabled = false;
+  }
 }
 
 async function receber(k, file) {

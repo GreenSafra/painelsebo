@@ -57,12 +57,32 @@ function exigeLogin(req, res, next) {
   next();
 }
 
+// Comparacao estrita com true: se a coluna vier null/undefined por qualquer
+// motivo (linha antiga, erro de leitura), isso deixa passar em vez de
+// trancar a conta fora do sistema. Falha aberta aqui, nunca fechada.
+function temSenhaPendente(req) {
+  return req.usuario && req.usuario.senhaTemporaria === true;
+}
+
+function exigeSenhaOk(req, res, next) {
+  if (temSenhaPendente(req)) {
+    return res.status(403).json({ erro: 'Troque sua senha temporária para continuar.', senhaTemporaria: true });
+  }
+  next();
+}
+
+// Uso geral: login valido e sem senha temporaria pendente. Nao usar em
+// /api/senha, /api/eu ou /api/sair — sao as rotas que a propria troca precisa.
+function exigeLoginPronto(req, res, next) {
+  exigeLogin(req, res, () => exigeSenhaOk(req, res, next));
+}
+
 function exigeAdmin(req, res, next) {
   if (!req.usuario) return res.status(401).json({ erro: 'Faça login para continuar.' });
   if (req.usuario.papel !== 'master' && req.usuario.papel !== 'admin') {
     return res.status(403).json({ erro: 'Só administradores podem fazer isso.' });
   }
-  next();
+  exigeSenhaOk(req, res, next);
 }
 
 // ---------- rotas abertas ----------
@@ -114,7 +134,10 @@ app.post('/api/entrar', async (req, res) => {
     }
     const s = await db.abrirSessao(u.id);
     porCookie(res, s.token, s.expira);
-    res.json({ ok: true, usuario: { id: u.id, nome: u.nome, email: u.email, papel: u.papel } });
+    res.json({ ok: true, usuario: {
+      id: u.id, nome: u.nome, email: u.email, papel: u.papel,
+      senhaTemporaria: u.senha_temporaria === true
+    } });
   } catch (e) {
     console.error('entrar:', e.message);
     res.status(500).json({ erro: 'Não foi possível entrar.' });
@@ -173,23 +196,37 @@ app.post('/api/usuarios/:id/rebaixar', exigeAdmin, async (req, res) => {
   res.json({ ok: true, usuario: u });
 });
 
+// Sem exigeSenhaOk de proposito: é a rota que resolve a senha temporaria,
+// bloquear ela junto trancaria a pessoa sem saida.
 app.post('/api/senha', exigeLogin, async (req, res) => {
-  const { atual, nova } = req.body || {};
+  const { atual, nova, confirmacao } = req.body || {};
   if (!nova || String(nova).length < 8) {
     return res.status(400).json({ erro: 'A nova senha precisa de pelo menos 8 caracteres.' });
+  }
+  if (confirmacao !== undefined && nova !== confirmacao) {
+    return res.status(400).json({ erro: 'A confirmação não confere com a nova senha.' });
   }
   const u = await db.porEmail(req.usuario.email);
   if (!db.conferirSenha(String(atual || ''), u.senha_hash)) {
     return res.status(401).json({ erro: 'Senha atual incorreta.' });
   }
   await db.trocarSenha(u.id, nova);
-  tiraCookie(res);
+  await db.fecharOutrasSessoes(u.id, lerCookies(req).sessao);
   res.json({ ok: true });
+});
+
+app.post('/api/usuarios/:id/redefinir-senha', exigeAdmin, async (req, res) => {
+  if (Number(req.params.id) === req.usuario.id) {
+    return res.status(403).json({ erro: 'Você não pode redefinir sua própria senha. Use "Trocar senha".' });
+  }
+  const r = await db.redefinirSenha(Number(req.params.id));
+  if (!r) return res.status(404).json({ erro: 'Usuário não encontrado (ou é o administrador master).' });
+  res.json({ ok: true, senha: r.senha });
 });
 
 // ---------- semanas fechadas ----------
 
-app.post('/api/semanas', exigeLogin, async (req, res) => {
+app.post('/api/semanas', exigeLoginPronto, async (req, res) => {
   const { cabecalho, linhas, cotacoes } = req.body || {};
   if (!cabecalho) return res.status(400).json({ erro: 'Cabeçalho da semana ausente.' });
   try {
@@ -201,11 +238,11 @@ app.post('/api/semanas', exigeLogin, async (req, res) => {
   }
 });
 
-app.get('/api/semanas', exigeLogin, async (req, res) => {
+app.get('/api/semanas', exigeLoginPronto, async (req, res) => {
   res.json(await db.listarSemanas());
 });
 
-app.delete('/api/semanas', exigeLogin, async (req, res) => {
+app.delete('/api/semanas', exigeLoginPronto, async (req, res) => {
   try {
     const r = await db.apagarSemana(Number(req.query.ano), Number(req.query.semana));
     res.json({ ok: true, apagadas: r.apagadas });
@@ -216,11 +253,11 @@ app.delete('/api/semanas', exigeLogin, async (req, res) => {
 
 // ---------- cotacoes (alimentadas pelo Mapa, com ou sem semana fechada) ----------
 
-app.get('/api/cotacoes/semanas', exigeLogin, async (req, res) => {
+app.get('/api/cotacoes/semanas', exigeLoginPronto, async (req, res) => {
   res.json(await db.semanasComCotacao());
 });
 
-app.post('/api/cotacoes/lote', exigeLogin, async (req, res) => {
+app.post('/api/cotacoes/lote', exigeLoginPronto, async (req, res) => {
   try {
     res.json({ ok: true, resultados: await db.gravarCotacoesLote(req.body.itens || []) });
   } catch (e) {
@@ -228,11 +265,11 @@ app.post('/api/cotacoes/lote', exigeLogin, async (req, res) => {
   }
 });
 
-app.get('/api/meses', exigeLogin, async (req, res) => {
+app.get('/api/meses', exigeLoginPronto, async (req, res) => {
   res.json(await db.mesesComDado());
 });
 
-app.get('/api/consolidado', exigeLogin, async (req, res) => {
+app.get('/api/consolidado', exigeLoginPronto, async (req, res) => {
   try {
     res.json(await db.consolidado(req.query.mes));
   } catch (e) {
@@ -242,7 +279,7 @@ app.get('/api/consolidado', exigeLogin, async (req, res) => {
 
 // ---------- rascunhos ----------
 
-app.post('/api/rascunho', exigeLogin, async (req, res) => {
+app.post('/api/rascunho', exigeLoginPronto, async (req, res) => {
   const { ano, semana, dados, baseSalvoEm, forcar } = req.body || {};
   if (!ano || !semana || !dados) return res.status(400).json({ erro: 'Dados incompletos.' });
   try {
@@ -257,11 +294,11 @@ app.post('/api/rascunho', exigeLogin, async (req, res) => {
   }
 });
 
-app.get('/api/rascunhos', exigeLogin, async (req, res) => {
+app.get('/api/rascunhos', exigeLoginPronto, async (req, res) => {
   res.json(await db.listarRascunhos());
 });
 
-app.get('/api/rascunho', exigeLogin, async (req, res) => {
+app.get('/api/rascunho', exigeLoginPronto, async (req, res) => {
   try {
     const r = await db.lerRascunho(Number(req.query.ano), Number(req.query.semana));
     if (!r) return res.status(404).json({ erro: 'Rascunho não encontrado.' });
@@ -271,7 +308,7 @@ app.get('/api/rascunho', exigeLogin, async (req, res) => {
   }
 });
 
-app.delete('/api/rascunho', exigeLogin, async (req, res) => {
+app.delete('/api/rascunho', exigeLoginPronto, async (req, res) => {
   try {
     await db.apagarRascunho(Number(req.query.ano), Number(req.query.semana));
     res.json({ ok: true });
@@ -287,23 +324,25 @@ app.get('/entrar', (req, res) => {
 });
 
 app.get('/consolidado', (req, res) => {
-  if (!req.usuario) return res.redirect('/entrar');
+  if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'consolidado.html'));
 });
 
 app.get('/mapas', (req, res) => {
-  if (!req.usuario) return res.redirect('/entrar');
+  if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'mapas.html'));
 });
 
 app.get('/admin', (req, res) => {
-  if (!req.usuario || (req.usuario.papel !== 'master' && req.usuario.papel !== 'admin')) return res.redirect('/entrar');
+  if (!req.usuario || (req.usuario.papel !== 'master' && req.usuario.papel !== 'admin') || temSenhaPendente(req)) {
+    return res.redirect('/entrar');
+  }
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // O painel so sai daqui para quem esta logado.
 app.get(['/', '/index.html'], (req, res) => {
-  if (!req.usuario) return res.redirect('/entrar');
+  if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

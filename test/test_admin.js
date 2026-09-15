@@ -30,6 +30,9 @@ const EXCLUIDO = { id: 40, nome: 'Beltrano Saiu', email: 'beltrano@exemplo.com',
     if (url === '/api/usuarios') {
       return respFake(200, { usuarios: [MASTER, EU, OUTRO_ADMIN, COMUM, EXCLUIDO] });
     }
+    if (url.indexOf('/api/usuarios/') === 0 && url.indexOf('/redefinir-senha') > 0 && opts && opts.method === 'POST') {
+      return respFake(200, { ok: true, senha: 'Xk7pQ2mNw9Rt' });
+    }
     if (url.indexOf('/api/usuarios/') === 0 && opts && opts.method === 'POST') {
       return respFake(200, { ok: true, usuario: {} });
     }
@@ -57,6 +60,11 @@ const EXCLUIDO = { id: 40, nome: 'Beltrano Saiu', email: 'beltrano@exemplo.com',
   T('propria linha encontrada', !!linhaEu);
   T('propria linha sem excluir', !!linhaEu && !linhaEu.querySelector('button[data-acao="excluir"]'));
   T('propria linha sem rebaixar (sou admin)', !!linhaEu && !linhaEu.querySelector('button[data-acao="rebaixar"]'));
+  T('propria linha sem redefinir senha', !!linhaEu && !linhaEu.querySelector('button[data-acao="redefinir-senha"]'));
+
+  // --- linha do master tambem nao mostra redefinir senha (nenhum botao, na verdade) ---
+  T('linha do master sem redefinir senha',
+    !!linhaMaster && !linhaMaster.querySelector('button[data-acao="redefinir-senha"]'));
 
   // --- excluir (do usuario comum) so acontece depois da confirmacao ---
   const btnExcluir = d.querySelector('button[data-acao="excluir"][data-id="' + COMUM.id + '"]');
@@ -112,6 +120,41 @@ const EXCLUIDO = { id: 40, nome: 'Beltrano Saiu', email: 'beltrano@exemplo.com',
   await new Promise(r => setTimeout(r, 60));
   T('promover chama a rota direto, sem confirm',
     chamadas.some(c => c.url === '/api/usuarios/' + COMUM.id + '/promover' && c.method === 'POST'));
+
+  // --- redefinir senha (do usuario comum) so acontece depois da confirmacao ---
+  const btnRedefinir = d.querySelector('button[data-acao="redefinir-senha"][data-id="' + COMUM.id + '"]');
+  T('botao redefinir senha do usuario comum existe', !!btnRedefinir);
+  w.confirm = () => false;
+  btnRedefinir.dispatchEvent(new w.Event('click', { bubbles: true }));
+  await new Promise(r => setTimeout(r, 40));
+  T('cancelar a confirmacao nao chama a rota de redefinir',
+    !chamadas.some(c => c.url === '/api/usuarios/' + COMUM.id + '/redefinir-senha'));
+
+  const chamadasAntes = chamadas.length;
+  w.confirm = () => true;
+  btnRedefinir.dispatchEvent(new w.Event('click', { bubbles: true }));
+  await new Promise(r => setTimeout(r, 60));
+  T('confirmar chama a rota de redefinir com o id certo',
+    chamadas.some(c => c.url === '/api/usuarios/' + COMUM.id + '/redefinir-senha' && c.method === 'POST'));
+  T('a senha devolvida aparece na caixa',
+    d.getElementById('ovlValor').textContent === 'Xk7pQ2mNw9Rt');
+  T('a caixa fica visivel', d.getElementById('ovlSenha').className.indexOf('on') >= 0);
+  T('recarregar a lista NAO acontece antes do Fechar (sem chamada extra a /api/usuarios)',
+    chamadas.filter(c => c.url === '/api/usuarios').length ===
+    chamadas.slice(0, chamadasAntes).filter(c => c.url === '/api/usuarios').length);
+
+  // nada alem do botao Fechar fecha a caixa — nao ha listener de Esc/clique fora
+  // no admin.html, entao so confirmamos que ela permanece aberta sem esse listener
+  d.getElementById('ovlSenha').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  T('Esc nao fecha a caixa', d.getElementById('ovlSenha').className.indexOf('on') >= 0);
+
+  const totalUsuariosAntesFechar = chamadas.filter(c => c.url === '/api/usuarios').length;
+  d.getElementById('btnFecharSenha').dispatchEvent(new w.Event('click', { bubbles: true }));
+  await new Promise(r => setTimeout(r, 60));
+  T('Fechar esconde a caixa', d.getElementById('ovlSenha').className.indexOf('on') < 0);
+  T('a senha some do DOM depois de Fechar', d.getElementById('ovlValor').textContent === '');
+  T('Fechar dispara o recarregamento da lista',
+    chamadas.filter(c => c.url === '/api/usuarios').length > totalUsuariosAntesFechar);
 
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);

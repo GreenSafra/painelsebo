@@ -45,6 +45,16 @@ h2{font-size:14px;margin:24px 0 10px;color:var(--fraco);font-weight:600;
 .aviso{padding:11px 13px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
 .aviso.erro{background:#fdf1f0;color:var(--erro);border:1px solid #f5cfcb;display:block}
 .aviso.bom{background:#eef8f2;color:var(--bom);border:1px solid #c6e6d5;display:block}
+.ovl{position:fixed;inset:0;background:rgba(20,20,30,.45);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:50}
+.ovl.on{display:flex}
+.caixaSenha{background:var(--paper);border-radius:12px;padding:22px;max-width:380px;
+  width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.caixaSenha h3{margin:0 0 8px;font-size:16px}
+.caixaSenha p{font-size:13px;color:var(--fraco);margin:0 0 14px}
+.caixaSenha .valor{font:600 17px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background:var(--campo);border:1px solid var(--linha);border-radius:8px;
+  padding:10px 12px;margin-bottom:16px;word-break:break-all;user-select:all}
 @media(max-width:520px){
   .linha{flex-direction:column;align-items:flex-start}
   .acoes{width:100%}
@@ -78,6 +88,16 @@ h2{font-size:14px;margin:24px 0 10px;color:var(--fraco);font-weight:600;
 
   <h2>Excluídos</h2>
   <div id="excluidos"></div>
+</div>
+
+<div class="ovl" id="ovlSenha">
+  <div class="caixaSenha">
+    <h3>Senha temporária gerada</h3>
+    <p>Copie agora e repasse para <b id="ovlNome"></b>. Depois de fechar,
+      esta senha não pode ser vista de novo.</p>
+    <div class="valor" id="ovlValor"></div>
+    <button class="btn pri" id="btnFecharSenha" style="width:100%">Fechar</button>
+  </div>
 </div>
 
 <script>
@@ -135,8 +155,12 @@ function monta(u){
     bloco += '<button class="btn" data-acao="rebaixar" data-id="' + u.id +
       '" data-nome="' + esc(u.nome) + '">Tirar admin</button>';
   }
-  // Excluir e rebaixar sao os que tirariam o proprio acesso — escondidos na propria linha.
+  // Excluir, rebaixar e redefinir senha tirariam ou trocariam o proprio
+  // acesso — escondidos na propria linha. Para a propria senha existe
+  // "Trocar senha" no painel.
   if(!souEu){
+    bloco += '<button class="btn" data-acao="redefinir-senha" data-id="' + u.id +
+      '" data-nome="' + esc(u.nome) + '">Redefinir senha</button>';
     bloco += '<button class="btn" data-acao="excluir" data-id="' + u.id +
       '" data-nome="' + esc(u.nome) + '" data-email="' + esc(u.email) + '">Excluir</button>';
   }
@@ -179,10 +203,21 @@ document.addEventListener('click', async function(ev){
   if(acao === 'excluir' && !confirm('Excluir ' + b.dataset.nome + ' (' + b.dataset.email +
       ')? A pessoa perde o acesso, mas o histórico dela (semanas fechadas, rascunhos) continua.')) return;
   if(acao === 'rebaixar' && !confirm('Tirar o admin de ' + b.dataset.nome + '?')) return;
+  if(acao === 'redefinir-senha' && !confirm('Gerar uma senha temporária nova para ' +
+      b.dataset.nome + '? A senha atual dela para de funcionar.')) return;
   b.disabled = true;
   var r = await fetch('/api/usuarios/' + b.dataset.id + '/' + acao, {method:'POST'});
   var d = await r.json();
   if(!r.ok){ diz(d.erro || 'Não foi possível concluir.'); b.disabled = false; return; }
+  if(acao === 'redefinir-senha'){
+    // So recarrega a lista depois do Fechar — recarregar agora redesenharia
+    // a tela e derrubaria esta caixa antes da pessoa copiar a senha.
+    document.getElementById('ovlNome').textContent = b.dataset.nome;
+    document.getElementById('ovlValor').textContent = d.senha;
+    document.getElementById('ovlSenha').className = 'ovl on';
+    b.disabled = false;
+    return;
+  }
   var msgs = {
     aprovar: 'Acesso liberado.', bloquear: 'Acesso bloqueado.', excluir: 'Usuário excluído.',
     promover: 'Agora é admin.', rebaixar: 'Não é mais admin.'
@@ -190,6 +225,13 @@ document.addEventListener('click', async function(ev){
   diz(msgs[acao] || 'Concluído.', 'bom');
   carregar();
 });
+
+document.getElementById('btnFecharSenha').onclick = function(){
+  document.getElementById('ovlSenha').className = 'ovl';
+  document.getElementById('ovlValor').textContent = '';
+  diz('Senha redefinida.', 'bom');
+  carregar();
+};
 
 document.getElementById('btnSair').onclick = async function(){
   await fetch('/api/sair', {method:'POST'});
