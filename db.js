@@ -405,13 +405,46 @@ async function consolidado(mes) {
        LEFT JOIN dados o ON o.cliente = p.cliente AND o.cenario = 'otimo'
       ORDER BY p.cliente`, janela);
 
+  // Semanas fechadas (versao atual) cujas cargas caem dentro do mes em tela
+  // — e a lista que a tela de consolidado usa pra gerenciar/excluir.
+  const semanasFechadas = await pool.query(
+    `SELECT s.ano, s.semana, s.periodo, s.versao, s.fechada_em, u.nome AS fechada_por,
+            count(a.id)::int AS linhas, coalesce(sum(a.toneladas),0) AS toneladas
+       FROM semanas s
+       LEFT JOIN usuarios u ON u.id = s.usuario_id
+       JOIN alocacoes a ON a.semana_id = s.id
+      WHERE s.atual AND a.cenario = 'realizado'
+        AND a.data_embarque >= $1 AND a.data_embarque < $2
+      GROUP BY s.id, u.nome
+      ORDER BY s.ano DESC, s.semana DESC`, janela);
+
   return {
     mes,
     porUf: porUf.rows,
     porPlanta: porPlanta.rows,
     porPropria: porPropria.rows,
+    semanasFechadas: semanasFechadas.rows,
     total: total.rows[0] || { toneladas: 0, net_medio: null, semanas: 0 }
   };
+}
+
+async function apagarSemana(ano, semana) {
+  if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    // Sem "AND atual": apaga TODAS as versoes daquele ano+semana — meia
+    // semana no banco (uma versao velha sobrando) e pior que nenhuma.
+    // alocacoes.semana_id tem ON DELETE CASCADE, entao as linhas somem juntas.
+    const r = await c.query(`DELETE FROM semanas WHERE ano=$1 AND semana=$2`, [ano, semana]);
+    await c.query('COMMIT');
+    return { apagadas: r.rowCount };
+  } catch (e) {
+    await c.query('ROLLBACK');
+    throw e;
+  } finally {
+    c.release();
+  }
 }
 
 async function mesesComDado() {
@@ -490,6 +523,6 @@ module.exports = {
   criarUsuario, porEmail, porId, listar, decidir, trocarSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
-  fecharSemana, listarSemanas, consolidado, mesesComDado,
+  fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho
 };

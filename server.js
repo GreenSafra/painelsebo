@@ -181,6 +181,15 @@ app.get('/api/semanas', exigeLogin, async (req, res) => {
   res.json(await db.listarSemanas());
 });
 
+app.delete('/api/semanas', exigeLogin, async (req, res) => {
+  try {
+    const r = await db.apagarSemana(Number(req.query.ano), Number(req.query.semana));
+    res.json({ ok: true, apagadas: r.apagadas });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.get('/api/meses', exigeLogin, async (req, res) => {
   res.json(await db.mesesComDado());
 });

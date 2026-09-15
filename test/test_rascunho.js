@@ -234,6 +234,26 @@ const respFake = (status, corpo) => ({
   T('descartar: confirmar chama DELETE com ano e semana certos',
     deletes.length === 1 && deletes[0] === '/api/rascunho?ano=2026&semana=38', deletes.join(', '));
 
+  // ============ 8. Sair: avisa so quando ha alteracao nao salva ============
+  const chamadasSair = [];
+  w.fetch = async (url, opts) => {
+    if (url === '/api/sair' && opts && opts.method === 'POST') { chamadasSair.push(url); return respFake(200, { ok: true }); }
+    return respFake(404, {});
+  };
+  let confirmChamadoSair = false;
+  w.confirm = () => { confirmChamadoSair = true; return true; };
+  w.RASCUNHO_SUJO = true;
+  await w.sair();
+  T('sair: com alteracao nao salva, avisa antes', confirmChamadoSair);
+  T('sair: apos confirmar, chama POST /api/sair', chamadasSair.length === 1);
+
+  confirmChamadoSair = false;
+  chamadasSair.length = 0;
+  w.RASCUNHO_SUJO = false;
+  await w.sair();
+  T('sair: com tudo salvo, nao avisa', !confirmChamadoSair);
+  T('sair: mesmo sem aviso, chama POST /api/sair', chamadasSair.length === 1);
+
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);
 })().catch(e => { console.error('ERRO:', e.message, e.stack); process.exit(1); });

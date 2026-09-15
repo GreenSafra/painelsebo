@@ -328,7 +328,11 @@ function readMapa(sheets) {
       const fcli = parseFloat(r[c.fcli]);
       if (data == null && r[c.data] != null) {
         const d = serialToDate(r[c.data]);
-        data = d ? d.toLocaleDateString('pt-BR') : String(r[c.data]);
+        // serialToDate ancora em meia-noite UTC (so a data importa, sem
+        // hora) — formatar sem forcar UTC deslocava um dia pra tras em
+        // fusos negativos como o do Brasil (ex.: virava "09/09" quando a
+        // planilha tinha 10/09).
+        data = d ? d.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(r[c.data]);
         dataSerial = typeof r[c.data] === 'number' ? r[c.data] : null;
       }
       out.push({

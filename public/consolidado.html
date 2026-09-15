@@ -77,6 +77,9 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 .resumo{background:var(--card);border:1px solid var(--line);padding:14px 16px;
   font-size:13.5px;line-height:1.6;margin-bottom:14px}
 @media(max-width:640px){.duo{grid-template-columns:1fr}}
+.excluir{background:none;border:0;color:var(--mute);font-size:12px;
+  text-decoration:underline;cursor:pointer;padding:0}
+.excluir:hover{color:var(--neg)}
 @media(max-width:700px){
   .wrap{padding:16px 12px 50px}
   table{font-size:12.5px} th,td{padding:8px 9px}
@@ -133,6 +136,9 @@ function sinal(v) {
   return '<td class="' + (v < 0 ? 'neg' : 'pos') + '">' +
     (v > 0 ? '+' : '') + rs(v) + '</td>';
 }
+const fmtDataHora = iso => new Date(iso).toLocaleString('pt-BR',
+  { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
 function nomeMes(m) {
   const [a, b] = m.split('-');
   const M = ['janeiro','fevereiro','março','abril','maio','junho','julho',
@@ -153,13 +159,20 @@ async function carregarMeses() {
 function render(d) {
   const cont = $('#conteudo');
   const props = d.porPropria || [];
+  const semanas = d.semanasFechadas || [];
   const temDado = props.some(p => Number(p.ton_realizado) > 0);
-  if (!temDado) {
+  // Sem dado nenhum (nem própria, nem semana fechada pra gerenciar): so ai
+  // que o mes esta realmente vazio. Uma semana fechada por engano, sem
+  // volume proprio, ainda precisa aparecer — e o caso que mais importa pra
+  // conseguir excluir.
+  if (!temDado && !semanas.length) {
     cont.innerHTML = '<div class="vazio">Nenhuma semana fechada neste mês ainda.<br>' +
       'O consolidado passa a mostrar dado depois que você fechar a primeira semana.</div>';
     return;
   }
 
+  let h = '';
+  if (temDado) {
   // Totais. O saving so existe onde havia alternativa de terceiro para comparar.
   let savR = 0, savO = 0, temSavO = false;
   props.forEach(p => {
@@ -172,7 +185,6 @@ function render(d) {
   const tTer = tTudo - tProp;
   const perdido = temSavO ? (savO - savR) : null;
 
-  let h = '';
   h += '<div class="cards">';
   h += '<div class="c"><div class="lab">Volume do mês</div><div class="big">' +
        ton(tTudo) + '</div><div class="pe">' + (tot.semanas || 0) +
@@ -266,8 +278,38 @@ function render(d) {
       '</td><td>' + rs(netT) + '</td></tr>';
     h += '</tbody></table>';
   }
+  }
+
+  if (semanas.length) {
+    h += '<h2>Semanas fechadas neste mês</h2>';
+    h += '<p class="nota">Excluir apaga a semana inteira do banco — todas as versões,' +
+      ' não só a mais recente. Não pode ser desfeito.</p>';
+    h += '<table><thead><tr><th>Semana</th><th>Período</th><th>Versão</th>' +
+      '<th>Linhas</th><th>Fechada por</th><th>Quando</th><th></th></tr></thead><tbody>';
+    semanas.forEach(s => {
+      h += '<tr><td>' + s.semana + '/' + s.ano + '</td><td>' + esc(s.periodo || '—') + '</td>' +
+        '<td>v' + s.versao + '</td><td>' + nf.format(s.linhas) + '</td>' +
+        '<td>' + esc(s.fechada_por || '—') + '</td><td>' + fmtDataHora(s.fechada_em) + '</td>' +
+        '<td><button class="excluir" data-ano="' + s.ano + '" data-semana="' + s.semana +
+        '" data-linhas="' + s.linhas + '" data-toneladas="' + Math.round(s.toneladas) +
+        '">excluir</button></td></tr>';
+    });
+    h += '</tbody></table>';
+  }
 
   cont.innerHTML = h;
+
+  [].forEach.call(cont.querySelectorAll('.excluir'), b => {
+    b.onclick = async () => {
+      const ano = b.dataset.ano, semana = b.dataset.semana;
+      const ton = Number(b.dataset.toneladas), linhas = b.dataset.linhas;
+      if (!confirm('Apagar a semana ' + semana + ' (' + nf.format(ton) + ' t, ' + linhas +
+          ' linhas)? Isso não pode ser desfeito.')) return;
+      const r = await fetch('/api/semanas?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
+      if (!r.ok) { alert('Não consegui apagar essa semana.'); return; }
+      carregar($('#mes').value);  // recarrega o mes inteiro — os numeros mudam
+    };
+  });
 }
 
 async function carregar(mes) {

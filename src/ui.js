@@ -99,6 +99,17 @@ function setupImport() {
   };
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
   $('#bNovaSemana').onclick = novaSemana;
+  const ls = document.getElementById('lnkSair');
+  if (ls) ls.onclick = e => { e.preventDefault(); sair(); };
+}
+
+// Logout ja existe no servidor (POST /api/sair) — so faltava o botao.
+async function sair() {
+  if (RASCUNHO_SUJO && !confirm(
+    'Você tem alterações não salvas — elas serão perdidas. Sair mesmo assim?'
+  )) return;
+  try { await fetch('/api/sair', { method: 'POST' }); } catch (e) { }
+  location.href = '/entrar';
 }
 
 async function receber(k, file) {

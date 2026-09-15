@@ -343,6 +343,9 @@ footer img{height:17px;width:auto;opacity:.75}
 .rascunho-descartar{flex:none;background:none;border:0;color:var(--mute);font-size:12px;
   text-decoration:underline;cursor:pointer;padding:0 4px}
 .rascunho-descartar:hover{color:var(--red)}
+.lnkSair{font-size:12px;color:var(--mute);text-decoration:underline;
+  margin-left:6px;cursor:pointer}
+.lnkSair:hover{color:var(--azul)}
 
 /* Resumo da semana no painel — mesma leitura de public/consolidado.html.
    Classes com prefixo rs- de proposito: .pos/.neg ja existem acima com
@@ -415,6 +418,7 @@ footer img{height:17px;width:auto;opacity:.75}
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
     </select>
     <span class="who quem hide" id="quem"></span>
+    <a class="lnkSair" href="#" id="lnkSair">Sair</a>
   </div>
 </header>
 
@@ -847,7 +851,11 @@ function readMapa(sheets) {
       const fcli = parseFloat(r[c.fcli]);
       if (data == null && r[c.data] != null) {
         const d = serialToDate(r[c.data]);
-        data = d ? d.toLocaleDateString('pt-BR') : String(r[c.data]);
+        // serialToDate ancora em meia-noite UTC (so a data importa, sem
+        // hora) — formatar sem forcar UTC deslocava um dia pra tras em
+        // fusos negativos como o do Brasil (ex.: virava "09/09" quando a
+        // planilha tinha 10/09).
+        data = d ? d.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(r[c.data]);
         dataSerial = typeof r[c.data] === 'number' ? r[c.data] : null;
       }
       out.push({
@@ -2004,6 +2012,17 @@ function setupImport() {
   };
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
   $('#bNovaSemana').onclick = novaSemana;
+  const ls = document.getElementById('lnkSair');
+  if (ls) ls.onclick = e => { e.preventDefault(); sair(); };
+}
+
+// Logout ja existe no servidor (POST /api/sair) — so faltava o botao.
+async function sair() {
+  if (RASCUNHO_SUJO && !confirm(
+    'Você tem alterações não salvas — elas serão perdidas. Sair mesmo assim?'
+  )) return;
+  try { await fetch('/api/sair', { method: 'POST' }); } catch (e) { }
+  location.href = '/entrar';
 }
 
 async function receber(k, file) {
