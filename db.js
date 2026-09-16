@@ -626,6 +626,23 @@ async function semanasComCotacao() {
   return r.rows;
 }
 
+// Linhas cruas de uma semana (uma por cliente+origem). oferta e BRUTA, sem
+// NET — NET = oferta * (1-icms) * (1-pis) - frete cliente, mesma conta de
+// src/core.js:netDe(). Essas parcelas variam por origem e por modal
+// (CIF/FOB) e hoje so existem no Mapa no momento do upload — mapas.html
+// descarta tudo isso de proposito em extrairCotacoes(), e a tabela
+// cotacoes nao guarda nenhuma delas. Pra ligar aqui, precisaria gravar
+// frete/icms/pis/modal por linha (novas colunas) e repetir essa conta no
+// servidor ou nesta tela. Ate isso existir, o ranking usa a oferta bruta.
+async function cotacoesDaSemana(ano, semana) {
+  if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
+  const r = await pool.query(
+    `SELECT cliente, origem, oferta FROM cotacoes WHERE ano=$1 AND semana=$2 ORDER BY cliente`,
+    [ano, semana]
+  );
+  return r.rows;
+}
+
 async function gravarCotacoesLote(itens) {
   const out = [];
   for (const item of (itens || [])) {
@@ -658,5 +675,5 @@ module.exports = {
   criarHash, conferirSenha,
   fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
-  gravarCotacoes, semanasComCotacao, gravarCotacoesLote
+  gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana
 };

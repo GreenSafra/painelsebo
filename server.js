@@ -257,6 +257,14 @@ app.get('/api/cotacoes/semanas', exigeLoginPronto, async (req, res) => {
   res.json(await db.semanasComCotacao());
 });
 
+app.get('/api/cotacoes', exigeLoginPronto, async (req, res) => {
+  try {
+    res.json(await db.cotacoesDaSemana(Number(req.query.ano), Number(req.query.semana)));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.post('/api/cotacoes/lote', exigeLoginPronto, async (req, res) => {
   try {
     res.json({ ok: true, resultados: await db.gravarCotacoesLote(req.body.itens || []) });
@@ -331,6 +339,11 @@ app.get('/consolidado', (req, res) => {
 app.get('/mapas', (req, res) => {
   if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'mapas.html'));
+});
+
+app.get('/analise', (req, res) => {
+  if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
+  res.sendFile(path.join(__dirname, 'public', 'analise.html'));
 });
 
 app.get('/admin', (req, res) => {

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Análise de cotações — sebo</title>
+<style>
+:root{
+  --paper:#DFE0E4; --card:#FFFFFF; --ink:#23242B; --mute:#6B6D78; --line:#C4C6D0;
+  --azul:#1E1E7B; --pos:#0F7B40; --neg:#C31419; --posbg:#EAF6EF; --negbg:#FDEDEE;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:820px;margin:0 auto;padding:22px 20px 60px}
+header{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+h1{font-size:23px;margin:0;letter-spacing:-.2px}
+.sub{font-size:13.5px;color:var(--mute);margin:3px 0 0}
+.spacer{flex:1}
+.volta{font-size:13px;color:var(--azul);text-decoration:none;font-weight:600}
+.volta:hover{text-decoration:underline}
+input[type=week]{font-family:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--line);
+  border-radius:var(--r);background:var(--card);color:var(--ink)}
+hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
+
+.rank{display:flex;flex-direction:column;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;
+  padding:12px 16px;display:flex;align-items:center;gap:14px}
+.card .pos{flex:none;width:32px;font-size:13px;font-weight:700;color:var(--mute);text-align:center}
+.card:nth-child(1) .pos{color:var(--azul);font-size:15px}
+.card .nome{flex:1;font-size:14.5px;font-weight:600;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .preco{flex:none;width:120px;text-align:right;font-size:15px;font-weight:700;
+  font-variant-numeric:tabular-nums;color:var(--ink)}
+.card .var{flex:none;width:84px;text-align:center;font-size:12.5px;font-weight:700;
+  padding:4px 0;border-radius:20px}
+.card .var.alta{background:var(--posbg);color:var(--pos)}
+.card .var.baixa{background:var(--negbg);color:var(--neg)}
+.card .var.igual{background:#EEEFF2;color:var(--mute)}
+.card .var.ausente{background:transparent;color:var(--line);font-weight:400}
+
+.vazio{background:var(--card);border:1px solid var(--line);padding:34px;
+  text-align:center;color:var(--mute);font-size:14px}
+.carregando{color:var(--mute);font-size:14px;padding:30px 0}
+@media(max-width:560px){
+  .wrap{padding:16px 12px 50px}
+  .card .nome{font-size:13.5px}
+  .card .preco{width:92px;font-size:14px}
+  .card .var{width:64px;font-size:11.5px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Análise de cotações</h1>
+    <p class="sub" id="sub">Carregando…</p>
+  </div>
+  <div class="spacer"></div>
+  <input type="week" id="semana" aria-label="Semana">
+  <a class="volta" href="/">← voltar ao painel</a>
+</header>
+<hr>
+
+<div id="conteudo"><p class="carregando">Carregando…</p></div>
+
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const nf = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const rs = v => 'R$ ' + nf.format(v);
+
+// Semana <-> valor de <input type="week"> (formato ISO "AAAA-Www").
+// As colunas ano/semana da tabela cotacoes ja sao semana ISO (mesmo
+// criterio de isoWeekInfo() em mapas.html), entao a conversao e direta.
+const paraInput = w => w.ano + '-W' + String(w.semana).padStart(2, '0');
+const doInput = v => {
+  const m = /^(\d{4})-W(\d{2})$/.exec(v || '');
+  return m ? { ano: Number(m[1]), semana: Number(m[2]) } : null;
+};
+const chave = w => w.ano + '/' + w.semana;
+
+var SEMANAS = [];      // ordem crescente (ano,semana) — so as que tem cotacao
+
+function achaIndice(w) {
+  return SEMANAS.findIndex(s => s.ano === w.ano && s.semana === w.semana);
+}
+
+// Melhor oferta (maior valor) por cliente, entre todas as origens da
+// semana — a mesma cotacao pode ter varias linhas (uma por origem/unidade).
+function melhorPorCliente(linhas) {
+  const m = new Map();
+  linhas.forEach(l => {
+    const of = Number(l.oferta);
+    if (!(of > 0)) return;
+    // Ignora variacao de grafia: cliente e o texto cru da coluna, sem
+    // normalizacao — "Rio Branco" escrito diferente em duas linhas conta
+    // como dois clientes distintos. Fora do recorte desta versao.
+    const atual = m.get(l.cliente);
+    if (atual == null || of > atual) m.set(l.cliente, of);
+  });
+  return m;
+}
+
+function variacao(atual, antes) {
+  if (antes == null) return { classe: 'ausente', texto: '' };
+  const p = Math.round((atual - antes) / antes * 100);
+  if (p === 0) return { classe: 'igual', texto: 'manteve' };
+  return { classe: p > 0 ? 'alta' : 'baixa', texto: (p > 0 ? '+' : '') + p + '%' };
+}
+
+function renderRanking(lista) {
+  const box = $('#conteudo');
+  if (!lista.length) {
+    box.innerHTML = '<div class="vazio">Nenhuma cotação nesta semana.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="rank">' + lista.map((x, i) => {
+    const v = variacao(x.preco, x.anterior);
+    return '<div class="card">' +
+      '<div class="pos">' + (i + 1) + 'º</div>' +
+      '<div class="nome">' + esc(x.cliente) + '</div>' +
+      '<div class="preco">' + rs(x.preco) + '</div>' +
+      '<div class="var ' + v.classe + '">' + esc(v.texto) + '</div>' +
+      '</div>';
+  }).join('') + '</div>';
+}
+
+async function buscarLinhas(w) {
+  const r = await fetch('/api/cotacoes?ano=' + w.ano + '&semana=' + w.semana);
+  if (!r.ok) return [];
+  return r.json();
+}
+
+async function carregarSemana(w) {
+  $('#sub').textContent = 'Semana ' + w.semana + '/' + w.ano + ' · carregando…';
+  const idx = achaIndice(w);
+  const anterior = idx > 0 ? SEMANAS[idx - 1] : null;
+
+  const [linhasAtual, linhasAnterior] = await Promise.all([
+    buscarLinhas(w),
+    anterior ? buscarLinhas(anterior) : Promise.resolve([])
+  ]);
+
+  const mAtual = melhorPorCliente(linhasAtual);
+  const mAnterior = melhorPorCliente(linhasAnterior);
+
+  const lista = [...mAtual.entries()]
+    .map(([cliente, preco]) => ({
+      cliente, preco,
+      anterior: mAnterior.has(cliente) ? mAnterior.get(cliente) : null
+    }))
+    .sort((a, b) => b.preco - a.preco);
+
+  $('#sub').textContent = 'Semana ' + w.semana + '/' + w.ano + ' · ' +
+    lista.length + (lista.length === 1 ? ' cliente cotou' : ' clientes cotaram') +
+    (anterior ? ' · comparado com a semana ' + anterior.semana + '/' + anterior.ano : '');
+  renderRanking(lista);
+}
+
+$('#semana').onchange = () => {
+  const w = doInput($('#semana').value);
+  if (!w || achaIndice(w) < 0) {
+    $('#sub').textContent = w ? 'Sem cotação nessa semana.' : '';
+    $('#conteudo').innerHTML = '<div class="vazio">Sem cotação nessa semana. ' +
+      'Escolha uma das semanas com dado (destacadas no seletor).</div>';
+    return;
+  }
+  carregarSemana(w);
+};
+
+async function iniciar() {
+  const r = await fetch('/api/cotacoes/semanas');
+  const j = r.ok ? await r.json() : [];
+  // API devolve DESC (mais recente primeiro); aqui a ordem crescente e
+  // o que interessa, pra achar "a semana anterior" andando um indice atras.
+  SEMANAS = j.slice().reverse();
+  if (!SEMANAS.length) {
+    $('#sub').textContent = '';
+    $('#semana').disabled = true;
+    $('#conteudo').innerHTML = '<div class="vazio">Nenhuma cotação gravada ainda. ' +
+      'Suba um Mapa em "Cotações do Mapa" primeiro.</div>';
+    return;
+  }
+  const ultima = SEMANAS[SEMANAS.length - 1];
+  $('#semana').min = paraInput(SEMANAS[0]);
+  $('#semana').max = paraInput(ultima);
+  $('#semana').value = paraInput(ultima);
+  await carregarSemana(ultima);
+}
+
+iniciar();
+</script>
+</body>
+</html>
