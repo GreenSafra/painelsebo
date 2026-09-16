@@ -606,15 +606,51 @@ async function apagarRascunho(ano, semana) {
 // fecharSemana e pelo upload avulso de Mapa). Reimportar o mesmo Mapa
 // substitui pela chave unica (cliente, origem, ano, semana) em vez de
 // duplicar.
+// Origem do Mapa -> sigla da unidade. So resolve quando nao ha duvida:
+// - a origem ja traz a sigla ("Andradina AND", "Lins (LIF)", "CPG");
+// - a cidade tem uma unica unidade.
+// Cidades com duas unidades escritas sem a sigla (Andradina, Barretos,
+// Lins) e "CPG/CGR" ficam null, para revisao manual com quem faz o Mapa.
+const SIGLAS_EXPLICITAS = ['AND', 'ANF', 'LIF', 'LIN', 'CPG', 'CGR', 'BTS', 'BTG'];
+const SIGLA_POR_CIDADE = {
+  'agua boa': 'AGB', 'alta floresta': 'AFT', 'anastacio': 'AMS',
+  'araguaina': 'ATO', 'araputanga': 'ARA', 'barra do garcas': 'BAR',
+  'casa de tabua': 'CDT', 'colider': 'CLR', 'confresa': 'CFS',
+  'diamantino': 'DMT', 'goiania': 'GYN', 'itapetinga': 'ITA',
+  'juara': 'JUA', 'maraba': 'MRB', 'mozarlandia': 'MZL',
+  'navirai': 'NVR', 'pimenta bueno': 'PIB', 'pontes e lacerda': 'PEL',
+  'porto velho': 'PVH', 'redencao': 'RED', 'rio branco': 'RBR',
+  'santana do araguaia': 'STA', 'senador canedo': 'SEN',
+  'tucuma': 'TCM', 'vilhena': 'VHA',
+  // grafias de Sao Miguel do Guapore vistas nos Mapas
+  'sao miguel do guapore': 'SMG', 'sao m. guapore': 'SMG', 'sao miguel do gupore': 'SMG'
+};
+
+function siglaPorOrigem(origem) {
+  if (!origem) return null;
+  const txtOrig = String(origem);
+  const achadas = SIGLAS_EXPLICITAS.filter(s => new RegExp(`\\b${s}\\b`).test(txtOrig));
+  if (achadas.length === 1) return achadas[0];
+  if (achadas.length > 1) return null; // ex.: "CPG/CGR"
+  const cidade = txtOrig
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, ' ')       // tira "(3,5% Acidez)" etc.
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+  return SIGLA_POR_CIDADE[cidade] || null;
+}
+
 async function gravarCotacoes(execQuery, ano, semana, cotacoes) {
   for (const q of (cotacoes || [])) {
     if (!q || !q.cliente || !q.origem || !(q.oferta > 0)) continue;
+    const sigla = q.sigla || siglaPorOrigem(q.origem);
+    // COALESCE: reimportar um Mapa sem sigla nao apaga uma sigla ja
+    // preenchida (inclusive as revisadas manualmente).
     await execQuery.query(
       `INSERT INTO cotacoes (ano, semana, cliente, origem, sigla, oferta, data_cotacao)
          VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (cliente, origem, ano, semana) DO UPDATE
-         SET sigla=$5, oferta=$6, data_cotacao=$7`,
-      [ano, semana, q.cliente, q.origem, q.sigla || null, q.oferta, q.dataCotacao || null]
+         SET sigla=COALESCE($5, cotacoes.sigla), oferta=$6, data_cotacao=$7`,
+      [ano, semana, q.cliente, q.origem, sigla, q.oferta, q.dataCotacao || null]
     );
   }
 }
@@ -675,5 +711,6 @@ module.exports = {
   criarHash, conferirSenha,
   fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
-  gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana
+  gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana,
+  siglaPorOrigem
 };
