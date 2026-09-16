@@ -108,7 +108,7 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .nec.mercado .nrow input.v,.nec.mercado .nrow .un,
 .nec.mercado .nrow .cr{visibility:hidden}
 .necresumo{display:flex;align-items:center;gap:10px;padding:10px 0 2px;
-  font-size:13px;color:var(--mute);border-top:1px solid rgba(207,208,201,.6)}
+  font-size:13px;color:var(--mute);border-top:1px solid rgba(207,208,201,.6);cursor:pointer}
 .linkb{background:none;border:0;padding:0;font:inherit;color:var(--azul);
   font-weight:600;cursor:pointer;text-decoration:underline}
 .linkb:hover{opacity:.8}
@@ -485,22 +485,22 @@ footer img{height:17px;width:auto;opacity:.75}
       <h2>Destinos da semana</h2>
       <div class="modos" role="radiogroup" aria-label="Critério de distribuição">
         <label class="modo">
-          <input type="radio" name="modo" value="prioridade" id="modoPri" checked>
-          <span><b>Prioridade de volume</b>
-            <em>Atende primeiro os volumes digitados abaixo. O que sobrar vai para o
-                melhor NET.</em></span>
-        </label>
-        <label class="modo">
           <input type="radio" name="modo" value="mercado" id="modoMer">
           <span><b>Mercado livre</b>
             <em>Ninguém tem prioridade. Todo destino disputa pela cotação do Mapa e
                 ganha o melhor NET por tonelada.</em></span>
         </label>
+        <label class="modo">
+          <input type="radio" name="modo" value="prioridade" id="modoPri" checked>
+          <span><b>Prioridade de volume</b>
+            <em>Atende primeiro os volumes digitados abaixo. O que sobrar vai para o
+                melhor NET.</em></span>
+        </label>
       </div>
       <p id="necSub">Volume obrigatório de cada destino, em toneladas. Os preços continuam
          vindo do Mapa de ofertas.</p>
     </div>
-    <div class="necresumo hide" id="necResumo">
+    <div class="necresumo" id="necResumo">
       <span id="necResumoTxt"></span>
       <button class="linkb" id="bVerDest" aria-expanded="false"
               aria-controls="necRows">mostrar</button>

@@ -208,31 +208,59 @@ const T = (nome, cond, extra) => console.log((cond ? '  ok  ' : '  FALHA ') + no
   T('carimbo com data', /\d{2}\/\d{2}\/\d{4}/.test(d.querySelector('#stamp').textContent));
   console.log('carimbo final:', d.querySelector('#stamp').textContent.replace(/\s+/g, ' '));
 
-  // --- bloco de destinos recolhe no mercado livre ---
+  // --- bloco de destinos comeca sempre recolhido, nos dois modos ---
   const box = d.querySelector('#necBox');
   const res = d.querySelector('#necResumo');
   const bVer = d.querySelector('#bVerDest');
-  w.ST.modo = 'prioridade'; w.ST.verDest = null; w.aplicarModo();
-  T('prioridade: lista de destinos aberta', !box.classList.contains('recolhido'));
-  T('prioridade: linha de resumo escondida', res.classList.contains('hide'));
-  w.ST.modo = 'mercado'; w.ST.verDest = null; w.aplicarModo();
-  T('mercado: lista recolhe sozinha', box.classList.contains('recolhido'));
-  T('mercado: linha de resumo aparece', !res.classList.contains('hide'));
+  T('recem carregado (modo padrão prioridade): lista já nasce recolhida',
+    box.classList.contains('recolhido'));
+  T('recem carregado: linha de resumo aparece', !res.classList.contains('hide'));
   T('resumo conta os destinos', /\d+ destinos?/.test(d.querySelector('#necResumoTxt').textContent),
     d.querySelector('#necResumoTxt').textContent);
   T('resumo cita as travas fiscais', /trava/.test(d.querySelector('#necResumoTxt').textContent),
     d.querySelector('#necResumoTxt').textContent);
   T('botao diz mostrar quando recolhido', bVer.textContent === 'mostrar');
-  bVer.dispatchEvent(new w.Event('click'));
-  T('clicar em mostrar reabre a lista', !box.classList.contains('recolhido'));
+  res.dispatchEvent(new w.Event('click'));
+  T('clicar na barra de resumo reabre a lista', !box.classList.contains('recolhido'));
   T('botao vira ocultar', bVer.textContent === 'ocultar');
-  bVer.dispatchEvent(new w.Event('click'));
+  res.dispatchEvent(new w.Event('click'));
   T('clicar de novo recolhe', box.classList.contains('recolhido'));
   d.querySelector('#bAddNec').dispatchEvent(new w.Event('click'));
   T('acrescentar terceiro reabre a lista recolhida', !box.classList.contains('recolhido'));
   d.querySelector('#bAddNec').dispatchEvent(new w.Event('click'));
-  w.ST.modo = 'prioridade'; w.ST.verDest = null; w.aplicarModo();
-  T('voltar para prioridade reabre a lista', !box.classList.contains('recolhido'));
+
+  // trocar de modo nao pode mais mexer sozinho no recolhido/aberto — o
+  // efeito colateral "if (!livre) ST.verDest = true" foi removido
+  w.ST.modo = 'mercado'; w.aplicarModo();
+  w.ST.verDest = false; w.aplicarVerDest();
+  w.ST.modo = 'prioridade'; w.aplicarModo();
+  T('voltar para prioridade não força reabrir a lista recolhida',
+    box.classList.contains('recolhido'));
+
+  // estado salvo antes desta leva pode trazer verDest=true (sessao anterior
+  // com a lista aberta) — o boot tem que ignorar isso e nascer recolhido
+  // do mesmo jeito, tanto pelo sebo_estado quanto pelo sebo_dados restaurado
+  {
+    const pacote = w.montarPacoteDados();
+    const estadoVelho = Object.assign({}, pacote.estado, { verDest: true });
+    const dom2 = new JSDOM(html, {
+      runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://x/',
+      beforeParse(window) {
+        window.localStorage.setItem('sebo_estado', JSON.stringify(estadoVelho));
+        window.localStorage.setItem('sebo_dados', JSON.stringify(pacote));
+      }
+    });
+    const w2 = dom2.window;
+    w2.DecompressionStream = DecompressionStream; w2.CompressionStream = CompressionStream;
+    w2.Response = Response; w2.Blob = Blob;
+    w2.btoa = s => Buffer.from(s, 'binary').toString('base64');
+    w2.atob = s => Buffer.from(s, 'base64').toString('binary');
+    w2.URL.createObjectURL = () => 'blob:x'; w2.URL.revokeObjectURL = () => { };
+    w2.HTMLElement.prototype.scrollIntoView = function () { }; w2.Element.prototype.scrollIntoView = function () { };
+    await new Promise(r => setTimeout(r, 200));
+    T('estado salvo com verDest=true: boot ignora e nasce recolhido do mesmo jeito',
+      w2.document.getElementById('necBox').classList.contains('recolhido'));
+  }
 
   // terceiro acrescentado nao pode herdar logo de fabrica propria
   T('BioPower e do grupo bio', w.grupo('JBS - BioPower Lins') === 'bio');

@@ -194,8 +194,9 @@ function iniciar(restaurando) {
   if (!ST.fora) ST.fora = [];
   if (!ST.extras) ST.extras = [];
   if (!ST.modo) ST.modo = 'prioridade';
-  // andamento salvo antes desta versao nao tem verDest
-  if (ST.verDest == null) ST.verDest = ST.modo !== 'mercado';
+  // a lista de destinos nasce sempre recolhida, nos dois modos — nao
+  // importa o que veio salvo (rascunho, localStorage), nao precisa lembrar
+  ST.verDest = false;
   ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
   $('#importBox').classList.add('hide');
   $('#app').classList.remove('hide');
@@ -247,7 +248,7 @@ async function identificar() {
 function novoEstado() {
   return {
     usuario: $('#who') ? $('#who').value : 'Usuário 1', salvoEm: null,
-    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: [], modo: 'prioridade', verDest: true
+    travas: {}, ofEdits: {}, manual: {}, nec: {}, fora: [], extras: [], modo: 'prioridade', verDest: false
   };
 }
 
@@ -551,21 +552,18 @@ function aplicarModo() {
   if (sub) sub.textContent = livre
     ? 'Nenhum destino tem prioridade. Cada um disputa com a cotação que tem no Mapa e o volume vai para o melhor NET por tonelada.'
     : 'Volume obrigatório de cada destino, em toneladas. Os preços continuam vindo do Mapa de ofertas.';
-  // No mercado livre nao ha volume a digitar: a lista recolhe para poupar
-  // espaco, mas continua a um clique — as travas fiscais valem nos dois modos.
-  if (livre && ST.verDest == null) ST.verDest = false;
-  if (!livre) ST.verDest = true;
+  // trocar de modo nao mexe no recolhido/aberto — quem decide isso e so o
+  // carregamento da pagina (sempre recolhido) e o clique da pessoa
   aplicarVerDest();
 }
 
 // Mostra ou esconde a lista de destinos, com a linha de resumo no lugar.
+// A barra de resumo fica sempre visivel, nos dois modos — e ela que carrega
+// o clique de expandir/recolher.
 function aplicarVerDest() {
-  const livre = ST.modo === 'mercado';
   const aberto = ST.verDest !== false;
   const box = $('#necBox');
   if (box) box.classList.toggle('recolhido', !aberto);
-  const res = $('#necResumo');
-  if (res) res.classList.toggle('hide', !livre);
   const b = $('#bVerDest');
   if (b) { b.textContent = aberto ? 'ocultar' : 'mostrar'; b.setAttribute('aria-expanded', aberto ? 'true' : 'false'); }
   const t = $('#necResumoTxt');
@@ -662,8 +660,10 @@ function ligarAddNec() {
       rodar();
     };
   });
-  const bv = $('#bVerDest');
-  if (bv) bv.onclick = () => { ST.verDest = ST.verDest === false; aplicarVerDest(); };
+  // a barra inteira e clicavel, nao so o texto "mostrar/ocultar" — o botao
+  // fica dentro dela, entao o clique nele tambem cai aqui, sem handler proprio
+  const res = $('#necResumo');
+  if (res) res.onclick = () => { ST.verDest = ST.verDest === false; aplicarVerDest(); };
   $('#bAddNec').onclick = () => {
     // acrescentar terceiro com a lista recolhida: abre a lista junto
     if (ST.verDest === false) { ST.verDest = true; aplicarVerDest(); }
