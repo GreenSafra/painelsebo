@@ -273,6 +273,15 @@ app.post('/api/cotacoes/lote', exigeLoginPronto, async (req, res) => {
   }
 });
 
+app.delete('/api/cotacoes', exigeLoginPronto, async (req, res) => {
+  try {
+    const r = await db.apagarCotacoes(req.query.ano, req.query.semana);
+    res.json({ ok: true, apagadas: r.apagadas });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.get('/api/meses', exigeLoginPronto, async (req, res) => {
   res.json(await db.mesesComDado());
 });

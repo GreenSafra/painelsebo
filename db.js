@@ -678,11 +678,31 @@ async function gravarCotacoes(execQuery, ano, semana, cotacoes) {
   }
 }
 
+// Uma linha por ano+semana que tem cotacao gravada, com o resumo que a
+// tela de Mapas gravados mostra. linhas conta cliente+origem (uma cotacao
+// por par); clientes e o numero de clientes distintos; data_cotacao e a
+// mais recente do grupo (upload repetido pode misturar datas).
 async function semanasComCotacao() {
   const r = await pool.query(
-    `SELECT DISTINCT ano, semana FROM cotacoes ORDER BY ano DESC, semana DESC`
+    `SELECT ano, semana,
+            count(*)::int AS linhas,
+            count(DISTINCT cliente)::int AS clientes,
+            max(data_cotacao) AS data_cotacao
+       FROM cotacoes
+      GROUP BY ano, semana
+      ORDER BY ano DESC, semana DESC`
   );
   return r.rows;
+}
+
+// Apaga todas as cotacoes daquele ano+semana. Nao toca em semanas nem
+// alocacoes — fechamento de semana e cotacao do Mapa sao independentes
+// (cotacao pode existir sem a semana nunca ter fechado, e vice-versa).
+async function apagarCotacoes(ano, semana) {
+  const a = Number(ano), s = Number(semana);
+  if (!Number.isInteger(a) || !Number.isInteger(s)) throw new Error('Ano/semana invalidos.');
+  const r = await pool.query(`DELETE FROM cotacoes WHERE ano=$1 AND semana=$2`, [a, s]);
+  return { apagadas: r.rowCount };
 }
 
 // Linhas cruas de uma semana (uma por cliente+origem). oferta e BRUTA, sem
@@ -735,5 +755,5 @@ module.exports = {
   fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
   gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana,
-  siglaPorOrigem
+  apagarCotacoes, siglaPorOrigem
 };
