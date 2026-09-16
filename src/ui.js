@@ -541,17 +541,12 @@ function renderAvisos() {
 function zerarManual() { ST.manual = {}; EDIT = null; recalcular(); }
 
 /* ---------- necessidade ---------- */
-// No mercado livre nao ha volume a digitar: some a coluna de toneladas
-// e o texto muda para explicar o que vai acontecer.
+// No mercado livre nao ha volume a digitar: some a coluna de toneladas.
 function aplicarModo() {
   const livre = ST.modo === 'mercado';
   $('#necBox').classList.toggle('mercado', livre);
   const r = $(livre ? '#modoMer' : '#modoPri');
   if (r) r.checked = true;
-  const sub = $('#necSub');
-  if (sub) sub.textContent = livre
-    ? 'Nenhum destino tem prioridade. Cada um disputa com a cotação que tem no Mapa e o volume vai para o melhor NET por tonelada.'
-    : 'Volume obrigatório de cada destino, em toneladas. Os preços continuam vindo do Mapa de ofertas.';
   // trocar de modo nao mexe no recolhido/aberto — quem decide isso e so o
   // carregamento da pagina (sempre recolhido) e o clique da pessoa
   aplicarVerDest();
