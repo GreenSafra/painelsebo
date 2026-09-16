@@ -279,7 +279,13 @@ app.get('/api/meses', exigeLoginPronto, async (req, res) => {
 
 app.get('/api/consolidado', exigeLoginPronto, async (req, res) => {
   try {
-    res.json(await db.consolidado(req.query.mes));
+    const { mes, semana } = req.query;
+    if (semana) {
+      const m = /^(\d{4})-(\d{1,2})$/.exec(String(semana));
+      if (!m) return res.status(400).json({ erro: 'Semana inválida. Use AAAA-SS.' });
+      return res.json(await db.consolidado({ ano: Number(m[1]), semana: Number(m[2]) }));
+    }
+    res.json(await db.consolidado({ mes }));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

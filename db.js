@@ -410,15 +410,30 @@ async function listarSemanas() {
   return r.rows;
 }
 
-// mes no formato 'AAAA-MM'. O recorte e por data_embarque, nao por semana.
-async function consolidado(mes) {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(mes || ''));
+// Monta o filtro do periodo do consolidado. Por mes: janela de
+// data_embarque (como sempre foi). Por semana: s.ano e s.semana da propria
+// semana fechada, NAO data_embarque — assim uma semana que atravessa a
+// virada do mes aparece inteira no modo Semana. criterio aceita uma string
+// (mes, formato antigo) ou um objeto { mes } / { ano, semana }.
+function filtroConsolidado(criterio) {
+  const c = (typeof criterio === 'string') ? { mes: criterio } : (criterio || {});
+  if (c.ano != null || c.semana != null) {
+    const ano = Number(c.ano), semana = Number(c.semana);
+    if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new Error('Ano invalido.');
+    if (!Number.isInteger(semana) || semana < 1 || semana > 53) throw new Error('Semana invalida.');
+    return { sql: 's.ano = $1 AND s.semana = $2', params: [ano, semana], modo: 'semana', ano, semana };
+  }
+  const m = /^(\d{4})-(\d{2})$/.exec(String(c.mes || ''));
   if (!m) throw new Error('Mes invalido. Use AAAA-MM.');
-  const ini = mes + '-01';
+  const ini = c.mes + '-01';
   const fim = (Number(m[2]) === 12)
     ? (Number(m[1]) + 1) + '-01-01'
     : m[1] + '-' + String(Number(m[2]) + 1).padStart(2, '0') + '-01';
-  const janela = [ini, fim];
+  return { sql: 'a.data_embarque >= $1 AND a.data_embarque < $2', params: [ini, fim], modo: 'mes', mes: c.mes };
+}
+
+async function consolidado(criterio) {
+  const f = filtroConsolidado(criterio);
 
   // Media de NET ponderada pela tonelada. Media simples faria uma carga de
   // 35 t pesar igual a uma de 350 t.
@@ -427,37 +442,36 @@ async function consolidado(mes) {
             sum(a.toneladas) AS toneladas,
             sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.cenario = 'realizado'
-        AND a.data_embarque >= $1 AND a.data_embarque < $2
-      GROUP BY 1,2 ORDER BY 1,2`, janela);
+      WHERE s.atual AND a.cenario = 'realizado' AND ${f.sql}
+      GROUP BY 1,2 ORDER BY 1,2`, f.params);
 
   const porPlanta = await pool.query(
     `SELECT a.cliente, a.proprio,
             sum(a.toneladas) AS toneladas,
             sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.cenario = 'realizado'
-        AND a.data_embarque >= $1 AND a.data_embarque < $2
-      GROUP BY 1,2 ORDER BY 3 DESC`, janela);
+      WHERE s.atual AND a.cenario = 'realizado' AND ${f.sql}
+      GROUP BY 1,2 ORDER BY 3 DESC`, f.params);
 
   const total = await pool.query(
     `SELECT sum(a.toneladas) AS toneladas,
             sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
             count(DISTINCT s.id)::int AS semanas
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.cenario = 'realizado'
-        AND a.data_embarque >= $1 AND a.data_embarque < $2`, janela);
+      WHERE s.atual AND a.cenario = 'realizado' AND ${f.sql}`, f.params);
 
-  // As quatro proprias sempre presentes, mesmo sem volume no mes: linha
-  // zerada e informacao, some da tela seria perder o fato.
+  // As quatro proprias canonicas sempre presentes, mesmo sem volume no
+  // periodo: linha zerada e informacao, some da tela seria perder o fato.
+  // Mas a lista nao para nas quatro: uniao com o que "dados" realmente
+  // encontrar evita a mesma armadilha que agregarSemana() em core.js evita
+  // de proposito (comentario lá: "nao uma lista cravada... tipo BioPower
+  // Mafra ausente de uma lista fixa") — uma propria fora das quatro
+  // canonicas apareceria em "dados" mas seria descartada no LEFT JOIN se a
+  // lista de plantas fosse so a fixa.
   // Realizado e otimo lado a lado — a diferenca entre os dois e o custo das
   // trocas feitas na mao, que senao ficaria embutido no comparativo.
   const porPropria = await pool.query(
-    `WITH plantas(cliente) AS (
-       VALUES ('Flora GO'),('Flora SP'),
-              ('JBS - BioPower Campo Verde'),('JBS - BioPower Lins')
-     ),
-     dados AS (
+    `WITH dados AS (
        SELECT a.cliente, a.cenario,
               sum(a.toneladas) AS ton,
               sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
@@ -468,9 +482,16 @@ async function consolidado(mes) {
               sum((a.net - a.net_ter) * a.toneladas)
                 FILTER (WHERE a.net_ter IS NOT NULL) AS saving
          FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-        WHERE s.atual AND a.proprio
-          AND a.data_embarque >= $1 AND a.data_embarque < $2
+        WHERE s.atual AND a.proprio AND ${f.sql}
         GROUP BY 1,2
+     ),
+     plantas AS (
+       SELECT cliente FROM (VALUES
+         ('Flora GO'),('Flora SP'),
+         ('JBS - BioPower Campo Verde'),('JBS - BioPower Lins')
+       ) AS fixas(cliente)
+       UNION
+       SELECT DISTINCT cliente FROM dados
      )
      SELECT p.cliente,
             coalesce(r.ton,0)  AS ton_realizado,
@@ -485,23 +506,25 @@ async function consolidado(mes) {
        FROM plantas p
        LEFT JOIN dados r ON r.cliente = p.cliente AND r.cenario = 'realizado'
        LEFT JOIN dados o ON o.cliente = p.cliente AND o.cenario = 'otimo'
-      ORDER BY p.cliente`, janela);
+      ORDER BY p.cliente`, f.params);
 
-  // Semanas fechadas (versao atual) cujas cargas caem dentro do mes em tela
-  // — e a lista que a tela de consolidado usa pra gerenciar/excluir.
+  // Semanas fechadas (versao atual) cujas cargas caem dentro do periodo em
+  // tela — e a lista que a tela de consolidado usa pra gerenciar/excluir.
   const semanasFechadas = await pool.query(
     `SELECT s.ano, s.semana, s.periodo, s.versao, s.fechada_em, u.nome AS fechada_por,
             count(a.id)::int AS linhas, coalesce(sum(a.toneladas),0) AS toneladas
        FROM semanas s
        LEFT JOIN usuarios u ON u.id = s.usuario_id
        JOIN alocacoes a ON a.semana_id = s.id
-      WHERE s.atual AND a.cenario = 'realizado'
-        AND a.data_embarque >= $1 AND a.data_embarque < $2
+      WHERE s.atual AND a.cenario = 'realizado' AND ${f.sql}
       GROUP BY s.id, u.nome
-      ORDER BY s.ano DESC, s.semana DESC`, janela);
+      ORDER BY s.ano DESC, s.semana DESC`, f.params);
 
   return {
-    mes,
+    modo: f.modo,
+    mes: f.mes || null,
+    ano: f.ano || null,
+    semana: f.semana || null,
     porUf: porUf.rows,
     porPlanta: porPlanta.rows,
     porPropria: porPropria.rows,

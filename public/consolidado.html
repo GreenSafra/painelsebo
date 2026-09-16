@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Consolidado mensal — sebo</title>
+<title>Consolidado — sebo</title>
 <style>
 :root{
   --paper:#DFE0E4; --card:#FFFFFF; --ink:#23242B; --mute:#6B6D78; --line:#C4C6D0;
@@ -24,6 +24,11 @@ h1{font-size:23px;margin:0;letter-spacing:-.2px}
 .volta:hover{text-decoration:underline}
 select{font-family:inherit;font-size:14px;padding:8px 11px;border:1px solid var(--line);
   border-radius:var(--r);background:var(--card);color:var(--ink)}
+.modo{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.modobtn{font-family:inherit;font-size:13.5px;padding:8px 14px;border:0;background:var(--card);
+  color:var(--ink);cursor:pointer}
+.modobtn+.modobtn{border-left:1px solid var(--line)}
+.modobtn.ativo{background:var(--azul);color:#fff}
 hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;
@@ -91,11 +96,15 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 
 <header>
   <div>
-    <h1>Consolidado mensal</h1>
+    <h1>Consolidado</h1>
     <p class="sub" id="sub">Carregando…</p>
   </div>
   <div class="spacer"></div>
-  <select id="mes" aria-label="Mês"></select>
+  <div class="modo" role="group" aria-label="Modo do consolidado">
+    <button type="button" class="modobtn" data-modo="semana">Semana</button>
+    <button type="button" class="modobtn" data-modo="mes">Mês</button>
+  </div>
+  <select id="periodo" aria-label="Período"></select>
   <a class="volta" href="/">← voltar ao painel</a>
 </header>
 <hr>
@@ -145,15 +154,71 @@ function nomeMes(m) {
     'agosto','setembro','outubro','novembro','dezembro'];
   return M[Number(b) - 1] + ' de ' + a;
 }
+function nomeSemana(v) {
+  const [a, s] = v.split('-');
+  return 'semana ' + Number(s) + '/' + a;
+}
+function subtitulo(j) {
+  if (j.modo === 'semana') {
+    return nomeSemana(j.ano + '-' + j.semana) + ' · apurado pela semana fechada, não pela data de embarque';
+  }
+  return nomeMes(j.mes) + ' · apurado pela data de embarque de cada carga';
+}
 
-async function carregarMeses() {
-  const r = await fetch('/api/meses');
-  const j = await r.json();
-  const sel = $('#mes');
-  if (!j.length) { sel.innerHTML = '<option>—</option>'; return null; }
+let modo = 'mes';
+
+function marcarModo(m) {
+  [].forEach.call(document.querySelectorAll('.modobtn'), b =>
+    b.classList.toggle('ativo', b.dataset.modo === m));
+}
+
+// Preenche o seletor de periodo conforme o modo e devolve o valor default
+// (o mais recente). null quando nao ha nada fechado naquele modo.
+async function popularPeriodo(m) {
+  const sel = $('#periodo');
+  if (m === 'semana') {
+    const j = await (await fetch('/api/semanas')).json();
+    if (!j.length) { sel.innerHTML = ''; return null; }
+    sel.innerHTML = j.map(s => {
+      const v = s.ano + '-' + s.semana;
+      return '<option value="' + v + '">' + nomeSemana(v) +
+        (s.periodo ? ' (' + esc(s.periodo) + ')' : '') + '</option>';
+    }).join('');
+    return sel.options[0].value;
+  }
+  const j = await (await fetch('/api/meses')).json();
+  if (!j.length) { sel.innerHTML = ''; return null; }
   sel.innerHTML = j.map(x =>
     '<option value="' + x.mes + '">' + nomeMes(x.mes) + '</option>').join('');
-  return j[0].mes;
+  return sel.options[0].value;
+}
+
+function atualizarUrl(m, valor) {
+  const url = new URL(location.href);
+  url.search = '';
+  if (valor) url.searchParams.set(m, valor);
+  history.replaceState(null, '', url.pathname + url.search);
+}
+
+// Troca de modo: repopula o seletor de periodo; usa valorPreferido se ele
+// ainda existir na lista nova (ex.: veio da URL no boot), senao cai no
+// mais recente.
+async function trocarModo(m, valorPreferido) {
+  modo = m;
+  marcarModo(m);
+  const padrao = await popularPeriodo(m);
+  const sel = $('#periodo');
+  const opcoes = [].map.call(sel.options, o => o.value);
+  const usar = (valorPreferido && opcoes.indexOf(valorPreferido) !== -1) ? valorPreferido : padrao;
+  if (!usar) { modoVazio(); return; }
+  sel.value = usar;
+  carregar();
+}
+
+function modoVazio() {
+  $('#sub').textContent = modo === 'semana' ? 'nenhuma semana fechada ainda' : 'nenhum mês com dado ainda';
+  $('#conteudo').innerHTML = '<div class="vazio">Nenhuma semana fechada ainda.<br>' +
+    'Feche a primeira semana no painel para o consolidado começar a existir.</div>';
 }
 
 function render(d) {
@@ -166,8 +231,9 @@ function render(d) {
   // volume proprio, ainda precisa aparecer — e o caso que mais importa pra
   // conseguir excluir.
   if (!temDado && !semanas.length) {
-    cont.innerHTML = '<div class="vazio">Nenhuma semana fechada neste mês ainda.<br>' +
-      'O consolidado passa a mostrar dado depois que você fechar a primeira semana.</div>';
+    cont.innerHTML = '<div class="vazio">' +
+      (d.modo === 'semana' ? 'Nenhum dado nesta semana ainda.' : 'Nenhuma semana fechada neste mês ainda.') +
+      '<br>O consolidado passa a mostrar dado depois que você fechar a primeira semana.</div>';
     return;
   }
 
@@ -186,9 +252,10 @@ function render(d) {
   const perdido = temSavO ? (savO - savR) : null;
 
   h += '<div class="cards">';
-  h += '<div class="c"><div class="lab">Volume do mês</div><div class="big">' +
-       ton(tTudo) + '</div><div class="pe">' + (tot.semanas || 0) +
-       ' semana(s) fechada(s)</div></div>';
+  h += '<div class="c"><div class="lab">' +
+       (d.modo === 'semana' ? 'Volume da semana' : 'Volume do mês') + '</div><div class="big">' +
+       ton(tTudo) + '</div><div class="pe">' +
+       (d.modo === 'semana' ? '&nbsp;' : (tot.semanas || 0) + ' semana(s) fechada(s)') + '</div></div>';
   h += '<div class="c"><div class="lab">Para fábrica própria</div><div class="big">' +
        ton(tProp) + '</div><div class="pe">' +
        (tTudo ? n1.format(tProp / tTudo * 100) + '% do total' : '—') + '</div></div>';
@@ -257,7 +324,8 @@ function render(d) {
   });
 
   const totO = props.reduce((s2, p) => s2 + Number(p.ton_otimo || 0), 0);
-  h += '<div class="resumo">No mês, <b>' + ton(tProp) + '</b> foram para fábrica própria e ' +
+  const prepPeriodo = d.modo === 'semana' ? 'Na semana' : 'No mês';
+  h += '<div class="resumo">' + prepPeriodo + ', <b>' + ton(tProp) + '</b> foram para fábrica própria e ' +
     'renderam <b class="' + (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') +
     rs(savR) + '</b> em relação ao que o mercado pagaria pelas mesmas cargas. ' +
     'A alocação do modelo mandaria <b>' + ton(totO) + '</b> e renderia <b class="pos">+' +
@@ -270,7 +338,8 @@ function render(d) {
     const netT = ters.reduce((s, x) =>
       s + Number(x.net_medio || 0) * Number(x.toneladas || 0), 0) / (tt || 1);
     h += '<h2>Terceiros</h2>';
-    h += '<p class="nota">' + ters.length + ' cliente(s) no mês, somados. ' +
+    h += '<p class="nota">' + ters.length + ' cliente(s) ' +
+      (d.modo === 'semana' ? 'na semana' : 'no mês') + ', somados. ' +
       'NET médio ponderado pelo volume.</p>';
     h += '<table><thead><tr><th>Destino</th><th>Volume</th><th>NET médio</th>' +
       '</tr></thead><tbody>';
@@ -281,7 +350,7 @@ function render(d) {
   }
 
   if (semanas.length) {
-    h += '<h2>Semanas fechadas neste mês</h2>';
+    h += '<h2>' + (d.modo === 'semana' ? 'Semana selecionada' : 'Semanas fechadas neste mês') + '</h2>';
     h += '<p class="nota">Excluir apaga a semana inteira do banco — todas as versões,' +
       ' não só a mais recente. Não pode ser desfeito.</p>';
     h += '<table><thead><tr><th>Semana</th><th>Período</th><th>Versão</th>' +
@@ -307,18 +376,31 @@ function render(d) {
           ' linhas)? Isso não pode ser desfeito.')) return;
       const r = await fetch('/api/semanas?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
       if (!r.ok) { alert('Não consegui apagar essa semana.'); return; }
-      carregar($('#mes').value);  // recarrega o mes inteiro — os numeros mudam
+      // Apagou justo a semana escolhida no modo Semana: ela some da lista,
+      // repopula e cai em outra semana valida — sem trocar de modo.
+      if (modo === 'semana' && $('#periodo').value === ano + '-' + semana) {
+        const proxima = await popularPeriodo('semana');
+        if (!proxima) { modoVazio(); return; }
+        $('#periodo').value = proxima;
+      }
+      carregar();
     };
   });
 }
 
-async function carregar(mes) {
+async function carregar() {
+  const v = $('#periodo').value;
+  if (!v) return;
   $('#conteudo').innerHTML = '<p class="carregando">Carregando…</p>';
+  atualizarUrl(modo, v);
   try {
-    const r = await fetch('/api/consolidado?mes=' + encodeURIComponent(mes));
+    const url = modo === 'semana'
+      ? '/api/consolidado?semana=' + encodeURIComponent(v)
+      : '/api/consolidado?mes=' + encodeURIComponent(v);
+    const r = await fetch(url);
     const j = await r.json();
     if (!r.ok) throw new Error(j.erro || 'Falha ao carregar.');
-    $('#sub').textContent = nomeMes(j.mes) + ' · apurado pela data de embarque de cada carga';
+    $('#sub').textContent = subtitulo(j);
     render(j);
   } catch (e) {
     $('#conteudo').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>';
@@ -326,15 +408,18 @@ async function carregar(mes) {
 }
 
 (async () => {
-  const m = await carregarMeses();
-  if (!m) {
-    $('#sub').textContent = 'nenhuma semana fechada ainda';
-    $('#conteudo').innerHTML = '<div class="vazio">Nenhuma semana fechada ainda.<br>' +
-      'Feche a primeira semana no painel para o consolidado começar a existir.</div>';
-    return;
-  }
-  $('#mes').onchange = () => carregar($('#mes').value);
-  carregar(m);
+  [].forEach.call(document.querySelectorAll('.modobtn'), b => {
+    b.onclick = () => trocarModo(b.dataset.modo);
+  });
+  $('#periodo').onchange = carregar;
+
+  // O modo e o periodo iniciais vem da URL quando presentes (?semana=AAAA-SS
+  // ou ?mes=AAAA-MM); senao, cai no modo Mes com o mais recente — o mesmo
+  // comportamento de sempre.
+  const params = new URLSearchParams(location.search);
+  const modoInicial = params.has('semana') ? 'semana' : 'mes';
+  const valorInicial = params.get(modoInicial);
+  await trocarModo(modoInicial, valorInicial);
 })();
 </script>
 </body>
