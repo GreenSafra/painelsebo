@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Consolidado — sebo</title>
+<title>Consolidado (sebo)</title>
 <style>
 :root{
   --paper:#DFE0E4; --card:#FFFFFF; --ink:#23242B; --mute:#6B6D78; --line:#C4C6D0;
@@ -40,7 +40,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 .big.pos{color:var(--pos)} .big.neg{color:var(--neg)}
 
 h2{font-size:15px;margin:26px 0 4px;font-weight:600}
-.nota{font-size:12.5px;color:var(--mute);margin:0 0 12px;max-width:760px;line-height:1.5}
+.nota{font-size:12.5px;color:var(--mute);margin:0 0 12px;line-height:1.5}
 
 table{width:100%;border-collapse:collapse;background:var(--card);
   border:1px solid var(--line);font-size:13.5px}
@@ -120,9 +120,9 @@ const $ = s => document.querySelector(s);
 const nf = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const n1 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 const num = v => (v == null || v === '') ? null : Number(v);
-const ton = v => v == null ? '—' : n1.format(v) + ' t';
+const ton = v => v == null ? '-' : n1.format(v) + ' t';
 // negativo sai como −R$ 1.234, nao R$ -1.234
-const rs  = v => v == null ? '—'
+const rs  = v => v == null ? '-'
   : (v < 0 ? '−R$ ' : 'R$ ') + nf.format(Math.abs(v));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
   c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
@@ -138,18 +138,18 @@ function selo(cli) {
   return '<span class="selo s-ter"></span>';
 }
 function bloco(cab, t, net, ter, sav) {
-  const f = v => v == null ? '—' : rs(v);
+  const f = v => v == null ? '-' : rs(v);
   let o = '<div><div class="cab">' + cab + '</div>';
-  o += '<div class="lin"><span>Volume</span><span>' + (t > 0 ? ton(t) : '—') + '</span></div>';
+  o += '<div class="lin"><span>Volume</span><span>' + (t > 0 ? ton(t) : '-') + '</span></div>';
   o += '<div class="lin"><span>NET médio</span><span>' + f(net) + '</span></div>';
   o += '<div class="lin"><span>Melhor terceiro</span><span>' + f(ter) + '</span></div>';
   o += '<div class="lin forte"><span>Diferença</span><span class="' +
     (sav == null ? '' : (sav < 0 ? 'neg' : 'pos')) + '">' +
-    (sav == null ? '—' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+    (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
   return o + '</div>';
 }
 function sinal(v) {
-  if (v == null) return '<td>—</td>';
+  if (v == null) return '<td>-</td>';
   return '<td class="' + (v < 0 ? 'neg' : 'pos') + '">' +
     (v > 0 ? '+' : '') + rs(v) + '</td>';
 }
@@ -266,7 +266,7 @@ function render(d) {
        (d.modo === 'semana' ? '&nbsp;' : (tot.semanas || 0) + ' semana(s) fechada(s)') + '</div></div>';
   h += '<div class="c"><div class="lab">Para fábrica própria</div><div class="big">' +
        ton(tProp) + '</div><div class="pe">' +
-       (tTudo ? n1.format(tProp / tTudo * 100) + '% do total' : '—') + '</div></div>';
+       (tTudo ? n1.format(tProp / tTudo * 100) + '% do total' : '-') + '</div></div>';
   h += '<div class="c"><div class="lab">Para terceiros</div><div class="big">' +
        ton(tTer) + '</div><div class="pe">NET médio geral ' +
        rs(num(tot.net_medio)) + '</div></div>';
@@ -286,7 +286,7 @@ function render(d) {
 
   h += '<h2>Fábricas próprias</h2>';
   h += '<p class="nota">Para cada carga que foi para uma fábrica própria, o painel ' +
-    'sabe qual era a melhor oferta de terceiro para <b>aquela mesma carga</b> — mesma ' +
+    'sabe qual era a melhor oferta de terceiro para <b>aquela mesma carga</b>: mesma ' +
     'origem, mesmo frete, mesma semana. A diferença entre as duas é o que a decisão ' +
     'valeu. Aqui isso aparece duas vezes: no que foi feito, e no que o modelo mandava ' +
     'fazer antes de qualquer troca manual.</p>';
@@ -308,7 +308,7 @@ function render(d) {
     } else if (to === 0) {
       veredito = (dif > 0 ? '<span class="neg">custou ' + rs(dif) + '</span>'
                           : '<span class="pos">acima do modelo</span>');
-      frase = 'Recebeu <b>' + ton(tr) + '</b>, mas o modelo não mandaria nada para cá — ' +
+      frase = 'Recebeu <b>' + ton(tr) + '</b>, mas o modelo não mandaria nada para cá: ' +
         'para essas cargas havia terceiro pagando mais.';
     } else {
       const d = to - tr;
@@ -316,9 +316,9 @@ function render(d) {
         : (dif > 0 ? '<span class="neg">' + rs(dif) + ' deixados na mesa</span>'
                    : '<span class="pos">+' + rs(-dif) + ' acima do modelo</span>');
       frase = 'Recebeu <b>' + ton(tr) + '</b>; o modelo mandaria <b>' + ton(to) + '</b>' +
-        (Math.abs(d) < 0.5 ? ' — o mesmo volume.'
-          : (d > 0 ? ' — <b>' + ton(d) + '</b> a mais do que recebeu.'
-                   : ' — <b>' + ton(-d) + '</b> a menos do que recebeu.'));
+        (Math.abs(d) < 0.5 ? ', o mesmo volume.'
+          : (d > 0 ? ', <b>' + ton(d) + '</b> a mais do que recebeu.'
+                   : ', <b>' + ton(-d) + '</b> a menos do que recebeu.'));
     }
 
     h += '<div class="fab' + (tr === 0 && to === 0 ? ' sem' : '') + '">';
@@ -359,14 +359,14 @@ function render(d) {
 
   if (semanas.length) {
     h += '<h2>' + (d.modo === 'semana' ? 'Semana selecionada' : 'Semanas fechadas neste mês') + '</h2>';
-    h += '<p class="nota">Excluir apaga a semana inteira do banco — todas as versões,' +
+    h += '<p class="nota">Excluir apaga a semana inteira do banco: todas as versões,' +
       ' não só a mais recente. Não pode ser desfeito.</p>';
     h += '<table><thead><tr><th>Semana</th><th>Período</th><th>Versão</th>' +
       '<th>Linhas</th><th>Fechada por</th><th>Quando</th><th></th></tr></thead><tbody>';
     semanas.forEach(s => {
-      h += '<tr><td>' + s.semana + '/' + s.ano + '</td><td>' + esc(s.periodo || '—') + '</td>' +
+      h += '<tr><td>' + s.semana + '/' + s.ano + '</td><td>' + esc(s.periodo || '-') + '</td>' +
         '<td>v' + s.versao + '</td><td>' + nf.format(s.linhas) + '</td>' +
-        '<td>' + esc(s.fechada_por || '—') + '</td><td>' + fmtDataHora(s.fechada_em) + '</td>' +
+        '<td>' + esc(s.fechada_por || '-') + '</td><td>' + fmtDataHora(s.fechada_em) + '</td>' +
         '<td><button class="abrir" data-ano="' + s.ano + '" data-semana="' + s.semana +
         '">abrir</button><button class="excluir" data-ano="' + s.ano + '" data-semana="' + s.semana +
         '" data-linhas="' + s.linhas + '" data-toneladas="' + Math.round(s.toneladas) +

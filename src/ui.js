@@ -7,9 +7,9 @@ var ST = null;                  // escolhas do usuário
 var DS, RES, OPS, PROD, NEC, MAPA, ULT_EXPORT = null;
 var UFSEL = null, EDIT = null, SUJO = false;
 
-var fmt0 = n => (n == null || !isFinite(n)) ? '—' : Math.round(n).toLocaleString('pt-BR');
-var fmt1 = n => (n == null || !isFinite(n)) ? '—' : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-var rs = n => (n == null || !isFinite(n)) ? '—' : 'R$ ' + fmt0(n);
+var fmt0 = n => (n == null || !isFinite(n)) ? '-' : Math.round(n).toLocaleString('pt-BR');
+var fmt1 = n => (n == null || !isFinite(n)) ? '-' : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+var rs = n => (n == null || !isFinite(n)) ? '-' : 'R$ ' + fmt0(n);
 var sgn = n => (n > 0 ? '+' : '') + fmt0(n);
 var esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 var $ = s => document.querySelector(s);
@@ -118,7 +118,7 @@ function setupImport() {
 // Logout ja existe no servidor (POST /api/sair) — so faltava o botao.
 async function sair() {
   if (RASCUNHO_SUJO && !confirm(
-    'Você tem alterações não salvas — elas serão perdidas. Sair mesmo assim?'
+    'Você tem alterações não salvas, que serão perdidas. Sair mesmo assim?'
   )) return;
   try { await fetch('/api/sair', { method: 'POST' }); } catch (e) { }
   location.href = '/entrar';
@@ -326,23 +326,23 @@ function renderResumoSemana() {
   const ag = agregarSemana(pac.linhas, pac.linhasOtimo, MAPA.rows);
   box.classList.remove('hide');
 
-  const rs = v => v == null ? '—'
+  const rs = v => v == null ? '-'
     : (v < 0 ? '−R$ ' : 'R$ ') + Math.round(Math.abs(v)).toLocaleString('pt-BR');
-  const tn = v => v == null ? '—' : fmt1(v) + ' t';
+  const tn = v => v == null ? '-' : fmt1(v) + ' t';
   const pontoGrupo = cli => {
     if (/biopower/i.test(cli)) return '<span class="rs-selo rs-s-bio"></span>';
     if (/flora/i.test(cli)) return '<span class="rs-selo rs-s-flo"></span>';
     return '<span class="rs-selo rs-s-ter"></span>';
   };
   const blocoDuo = (cab, t, net, ter, sav) => {
-    const f = v => v == null ? '—' : rs(v);
+    const f = v => v == null ? '-' : rs(v);
     let o = '<div><div class="rs-cab">' + cab + '</div>';
-    o += '<div class="rs-lin"><span>Volume</span><span>' + (t > 0 ? tn(t) : '—') + '</span></div>';
+    o += '<div class="rs-lin"><span>Volume</span><span>' + (t > 0 ? tn(t) : '-') + '</span></div>';
     o += '<div class="rs-lin"><span>NET médio</span><span>' + f(net) + '</span></div>';
     o += '<div class="rs-lin"><span>Melhor terceiro</span><span>' + f(ter) + '</span></div>';
     o += '<div class="rs-lin rs-forte"><span>Diferença</span><span class="' +
       (sav == null ? '' : (sav < 0 ? 'rs-neg' : 'rs-pos')) + '">' +
-      (sav == null ? '—' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+      (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
     return o + '</div>';
   };
 
@@ -361,7 +361,7 @@ function renderResumoSemana() {
   h += '<h2>Resultado da semana em tela</h2>';
   h += '<p class="rs-nota">Isto é a semana que está na tela agora' +
     (ST.semana ? ' (Semana ' + fmt0(ST.semana) + ')' : '') +
-    ' — não o mês fechado, e nada aqui foi salvo ainda. Feche a semana ' +
+    ', não o mês fechado, e nada aqui foi salvo ainda. Feche a semana ' +
     'quando estiver de acordo.</p>';
 
   h += '<div class="rs-cards">';
@@ -369,7 +369,7 @@ function renderResumoSemana() {
     tn(tTudo) + '</div></div>';
   h += '<div class="rs-c"><div class="rs-lab">Para fábrica própria</div><div class="rs-big">' +
     tn(tProp) + '</div><div class="rs-pe">' +
-    (tTudo ? fmt1(tProp / tTudo * 100) + '% do total' : '—') + '</div></div>';
+    (tTudo ? fmt1(tProp / tTudo * 100) + '% do total' : '-') + '</div></div>';
   h += '<div class="rs-c"><div class="rs-lab">Para terceiros</div><div class="rs-big">' +
     tn(tTer) + '</div><div class="rs-pe">NET médio geral ' + rs(tot.net_medio) + '</div></div>';
   h += '<div class="rs-c"><div class="rs-lab">Ganho sobre o mercado</div><div class="rs-big ' +
@@ -400,7 +400,7 @@ function renderResumoSemana() {
     } else if (to === 0) {
       veredito = (dif > 0 ? '<span class="rs-neg">custou ' + rs(dif) + '</span>'
                           : '<span class="rs-pos">acima do modelo</span>');
-      frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá — ' +
+      frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá: ' +
         'para essas cargas havia terceiro pagando mais.';
     } else {
       const d = to - tr;
@@ -408,9 +408,9 @@ function renderResumoSemana() {
         : (dif > 0 ? '<span class="rs-neg">' + rs(dif) + ' deixados na mesa</span>'
                    : '<span class="rs-pos">+' + rs(-dif) + ' acima do modelo</span>');
       frase = 'Recebeu <b>' + tn(tr) + '</b>; o modelo mandaria <b>' + tn(to) + '</b>' +
-        (Math.abs(d) < 0.5 ? ' — o mesmo volume.'
-          : (d > 0 ? ' — <b>' + tn(d) + '</b> a mais do que recebeu.'
-                   : ' — <b>' + tn(-d) + '</b> a menos do que recebeu.'));
+        (Math.abs(d) < 0.5 ? ', o mesmo volume.'
+          : (d > 0 ? ', <b>' + tn(d) + '</b> a mais do que recebeu.'
+                   : ', <b>' + tn(-d) + '</b> a menos do que recebeu.'));
     }
     h += '<div class="rs-fab' + (tr === 0 && to === 0 ? ' rs-sem' : '') + '">';
     h += '<div class="rs-top"><span class="rs-nome">' + pontoGrupo(p.cliente) + esc(p.cliente) +
@@ -477,7 +477,7 @@ function renderAvisos() {
   if (faltasReais.length) {
     h += '<div class="warn bad">Não deu para fechar o volume de <b>' +
       faltasReais.map(f => esc(f.cliente) + '</b> (' + fmt0(f.atendido) + ' t de ' + fmt0(f.pedido) + ' t)').join(', <b>') +
-      '. Falta produção elegível — confira a trava de estado ou o volume pedido.</div>';
+      '. Falta produção elegível: confira a trava de estado ou o volume pedido.</div>';
   }
   if (DS.naoMapeadas.length) {
     h += '<div class="warn">Não consegui identificar a unidade <b>' +
@@ -587,7 +587,7 @@ function renderNecessidade() {
       '<span class="nm">' + esc(d.cliente) + '</span>' +
       '<span class="cd">' + esc(d.cidade || '') + (d.uf ? ' · ' + d.uf : '') + '</span>' +
       '<label class="tv"><input type="checkbox" data-tv="' + esc(d.cliente) + '"' +
-      (tv ? ' checked' : '') + (d.uf ? '' : ' disabled') + '> só recebe de ' + (d.uf || '—') + '</label>' +
+      (tv ? ' checked' : '') + (d.uf ? '' : ' disabled') + '> só recebe de ' + (d.uf || '-') + '</label>' +
       '<input class="v" type="number" min="0" step="35" value="' + Math.round(d.ton) +
       '" data-nec="' + esc(d.cliente) + '" aria-label="volume de ' + esc(d.cliente) + '">' +
       '<span class="un">t</span>' +
@@ -868,7 +868,7 @@ function renderTabela() {
     const linhas = RES.alocFinal.filter(a => a.uf === uf);
     const pp = linhas.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
     const tt = linhas.filter(a => !a.prop).reduce((s, a) => s + a.ton, 0);
-    const cel = v => v > 0.01 ? fmt0(v) + ' t' : '<span class="dim">—</span>';
+    const cel = v => v > 0.01 ? fmt0(v) + ' t' : '<span class="dim">-</span>';
     h += '<tr data-uf="' + uf + '"' + (uf === UFSEL ? ' class="sel"' : '') + '>' +
       '<td><b>' + uf + '</b></td>' +
       '<td class="num dim">' + plantas.length + '</td>' +
@@ -952,7 +952,7 @@ function editorHtml(sigla, total) {
     const a = RES.alocFinal.find(x => x.sigla === sigla && x.cli === cli);
     return a ? a.ton : 0;
   };
-  let h = '<div class="editor"><h4>Destinos de ' + sigla + ' — ' + fmt0(total) + ' t na semana</h4>' +
+  let h = '<div class="editor"><h4>Destinos de ' + sigla + ' (' + fmt0(total) + ' t na semana)</h4>' +
     '<p class="hint">Todas as ofertas para esta unidade, ranqueadas por NET. Ajuste os volumes ' +
     'até fechar o total. O que você fixar aqui vira regra, e o modelo redistribui o resto. ' +
     'Carreta cheia = 35 t.</p>';
@@ -1117,8 +1117,8 @@ function atualizarCarimboRascunho() {
     el.className = 'fechamsg';
     el.textContent = ORIGEM_FECHADA
       ? 'reaberto da semana fechada v' + ORIGEM_FECHADA.versao + ', por ' +
-        (RASCUNHO_SALVO_POR || '—') + ' às ' + fmtHora(RASCUNHO_SALVO_EM)
-      : 'salvo por ' + (RASCUNHO_SALVO_POR || '—') + ' às ' + fmtHora(RASCUNHO_SALVO_EM);
+        (RASCUNHO_SALVO_POR || '-') + ' às ' + fmtHora(RASCUNHO_SALVO_EM)
+      : 'salvo por ' + (RASCUNHO_SALVO_POR || '-') + ' às ' + fmtHora(RASCUNHO_SALVO_EM);
   } else {
     el.className = 'fechamsg';
     el.textContent = '';
@@ -1176,7 +1176,7 @@ async function carregarSemanasSalvas() {
 
 function podeTrocarSemana() {
   return !RASCUNHO_SUJO || confirm(
-    'Você tem alterações não salvas nesta semana — elas serão perdidas. Abrir outra semana mesmo assim?'
+    'Você tem alterações não salvas nesta semana, que serão perdidas. Abrir outra semana mesmo assim?'
   );
 }
 
@@ -1218,8 +1218,8 @@ function renderSemanasSalvas(lista) {
       '<button class="rascunho-abrir" data-tipo="' + r.situacao + '" data-ano="' + r.ano +
         '" data-semana="' + r.semana + '">' +
         'Semana ' + r.semana + '/' + r.ano + (r.periodo ? ' (' + esc(r.periodo) + ')' : '') +
-        ' — ' + situacao + (semPacote ? ' · <span class="semplan">sem planilhas</span>' : '') +
-        ' · ' + esc(r.quem || '—') + ' às ' + esc(fmtDataHora(r.quando)) +
+        ', ' + situacao + (semPacote ? ' · <span class="semplan">sem planilhas</span>' : '') +
+        ' · ' + esc(r.quem || '-') + ' às ' + esc(fmtDataHora(r.quando)) +
       '</button>' +
       (r.situacao === 'rascunho'
         ? '<button class="rascunho-descartar" data-ano="' + r.ano + '" data-semana="' + r.semana +
@@ -1260,7 +1260,7 @@ async function descartarRascunho(ano, semana) {
 // ficar disabled — sem isso, clicar neles depois leria PROD/RAW/OPS nulos.
 function novaSemana() {
   if (RASCUNHO_SUJO && !confirm(
-    'Você tem alterações não salvas nesta semana — elas serão perdidas. Continuar mesmo assim?'
+    'Você tem alterações não salvas nesta semana, que serão perdidas. Continuar mesmo assim?'
   )) return;
   try { localStorage.removeItem('sebo_estado'); } catch (e) { }
   try { localStorage.removeItem('sebo_dados'); } catch (e) { }

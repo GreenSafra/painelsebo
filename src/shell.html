@@ -61,19 +61,19 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .spacer{flex:1}
 
 /* ---------- importar ---------- */
-.import{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:28px}
-.import h2{font-size:19px;margin-bottom:6px}
-.import>p{margin:0 0 22px;color:var(--mute);max-width:62ch}
-.drops{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.drop{border:1px dashed var(--line);border-radius:var(--r);padding:18px 16px;
+.import{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px 24px}
+.import h2{font-size:19px;margin-bottom:4px}
+.import>p{margin:0 0 12px;color:var(--mute)}
+.drops{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.drop{border:1px dashed var(--line);border-radius:var(--r);padding:11px 14px;
   background:var(--paper);transition:border-color .12s,background .12s}
 .drop.on{border-color:var(--azul);background:#EFEFF8}
 .drop.ok{border-style:solid;border-color:var(--azul)}
-.drop h3{font-size:14.5px;margin-bottom:4px}
-.drop p{margin:0 0 12px;font-size:12.5px;color:var(--mute);min-height:34px}
-.drop .file{font-size:12.5px;color:var(--azul);word-break:break-all;margin-top:9px}
-.err{color:var(--alertd);font-size:13px;margin-top:14px}
-.note{font-size:12.5px;color:var(--mute);margin-top:18px;max-width:70ch}
+.drop h3{font-size:14.5px;margin-bottom:2px}
+.drop p{margin:0 0 7px;font-size:12.5px;color:var(--mute)}
+.drop .file{font-size:12.5px;color:var(--azul);word-break:break-all;margin-top:6px}
+.err{color:var(--alertd);font-size:13px;margin-top:8px}
+.note{font-size:12.5px;color:var(--mute);margin:10px 0 0}
 
 /* ---------- kpis ---------- */
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
@@ -111,7 +111,7 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .linkb{background:none;border:0;padding:0;font:inherit;color:var(--azul);
   font-weight:600;cursor:pointer;text-decoration:underline}
 .linkb:hover{opacity:.8}
-#salvasBox{margin:18px 0}
+#salvasBox{margin:10px 0 0}
 .salvashead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;
   background:none;border:0;padding:0;margin-bottom:10px;font:inherit;
   font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer}
@@ -379,7 +379,7 @@ footer img{height:17px;width:auto;opacity:.75}
   border-radius:var(--r);padding:20px 22px;margin-top:20px}
 #resumoSemana h2{font-size:15px;margin:0 0 4px;font-weight:600}
 #resumoSemana .rs-nota{font-size:12.5px;color:var(--mute);margin:0 0 16px;
-  max-width:760px;line-height:1.5}
+  line-height:1.5}
 #resumoSemana .rs-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
   gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
 #resumoSemana .rs-c{background:var(--card);padding:14px 16px}
@@ -455,9 +455,8 @@ footer img{height:17px;width:auto;opacity:.75}
 
 <section class="import" id="importBox">
   <h2>Planilhas da semana</h2>
-  <p>Solte os dois arquivos abaixo, ou clique para escolher. A necessidade das fábricas
-     próprias você digita depois, aqui mesmo no painel. Tudo é lido dentro do seu
-     navegador — nada é enviado para fora.</p>
+  <p>Solte os dois arquivos abaixo ou clique para escolher. A necessidade das fábricas
+     próprias você digita depois, aqui mesmo no painel.</p>
   <div class="warn hide" id="avisoReimportar"></div>
   <div class="drops">
     <div class="drop" data-k="prog">
@@ -475,6 +474,8 @@ footer img{height:17px;width:auto;opacity:.75}
       <div class="file" data-f="mapa"></div>
     </div>
   </div>
+  <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
+     no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
   <div class="err hide" id="impErr"></div>
   <div id="salvasBox" class="hide">
     <button type="button" class="salvashead" id="salvasHead" aria-expanded="false" aria-controls="salvasList">
@@ -483,8 +484,6 @@ footer img{height:17px;width:auto;opacity:.75}
     </button>
     <div id="salvasList" class="rascunhos hide"></div>
   </div>
-  <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
-     no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
 </section>
 
 <main id="app" class="hide">

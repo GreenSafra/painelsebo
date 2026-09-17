@@ -20,11 +20,11 @@ let ok = 0, bad = 0;
 const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA ') + n + (x ? ' — ' + x : '')); };
 
 const rd = v => v == null ? null : Math.round(v);
-// converte "R$ 1.234" / "−R$ 1.234" / "—" de volta pra numero, pra comparar
-// com o que agregarSemana() devolveu.
+// converte "R$ 1.234" / "−R$ 1.234" / "-" (vazio) de volta pra numero, pra
+// comparar com o que agregarSemana() devolveu.
 const parseRs = txt => {
   const t = (txt || '').trim();
-  if (!t || t === '—') return null;
+  if (!t || t === '-') return null;
   const neg = t.indexOf('−') >= 0 || t.indexOf('-') >= 0;
   const n = Number(t.replace(/[^\d]/g, ''));
   return neg ? -n : n;

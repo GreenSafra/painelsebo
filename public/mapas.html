@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Cotações do Mapa — sebo</title>
+<title>Cotações do Mapa (sebo)</title>
 <style>
 :root{
   --paper:#DFE0E4; --card:#FFFFFF; --ink:#23242B; --mute:#6B6D78; --line:#C4C6D0;
@@ -25,7 +25,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 
 .caixa{background:var(--card);border:1px solid var(--line);padding:16px 18px;margin-bottom:16px}
 .caixa h2{font-size:15px;margin:0 0 10px;font-weight:600}
-.nota{font-size:12.5px;color:var(--mute);margin:0 0 12px;max-width:760px;line-height:1.5}
+.nota{font-size:12.5px;color:var(--mute);margin:0 0 12px;line-height:1.5}
 input[type=file]{font-size:13.5px}
 .btn{padding:9px 15px;border:1px solid var(--line);background:var(--card);
   color:var(--ink);border-radius:var(--r);font-size:13.5px;cursor:pointer;
@@ -81,7 +81,7 @@ tbody tr:last-child td{border-bottom:0}
 
 <div class="caixa">
   <p class="nota">
-    Cada Mapa vira uma linha por cliente com a oferta bruta (sem NET — NET
+    Cada Mapa vira uma linha por cliente com a oferta bruta (sem NET: NET
     embute frete e varia por origem, a série aqui é de preço pedido). Não
     precisa da Programação nem fechar a semana: subir o Mapa já grava.
     Serve tanto para o Mapa da semana corrente quanto para subir vários
@@ -397,7 +397,7 @@ var COTACOES_GRAVADAS = [];  // { ano, semana, linhas, clientes, data_cotacao }
 var arquivos = [];   // { nome, mapa, cotacoes, ano, semana, statusOrigem, periodo }
 
 function fmtDataBR(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const [a, m, d] = String(iso).slice(0, 10).split('-');
   return d + '/' + m + '/' + a;
 }
@@ -439,7 +439,7 @@ function render() {
       : a.statusOrigem === 'calculada' ? 'calculada' : 'pendente';
     const rotulo = { casada: 'casada', calculada: 'calculada', pendente: 'pendente' }[badge];
     h += '<tr><td>' + esc(a.nome) + '</td>' +
-      '<td>' + esc(a.mapa.data || '—') + '</td>' +
+      '<td>' + esc(a.mapa.data || '-') + '</td>' +
       '<td>' + a.cotacoes.length + '</td>' +
       '<td>' + contarClientes(a.cotacoes) + '</td>' +
       '<td><span class="badge ' + badge + '">' + rotulo + '</span>' +
@@ -454,7 +454,7 @@ function render() {
       h += '<div class="aviso-linha forte">mesma semana que outro arquivo deste lote</div>';
     }
     if (a.jaTemCotacao) {
-      h += '<div class="aviso-linha">já tem cotação gravada — subir de novo substitui</div>';
+      h += '<div class="aviso-linha">já tem cotação gravada, subir de novo substitui</div>';
     }
     h += '</td><td><button class="btn sec" data-remover="' + idx + '">remover</button></td></tr>';
   });
