@@ -891,6 +891,28 @@ async function cotacoesDaSemana(ano, semana) {
   return r.rows;
 }
 
+// Linhas cruas de VARIAS semanas de uma vez (ano+semana), numa unica
+// consulta — a Analise de cotacoes usa isto pra pegar a semana selecionada
+// e as duas anteriores sem uma ida ao banco por semana. "pares" e uma
+// lista de {ano, semana}; pares invalidos (nao inteiros) sao ignorados em
+// vez de derrubar a consulta inteira. Sem nenhum par valido, nem consulta.
+async function cotacoesDeSemanas(pares) {
+  const validos = (pares || [])
+    .map(p => ({ ano: Number(p && p.ano), semana: Number(p && p.semana) }))
+    .filter(p => Number.isInteger(p.ano) && Number.isInteger(p.semana));
+  if (!validos.length) return [];
+  const cond = validos.map((_, i) => '($' + (i * 2 + 1) + ',$' + (i * 2 + 2) + ')').join(',');
+  const params = [];
+  validos.forEach(p => params.push(p.ano, p.semana));
+  const r = await pool.query(
+    `SELECT ano, semana, cliente, origem, oferta FROM cotacoes
+      WHERE (ano, semana) IN (${cond})
+      ORDER BY ano, semana, cliente`,
+    params
+  );
+  return r.rows;
+}
+
 async function gravarCotacoesLote(itens) {
   const out = [];
   for (const item of (itens || [])) {
@@ -926,5 +948,5 @@ module.exports = {
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
   rascunhoRecenteDoUsuario, semanasSalvas,
   gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana,
-  apagarCotacoes, siglaPorOrigem
+  cotacoesDeSemanas, apagarCotacoes, siglaPorOrigem
 };

@@ -30,8 +30,12 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
   padding:12px 16px;display:flex;align-items:center;gap:14px}
 .card .pos{flex:none;width:32px;font-size:13px;font-weight:700;color:var(--mute);text-align:center}
 .card:nth-child(1) .pos{color:var(--azul);font-size:15px}
-.card .nome{flex:1;font-size:14.5px;font-weight:600;min-width:0;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .info{flex:1;min-width:0}
+.card .nome{font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .seq{font-size:11.5px;color:var(--mute);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.card .seq b{color:var(--ink);font-weight:700}
 .card .preco{flex:none;width:120px;text-align:right;font-size:15px;font-weight:700;
   font-variant-numeric:tabular-nums;color:var(--ink)}
 .card .var{flex:none;width:84px;text-align:center;font-size:12.5px;font-weight:700;
@@ -47,6 +51,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 @media(max-width:560px){
   .wrap{padding:16px 12px 50px}
   .card .nome{font-size:13.5px}
+  .card .seq{font-size:10.5px}
   .card .preco{width:92px;font-size:14px}
   .card .var{width:64px;font-size:11.5px}
 }
@@ -121,6 +126,18 @@ function variacao(atual, antes) {
   return { classe: p > 0 ? 'alta' : 'baixa', texto: (p > 0 ? '+' : '') + p + '%' };
 }
 
+// Sequencia "S36 6.380 · S37 6.483 · S38 6.619", mais antiga pra mais
+// recente, semana atual em destaque. Cliente sem cotacao naquela semana
+// mostra "-" na posicao dela — mantem o alinhamento entre clientes, o que
+// muda de cliente pra cliente e o VALOR, nunca quantas semanas aparecem.
+function historicoTxt(historico) {
+  return historico.map(h => {
+    const val = h.preco == null ? '-' : nf.format(h.preco);
+    const par = esc(h.rotulo) + ' ' + val;
+    return h.atual ? '<b>' + par + '</b>' : par;
+  }).join(' · ');
+}
+
 function renderRanking(lista) {
   const box = $('#conteudo');
   if (!lista.length) {
@@ -131,18 +148,34 @@ function renderRanking(lista) {
     const v = variacao(x.preco, x.anterior);
     return '<div class="card">' +
       '<div class="pos">' + (i + 1) + 'º</div>' +
-      '<div class="nome">' + esc(x.cliente) + '</div>' +
+      '<div class="info"><div class="nome">' + esc(x.cliente) + '</div>' +
+      '<div class="seq">' + historicoTxt(x.historico) + '</div></div>' +
       '<div class="preco">' + rs(x.preco) + '</div>' +
       '<div class="var ' + v.classe + '">' + esc(v.texto) + '</div>' +
       '</div>';
   }).join('') + '</div>';
 }
 
-async function buscarLinhas(w) {
-  const r = await fetch('/api/cotacoes?ano=' + w.ano + '&semana=' + w.semana);
+// Linhas cruas de varias semanas de uma vez, numa unica ida ao banco
+// (db.js:cotacoesDeSemanas) — nunca uma consulta por semana, e muito menos
+// por cliente.
+async function buscarVarias(semanas) {
+  if (!semanas.length) return [];
+  const q = semanas.map(s => s.ano + '-' + s.semana).join(',');
+  const r = await fetch('/api/cotacoes/varias?pares=' + encodeURIComponent(q));
   if (sessaoExpirada(r)) return [];
   if (!r.ok) return [];
   return r.json();
+}
+
+function agruparPorSemana(linhas) {
+  const m = new Map();
+  linhas.forEach(l => {
+    const k = chave(l);
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(l);
+  });
+  return m;
 }
 
 async function carregarSemana(w) {
@@ -150,18 +183,29 @@ async function carregarSemana(w) {
   const idx = achaIndice(w);
   const anterior = idx > 0 ? SEMANAS[idx - 1] : null;
 
-  const [linhasAtual, linhasAnterior] = await Promise.all([
-    buscarLinhas(w),
-    anterior ? buscarLinhas(anterior) : Promise.resolve([])
-  ]);
+  // ate 3 semanas rastreadas ate a selecionada (a propria semana e as duas
+  // anteriores que existirem no historico) — a primeira semana da base tem
+  // so ela mesma, a segunda tem duas, da terceira em diante tem as tres.
+  const alvo = [];
+  for (let i = Math.max(0, idx - 2); i <= idx; i++) alvo.push(SEMANAS[i]);
 
-  const mAtual = melhorPorCliente(linhasAtual);
-  const mAnterior = melhorPorCliente(linhasAnterior);
+  const linhas = await buscarVarias(alvo);
+  const porSemana = agruparPorSemana(linhas);
+  // mesmo criterio de sempre por semana: a melhor oferta (maior valor) por
+  // cliente, entre as origens daquela semana.
+  const mapas = alvo.map(s => melhorPorCliente(porSemana.get(chave(s)) || []));
+  const mAtual = mapas[mapas.length - 1];
+  const mAnterior = mapas.length > 1 ? mapas[mapas.length - 2] : new Map();
 
   const lista = [...mAtual.entries()]
     .map(([cliente, preco]) => ({
       cliente, preco,
-      anterior: mAnterior.has(cliente) ? mAnterior.get(cliente) : null
+      anterior: mAnterior.has(cliente) ? mAnterior.get(cliente) : null,
+      historico: alvo.map((s, i) => ({
+        rotulo: 'S' + s.semana,
+        preco: mapas[i].has(cliente) ? mapas[i].get(cliente) : null,
+        atual: i === alvo.length - 1
+      }))
     }))
     .sort((a, b) => b.preco - a.preco);
 

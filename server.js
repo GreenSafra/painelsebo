@@ -295,6 +295,22 @@ app.get('/api/cotacoes', exigeLoginPronto, async (req, res) => {
   }
 });
 
+// Varias semanas de uma vez, numa unica consulta — a Analise de cotacoes
+// usa isto pra pegar a semana selecionada e as duas anteriores sem uma
+// ida ao banco por semana. ?pares=2026-38,2026-37,2026-36
+app.get('/api/cotacoes/varias', exigeLoginPronto, async (req, res) => {
+  try {
+    const pares = String(req.query.pares || '').split(',').map(t => t.trim()).filter(Boolean).map(tok => {
+      const m = /^(\d{4})-(\d{1,2})$/.exec(tok);
+      if (!m) throw new Error('Parâmetro pares inválido: ' + tok);
+      return { ano: Number(m[1]), semana: Number(m[2]) };
+    });
+    res.json(await db.cotacoesDeSemanas(pares));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.post('/api/cotacoes/lote', exigeLoginPronto, async (req, res) => {
   try {
     res.json({ ok: true, resultados: await db.gravarCotacoesLote(req.body.itens || []) });
