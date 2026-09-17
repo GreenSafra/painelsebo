@@ -331,34 +331,59 @@ function render(d) {
     'semana. A diferença entre as duas é o que a decisão valeu. Aqui isso aparece duas vezes: ' +
     'no que foi feito, e no que o modelo mandava fazer antes de qualquer troca manual.</p>';
 
+  // Sem planilhas guardadas (ver avisoPacote acima), nenhuma carga da(s)
+  // semana(s) em tela tem media pra comparar — usado pra distinguir esse
+  // motivo do outro caso de "sem comparacao" (o modelo simplesmente nao
+  // mandou carga pra aquela fabrica).
+  const semPacotePeriodo = semanas.some(s => s.tem_pacote === false);
+
   props.forEach(p => {
     const tr = Number(p.ton_realizado || 0), to = Number(p.ton_otimo || 0);
     const sr = num(p.saving_realizado), so = num(p.saving_otimo);
-    const dif = (so != null ? so : 0) - (sr != null ? sr : 0);
+    // O selo (Diferenca entre os dois cenarios) so faz sentido quando os
+    // DOIS lados tem uma comparacao de verdade — comparar com zero quando
+    // um dos dois nao tem dado (ex.: o modelo nao mandou carga nenhuma pra
+    // ca) confundia "sem comparacao" com "empatou com o mercado".
+    const temComparacao = sr != null && so != null;
+    const dif = temComparacao ? so - sr : null;
 
-    // O veredito e a frase sao a leitura pronta: quem bater o olho tem que
-    // entender sem cruzar coluna com coluna.
-    let veredito = '', frase = '';
+    // A frase sempre descreve os volumes de verdade, comparacao existindo
+    // ou nao — so o selo (o resumo em uma linha) e que fica em duvida.
+    let veredito, frase;
     if (tr === 0 && to === 0) {
       veredito = '<span style="color:var(--mute)">não entrou na semana</span>';
       frase = 'Não recebeu carga, e o modelo também não mandaria nada para cá.';
-    } else if (tr === 0) {
-      veredito = '<span class="neg">' + rs(Math.abs(dif)) + ' deixados na mesa</span>';
-      frase = 'Não recebeu nada. O modelo mandaria <b>' + ton(to) + '</b> para cá.';
-    } else if (to === 0) {
-      veredito = (dif > 0 ? '<span class="neg">custou ' + rs(dif) + '</span>'
-                          : '<span class="pos">acima do modelo</span>');
-      frase = 'Recebeu <b>' + ton(tr) + '</b>, mas o modelo não mandaria nada para cá: ' +
-        'para essas cargas havia terceiro pagando mais.';
     } else {
-      const d = to - tr;
-      veredito = Math.abs(dif) < 1 ? '<span class="pos">no ponto</span>'
-        : (dif > 0 ? '<span class="neg">' + rs(dif) + ' deixados na mesa</span>'
-                   : '<span class="pos">+' + rs(-dif) + ' acima do modelo</span>');
-      frase = 'Recebeu <b>' + ton(tr) + '</b>; o modelo mandaria <b>' + ton(to) + '</b>' +
-        (Math.abs(d) < 0.5 ? ', o mesmo volume.'
-          : (d > 0 ? ', <b>' + ton(d) + '</b> a mais do que recebeu.'
-                   : ', <b>' + ton(-d) + '</b> a menos do que recebeu.'));
+      if (tr === 0) {
+        frase = 'Não recebeu nada. O modelo mandaria <b>' + ton(to) + '</b> para cá.';
+      } else if (to === 0) {
+        frase = 'Recebeu <b>' + ton(tr) + '</b>, mas o modelo não mandaria nada para cá.';
+      } else {
+        const d = to - tr;
+        frase = 'Recebeu <b>' + ton(tr) + '</b>; o modelo mandaria <b>' + ton(to) + '</b>' +
+          (Math.abs(d) < 0.5 ? ', o mesmo volume.'
+            : (d > 0 ? ', <b>' + ton(d) + '</b> a mais do que recebeu.'
+                     : ', <b>' + ton(-d) + '</b> a menos do que recebeu.'));
+      }
+      if (!temComparacao) {
+        veredito = '<span style="color:var(--mute)">modelo sem comparação</span>';
+        // "modelo nao mandou carga" (to === 0) ja fica claro so com a frase
+        // de volume. So tenta explicar o motivo quando os DOIS lados tem
+        // volume de verdade (tr>0 e to>0) mas nenhum tem media — e o caso
+        // em que "sem planilhas guardadas" realmente se aplica aos dois ao
+        // mesmo tempo; nos demais (um lado tem comparacao e o outro nao) o
+        // motivo e mais especifico do que da pra resumir numa frase so,
+        // entao fica so a frase de volume, que ja e honesta.
+        if (to !== 0 && tr !== 0) {
+          frase += ' ' + (semPacotePeriodo
+            ? 'Semana sem planilhas guardadas: não dá para calcular a comparação com o mercado.'
+            : 'Nenhuma das cargas teve oferta de terceiro para comparar.');
+        }
+      } else {
+        veredito = Math.abs(dif) < 1 ? '<span class="pos">no ponto</span>'
+          : (dif > 0 ? '<span class="neg">' + rs(dif) + ' deixados na mesa</span>'
+                     : '<span class="pos">+' + rs(-dif) + ' acima do modelo</span>');
+      }
     }
 
     h += '<div class="fab' + (tr === 0 && to === 0 ? ' sem' : '') + '">';

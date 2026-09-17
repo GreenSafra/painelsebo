@@ -503,28 +503,42 @@ function renderResumoSemana() {
   props.forEach(p => {
     const tr = p.ton_realizado, to = p.ton_otimo;
     const sr = p.saving_realizado, so = p.saving_otimo;
-    const dif = (so != null ? so : 0) - (sr != null ? sr : 0);
-    let veredito = '', frase = '';
+    // O selo so faz sentido quando os DOIS cenarios tem uma comparacao de
+    // verdade — comparar com zero quando um dos dois nao tem dado (ex.: o
+    // modelo nao mandou carga nenhuma pra ca) confundia "sem comparacao"
+    // com "empatou com o mercado".
+    const temComparacao = sr != null && so != null;
+    const dif = temComparacao ? so - sr : null;
+    let veredito, frase;
     if (tr === 0 && to === 0) {
       veredito = '<span class="rs-mute">não entrou na semana</span>';
       frase = 'Não recebeu carga, e o modelo também não mandaria nada para cá.';
-    } else if (tr === 0) {
-      veredito = '<span class="rs-neg">' + rs(Math.abs(dif)) + ' deixados na mesa</span>';
-      frase = 'Não recebeu nada. O modelo mandaria <b>' + tn(to) + '</b> para cá.';
-    } else if (to === 0) {
-      veredito = (dif > 0 ? '<span class="rs-neg">custou ' + rs(dif) + '</span>'
-                          : '<span class="rs-pos">acima do modelo</span>');
-      frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá: ' +
-        'para essas cargas havia terceiro pagando mais.';
     } else {
-      const d = to - tr;
-      veredito = Math.abs(dif) < 1 ? '<span class="rs-pos">no ponto</span>'
-        : (dif > 0 ? '<span class="rs-neg">' + rs(dif) + ' deixados na mesa</span>'
-                   : '<span class="rs-pos">+' + rs(-dif) + ' acima do modelo</span>');
-      frase = 'Recebeu <b>' + tn(tr) + '</b>; o modelo mandaria <b>' + tn(to) + '</b>' +
-        (Math.abs(d) < 0.5 ? ', o mesmo volume.'
-          : (d > 0 ? ', <b>' + tn(d) + '</b> a mais do que recebeu.'
-                   : ', <b>' + tn(-d) + '</b> a menos do que recebeu.'));
+      if (tr === 0) {
+        frase = 'Não recebeu nada. O modelo mandaria <b>' + tn(to) + '</b> para cá.';
+      } else if (to === 0) {
+        frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá.';
+      } else {
+        const d = to - tr;
+        frase = 'Recebeu <b>' + tn(tr) + '</b>; o modelo mandaria <b>' + tn(to) + '</b>' +
+          (Math.abs(d) < 0.5 ? ', o mesmo volume.'
+            : (d > 0 ? ', <b>' + tn(d) + '</b> a mais do que recebeu.'
+                     : ', <b>' + tn(-d) + '</b> a menos do que recebeu.'));
+      }
+      if (!temComparacao) {
+        veredito = '<span class="rs-mute">modelo sem comparação</span>';
+        // "modelo nao mandou carga" ja fica claro so com a frase de volume
+        // (to === 0). A semana em tela sempre tem planilhas (e ao vivo,
+        // nunca "sem pacote"), entao o motivo aqui e sempre falta de
+        // oferta — so quando os DOIS lados tem volume de verdade, senao a
+        // frase de volume ja e honesta sozinha (ver mesma logica em
+        // consolidado.html).
+        if (to !== 0 && tr !== 0) frase += ' Nenhuma das cargas teve oferta de terceiro para comparar.';
+      } else {
+        veredito = Math.abs(dif) < 1 ? '<span class="rs-pos">no ponto</span>'
+          : (dif > 0 ? '<span class="rs-neg">' + rs(dif) + ' deixados na mesa</span>'
+                     : '<span class="rs-pos">+' + rs(-dif) + ' acima do modelo</span>');
+      }
     }
     h += '<div class="rs-fab' + (tr === 0 && to === 0 ? ' rs-sem' : '') + '">';
     h += '<div class="rs-top"><span class="rs-nome">' + pontoGrupo(p.cliente) + esc(p.cliente) +

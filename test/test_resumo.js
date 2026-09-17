@@ -192,6 +192,32 @@ const parseRs = txt => {
   T('resumo na tela mudou junto (nao ficou preso ao render anterior)',
     box().innerHTML.trim() !== '');
 
+  // --- 5b. selo "modelo sem comparação" na tela ao vivo: Flora GO nunca tem
+  // necessidade digitada nesta bateria (fica de fora da disputa do modelo,
+  // de proposito — comentario da bateria 3 acima), entao uma troca manual
+  // que force volume pra ela no realizado cria exatamente o caso real
+  // investigado: recebeu na mao, mas o modelo (livre de necessidade) nunca
+  // mandaria nada pra ca — o selo tem que virar "modelo sem comparação",
+  // nunca um valor calculado contra zero. ---
+  {
+    const quoteFloraGO = w.DS.quotes.find(q => q.cli === 'Flora GO' && !w.RES.otimoAloc.some(a => a.sigla === q.sigla && a.cli === 'Flora GO'));
+    T('ha cotacao da Flora GO no Mapa, numa sigla que o modelo nao escolheu pra ela', !!quoteFloraGO,
+      quoteFloraGO && quoteFloraGO.sigla);
+    if (quoteFloraGO) {
+      w.ST.manual[quoteFloraGO.sigla] = [{ cli: 'Flora GO', ton: 35 }];
+      w.recalcular();
+      await new Promise(r => setTimeout(r, 60));
+      const cardFG = [...box().querySelectorAll('.rs-fab')]
+        .find(f => f.querySelector('.rs-nome').textContent.indexOf('Flora GO') >= 0);
+      T('card da Flora GO aparece no resumo ao vivo (recebeu volume na mao)', !!cardFG);
+      const selo = cardFG && cardFG.querySelector('.rs-veredito');
+      T('selo mostra "modelo sem comparação", nao um valor contra zero',
+        !!selo && selo.textContent.trim() === 'modelo sem comparação', selo && selo.textContent);
+      T('nao aparece texto antigo comparando com zero ("acima do modelo"/"custou")',
+        !!selo && !/acima do modelo|custou/.test(selo.textContent), selo && selo.textContent);
+    }
+  }
+
   // --- 6. persistir/restaurar: PROD, MAPA e PROGBUF voltam equivalentes ---
   w.persistirDados();
   const salvoTxt = w.localStorage.getItem('sebo_dados');

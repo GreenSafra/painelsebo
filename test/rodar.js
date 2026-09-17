@@ -10,7 +10,7 @@ const BATERIAS = [
   'test_cotacoes.js', 'test_mapas.js', 'test_senha.js', 'test_unidade.js', 'test_reabrir.js',
   'test_preenchida.js', 'test_navegacao.js', 'test_iframe_altura.js', 'test_terceiros.js',
   'test_analise.js', 'test_terceiros_semana38.js', 'test_migracao_terceiros.js',
-  'test_consolidado_otimo.js'
+  'test_consolidado_otimo.js', 'test_selo_comparacao.js'
 ];
 
 let falhou = [];
