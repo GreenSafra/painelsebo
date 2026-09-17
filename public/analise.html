@@ -30,14 +30,21 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
   padding:12px 16px;display:flex;align-items:center;gap:14px}
 .card .pos{flex:none;width:32px;font-size:13px;font-weight:700;color:var(--mute);text-align:center}
 .card:nth-child(1) .pos{color:var(--azul);font-size:15px}
-.card .info{flex:1;min-width:0}
-.card .nome{font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card .seq{font-size:11.5px;color:var(--mute);margin-top:2px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-variant-numeric:tabular-nums}
-.card .seq b{color:var(--ink);font-weight:700}
-.card .preco{flex:none;width:120px;text-align:right;font-size:15px;font-weight:700;
-  font-variant-numeric:tabular-nums;color:var(--ink)}
+.card .nome{flex:1;min-width:40px;font-size:14.5px;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* sequencia de semanas: fica a direita, ao lado do selo de variacao. largura
+   propria (flex:none) — se nao couber no celular, rola so este bloco (ver
+   media query), nunca empurra o nome nem estoura o card. */
+.card .semanas{flex:none;display:flex;gap:10px;overflow-x:auto}
+.card .col{flex:none;width:60px;text-align:center}
+.card .col .rot{font-size:10.5px;font-weight:600;color:var(--mute)}
+.card .col .pr{font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;margin-top:1px}
+.card .col .dif{font-size:10.5px;margin-top:1px;min-height:13px;font-variant-numeric:tabular-nums}
+.card .col.atual .rot{color:var(--ink)}
+.card .col.atual .pr{font-size:16px;font-weight:700;color:var(--ink)}
+.card .dif.alta{color:var(--pos)}
+.card .dif.baixa{color:var(--neg)}
+.card .dif.igual{color:var(--mute)}
 .card .var{flex:none;width:84px;text-align:center;font-size:12.5px;font-weight:700;
   padding:4px 0;border-radius:20px}
 .card .var.alta{background:var(--posbg);color:var(--pos)}
@@ -50,9 +57,14 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 .carregando{color:var(--mute);font-size:14px;padding:30px 0}
 @media(max-width:560px){
   .wrap{padding:16px 12px 50px}
-  .card .nome{font-size:13.5px}
-  .card .seq{font-size:10.5px}
-  .card .preco{width:92px;font-size:14px}
+  .card{gap:10px}
+  .card .nome{font-size:13.5px;min-width:0}
+  .card .semanas{max-width:150px;gap:7px}
+  .card .col{width:52px}
+  .card .col .rot{font-size:9.5px}
+  .card .col .pr{font-size:11.5px}
+  .card .col.atual .pr{font-size:13.5px}
+  .card .col .dif{font-size:9px}
   .card .var{width:64px;font-size:11.5px}
 }
 </style>
@@ -126,16 +138,33 @@ function variacao(atual, antes) {
   return { classe: p > 0 ? 'alta' : 'baixa', texto: (p > 0 ? '+' : '') + p + '%' };
 }
 
-// Sequencia "S36 6.380 · S37 6.483 · S38 6.619", mais antiga pra mais
-// recente, semana atual em destaque. Cliente sem cotacao naquela semana
-// mostra "-" na posicao dela — mantem o alinhamento entre clientes, o que
-// muda de cliente pra cliente e o VALOR, nunca quantas semanas aparecem.
-function historicoTxt(historico) {
-  return historico.map(h => {
-    const val = h.preco == null ? '-' : nf.format(h.preco);
-    const par = esc(h.rotulo) + ' ' + val;
-    return h.atual ? '<b>' + par + '</b>' : par;
-  }).join(' · ');
+// Variacao em reais entre uma semana e a anterior (dentro da propria
+// sequencia de 3 colunas — nao e a mesma conta de variacao(), que compara
+// so a semana selecionada com a anterior). Sem preco de um dos dois lados
+// (primeira coluna, ou cliente que nao cotou naquela semana), fica sem
+// variacao: o espaco continua reservado (ver .dif no CSS), so sem texto.
+function variacaoReais(atual, antes) {
+  if (atual == null || antes == null) return { classe: 'ausente', texto: '' };
+  const d = Math.round(atual - antes);
+  if (d === 0) return { classe: 'igual', texto: 'R$ 0' };
+  return { classe: d > 0 ? 'alta' : 'baixa', texto: (d > 0 ? '+R$ ' : '-R$ ') + nf.format(Math.abs(d)) };
+}
+
+// Uma coluna por semana do historico, mais antiga pra mais recente: rotulo
+// em cima, preco no meio, variacao em reais embaixo (contra a coluna
+// anterior DESTA sequencia). A ultima (semana selecionada) vem maior, em
+// negrito, com "R$" no preco — as demais so o numero. Cliente sem cotacao
+// naquela semana mostra "-" no preco, mantendo a coluna (alinhamento).
+function colunaHtml(historico, i) {
+  const h = historico[i];
+  const antes = i > 0 ? historico[i - 1].preco : null;
+  const dv = variacaoReais(h.preco, antes);
+  const precoTxt = h.preco == null ? '-' : (h.atual ? rs(h.preco) : nf.format(h.preco));
+  return '<div class="col' + (h.atual ? ' atual' : '') + '">' +
+    '<div class="rot">' + esc(h.rotulo) + '</div>' +
+    '<div class="pr">' + precoTxt + '</div>' +
+    '<div class="dif ' + dv.classe + '">' + esc(dv.texto) + '</div>' +
+    '</div>';
 }
 
 function renderRanking(lista) {
@@ -146,11 +175,11 @@ function renderRanking(lista) {
   }
   box.innerHTML = '<div class="rank">' + lista.map((x, i) => {
     const v = variacao(x.preco, x.anterior);
+    const cols = x.historico.map((_, hi) => colunaHtml(x.historico, hi)).join('');
     return '<div class="card">' +
       '<div class="pos">' + (i + 1) + 'º</div>' +
-      '<div class="info"><div class="nome">' + esc(x.cliente) + '</div>' +
-      '<div class="seq">' + historicoTxt(x.historico) + '</div></div>' +
-      '<div class="preco">' + rs(x.preco) + '</div>' +
+      '<div class="nome">' + esc(x.cliente) + '</div>' +
+      '<div class="semanas">' + cols + '</div>' +
       '<div class="var ' + v.classe + '">' + esc(v.texto) + '</div>' +
       '</div>';
   }).join('') + '</div>';
