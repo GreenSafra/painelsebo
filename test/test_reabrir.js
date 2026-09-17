@@ -65,10 +65,13 @@ async function importar(progArq, mapaArq) {
     w.RES = null; w.DS = null; w.OPS = null; w.NEC = null; w.RAW = null;
     w.arquivos = {};
     w.RASCUNHO_SALVO_EM = null; w.RASCUNHO_SALVO_POR = null; w.ORIGEM_FECHADA = null;
+    w.ALVO_REIMPORTAR = null;
     w.document.getElementById('app').classList.add('hide');
     w.document.getElementById('importBox').classList.remove('hide');
     w.document.getElementById('avisoOrigem').classList.add('hide');
     w.document.getElementById('avisoOrigem').textContent = '';
+    w.document.getElementById('avisoReimportar').classList.add('hide');
+    w.document.getElementById('avisoReimportar').textContent = '';
   }
 
   // ============ 1. Sem nada local, servidor tem rascunho do usuário ============
@@ -160,16 +163,29 @@ async function importar(progArq, mapaArq) {
   T('local nunca sincronizado: mantém o local em vez de descartar', w.PROD && w.PROD.semana === semanaA);
   T('local nunca sincronizado: não avisa troca', w.document.getElementById('avisoOrigem').classList.contains('hide'));
 
-  // ============ 7. carregarSemanaFechada(): semana fechada sem pacote completo (fechada antes da função existir) ============
+  // ============ 7. carregarSemanaFechada(): semana fechada sem pacote completo (semanas 29 a 38, antes da coluna existir) ============
   limparLocal();
+  w.document.getElementById('app').classList.remove('hide');  // simula estar em outra tela, pra conferir que volta pra importação
+  w.document.getElementById('importBox').classList.add('hide');
+  w.ALVO_REIMPORTAR = null;
   w.fetch = rotear([
     ['/api/semana?', respFake(200, { dados: null, versao: 1, periodo: null, fechadaEm: '2026-01-01T00:00:00.000Z', fechadaPor: 'Antigo' })]
   ]);
   await w.carregarSemanaFechada(anoA, semanaA);
-  T('semana fechada sem pacote: avisa e não altera PROD', w.PROD === null,
-    w.document.getElementById('impErr').textContent);
-  T('semana fechada sem pacote: mensagem de erro visível',
-    !w.document.getElementById('impErr').classList.contains('hide'));
+  T('semana sem pacote: não altera PROD (não abre alocação vazia)', w.PROD === null);
+  T('semana sem pacote: volta pra tela de importação', !w.document.getElementById('importBox').classList.contains('hide'));
+  T('semana sem pacote: esconde a tela de alocação', w.document.getElementById('app').classList.contains('hide'));
+  const avisoReimp = w.document.getElementById('avisoReimportar');
+  T('semana sem pacote: aviso fica visível', !avisoReimp.classList.contains('hide'));
+  T('semana sem pacote: mensagem cita a semana e pede reimportação',
+    avisoReimp.textContent.indexOf('A semana ' + semanaA + '/' + anoA +
+      ' foi fechada antes da versão que guarda as planilhas. Reimporte a Programação e o Mapa para editá-la.') === 0,
+    avisoReimp.textContent);
+  T('semana sem pacote: aviso explica que vai gerar a próxima versão',
+    avisoReimp.textContent.indexOf('próxima versão') >= 0);
+  T('semana sem pacote: guarda o alvo pra tela de importação (ano/semana/versão)',
+    w.ALVO_REIMPORTAR && w.ALVO_REIMPORTAR.ano === anoA && w.ALVO_REIMPORTAR.semana === semanaA &&
+    w.ALVO_REIMPORTAR.versao === 1, JSON.stringify(w.ALVO_REIMPORTAR));
 
   // ============ 8. Fechar e refechar (via #bFechar) grava dados e mostra a nova versão ============
   await importar('prog3.xlsx', 'mapa2.xlsx');
@@ -203,18 +219,23 @@ async function importar(progArq, mapaArq) {
 
   // ============ 9. Lista "Semanas salvas": mistura rascunho e fechada, só rascunho tem "descartar" ============
   const listaMista = [
-    { ano: 2026, semana: 38, periodo: '15/09 a 21/09', situacao: 'rascunho', versao: null, quando: '2026-09-16T10:00:00.000Z', quem: 'Fulana' },
-    { ano: 2026, semana: 37, periodo: '08/09 a 14/09', situacao: 'fechada', versao: 3, quando: '2026-09-15T10:00:00.000Z', quem: 'Ciclano' }
+    { ano: 2026, semana: 38, periodo: '15/09 a 21/09', situacao: 'rascunho', versao: null, quando: '2026-09-16T10:00:00.000Z', quem: 'Fulana', tem_pacote: true },
+    { ano: 2026, semana: 37, periodo: '08/09 a 14/09', situacao: 'fechada', versao: 3, quando: '2026-09-15T10:00:00.000Z', quem: 'Ciclano', tem_pacote: true },
+    { ano: 2026, semana: 32, periodo: '04/08 a 10/08', situacao: 'fechada', versao: 1, quando: '2026-08-10T10:00:00.000Z', quem: 'Antigo', tem_pacote: false }
   ];
   w.renderSemanasSalvas(listaMista);
   const box = w.document.getElementById('salvasBox');
   const itens = [...w.document.querySelectorAll('#salvasList .rascunho-abrir')];
-  T('lista: caixa fica visível com itens', !box.classList.contains('hide') && itens.length === 2);
+  T('lista: caixa fica visível com itens', !box.classList.contains('hide') && itens.length === 3);
   T('lista: item fechado mostra a versão', itens.some(b => b.textContent.indexOf('fechada v3') >= 0),
     itens.map(b => b.textContent).join(' | '));
   T('lista: item rascunho mostra "rascunho"', itens.some(b => b.textContent.indexOf('rascunho') >= 0 && b.dataset.tipo === 'rascunho'));
   T('lista: só o rascunho tem botão descartar',
     w.document.querySelectorAll('#salvasList .rascunho-descartar').length === 1);
+  T('lista: semana fechada sem pacote mostra o indicador "sem planilhas"',
+    itens.some(b => b.dataset.semana === '32' && b.textContent.indexOf('sem planilhas') >= 0));
+  T('lista: semana fechada COM pacote não mostra o indicador',
+    !itens.some(b => b.dataset.semana === '37' && b.textContent.indexOf('sem planilhas') >= 0));
 
   // ============ 9b. "Semanas salvas" começa recolhida, com contagem e seta ============
   const salvasHead = w.document.getElementById('salvasHead');
@@ -224,7 +245,7 @@ async function importar(progArq, mapaArq) {
   T('recém populada: aria-expanded=false', salvasHead.getAttribute('aria-expanded') === 'false');
   T('recém populada: seta fechada', salvasChev.textContent === '▸');
   T('recém populada: título mostra a quantidade',
-    w.document.getElementById('salvasTitulo').textContent === 'Semanas salvas (2)');
+    w.document.getElementById('salvasTitulo').textContent === 'Semanas salvas (3)');
 
   salvasHead.click();
   T('clicar no título expande a lista', !salvasList.classList.contains('hide'));

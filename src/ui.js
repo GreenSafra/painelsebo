@@ -1081,6 +1081,21 @@ var RASCUNHO_SALVO_EM = null, RASCUNHO_SALVO_POR = null, RASCUNHO_SUJO = false;
 // salvarRascunho() roda uma vez: a partir dali e rascunho normal.
 var ORIGEM_FECHADA = null;
 
+// Semana que o usuario tentou reabrir (link "abrir"/lista/URL) mas que foi
+// fechada antes de existir a coluna com o pacote completo — so metadado,
+// pra tela de importacao lembrar qual semana reimportar. null quando nao ha
+// nenhuma reabertura pendente.
+var ALVO_REIMPORTAR = null;
+
+function mostrarAvisoReimportar(ano, semana) {
+  const el = document.getElementById('avisoReimportar');
+  if (!el) return;
+  el.textContent = 'A semana ' + semana + '/' + ano + ' foi fechada antes da versão que guarda as ' +
+    'planilhas. Reimporte a Programação e o Mapa para editá-la. Ao fechar, isso vai gerar a próxima ' +
+    'versão dessa semana, mantendo as anteriores.';
+  el.classList.remove('hide');
+}
+
 // Nome distinto de marcarSujo() (acima, em outro sentido: SUJO/#pend sao a
 // necessidade digitada ainda nao rodada) — sao dois "sujo" independentes.
 function marcarRascunhoSujo(v) {
@@ -1196,11 +1211,15 @@ function renderSemanasSalvas(lista) {
   if (titulo) titulo.textContent = 'Semanas salvas (' + lista.length + ')';
   ul.innerHTML = lista.map(r => {
     const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
+    // so uma semana FECHADA pode ficar sem pacote (fechada antes da coluna
+    // existir) — rascunho sempre tem dados, a coluna nem admite null.
+    const semPacote = r.situacao === 'fechada' && r.tem_pacote === false;
     return '<div class="rascunho">' +
       '<button class="rascunho-abrir" data-tipo="' + r.situacao + '" data-ano="' + r.ano +
         '" data-semana="' + r.semana + '">' +
         'Semana ' + r.semana + '/' + r.ano + (r.periodo ? ' (' + esc(r.periodo) + ')' : '') +
-        ' — ' + situacao + ' · ' + esc(r.quem || '—') + ' às ' + esc(fmtDataHora(r.quando)) +
+        ' — ' + situacao + (semPacote ? ' · <span class="semplan">sem planilhas</span>' : '') +
+        ' · ' + esc(r.quem || '—') + ' às ' + esc(fmtDataHora(r.quando)) +
       '</button>' +
       (r.situacao === 'rascunho'
         ? '<button class="rascunho-descartar" data-ano="' + r.ano + '" data-semana="' + r.semana +
@@ -1284,7 +1303,10 @@ async function carregarSemanaFechada(ano, semana) {
     if (!r.ok) { erro('Não consegui abrir essa semana.'); return; }
     const j = await r.json();
     if (!j.dados) {
-      erro('Essa semana foi fechada antes desta função existir e não pode ser reaberta aqui — consulte o consolidado.');
+      ALVO_REIMPORTAR = { ano, semana, versao: j.versao };
+      $('#app').classList.add('hide');
+      $('#importBox').classList.remove('hide');
+      mostrarAvisoReimportar(ano, semana);
       return;
     }
     const b = j.dados;

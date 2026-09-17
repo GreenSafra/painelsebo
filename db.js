@@ -674,11 +674,11 @@ async function semanasSalvas(limite) {
   const lim = Number.isInteger(limite) && limite > 0 ? limite : 8;
   const r = await pool.query(
     `(SELECT r.ano, r.semana, r.periodo, 'rascunho' AS situacao, null::int AS versao,
-             r.salvo_em AS quando, u.nome AS quem
+             r.salvo_em AS quando, u.nome AS quem, true AS tem_pacote
         FROM rascunhos r LEFT JOIN usuarios u ON u.id = r.usuario_id)
      UNION ALL
      (SELECT s.ano, s.semana, s.periodo, 'fechada' AS situacao, s.versao,
-             s.fechada_em AS quando, u.nome AS quem
+             s.fechada_em AS quando, u.nome AS quem, (s.dados IS NOT NULL) AS tem_pacote
         FROM semanas s LEFT JOIN usuarios u ON u.id = s.usuario_id
        WHERE s.atual)
      ORDER BY quando DESC
