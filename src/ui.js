@@ -314,6 +314,13 @@ function iniciar(restaurando) {
   // marcarRascunhoSujo ja atualiza o selo do botao Salvar sozinho — nao
   // precisa de outro carimbo() aqui, o subtitulo nao depende do sujo.
   marcarRascunhoSujo(false);
+  // renderSemanaHome() ja rodou dentro de recalcular()->render() acima, mas
+  // NAQUELE momento render() tinha acabado de marcar o rascunho como sujo
+  // (e sempre marca, e o proprio motivo de existir marcarRascunhoSujo(true)
+  // no topo de render()) — rodar de novo agora, com o sujo just-resetado,
+  // e o unico jeito de "fechada vN" (intocada) aparecer de verdade, em vez
+  // de cair sempre em "reaberta da vN".
+  renderSemanaHome();
 }
 
 // Com login, quem esta operando vem da sessao, nao de um seletor. O nome
@@ -404,6 +411,7 @@ function recalcular() {
 function render() {
   marcarRascunhoSujo(true);
   carimbo();
+  renderSemanaHome();
   renderNecessidade();
   aplicarModo();  // depois da lista: o resumo conta as linhas ja renderizadas
   renderKpis();
@@ -591,6 +599,33 @@ function carimbo() {
     ? 'Fontes: ' + Object.values(RAW.arquivos).join(' · ') +
       (PROD && PROD.destinosPreenchidos ? ' · Programação preenchida' : '')
     : '';
+}
+
+// Rotulo curto da situacao da semana aberta, pro cabecalho de destaque da
+// Home — mesma fonte de verdade de statusRascunho() (ORIGEM_FECHADA,
+// RASCUNHO_SUJO), so o texto sai mais curto, sem quem/quando (isso fica so
+// no subtitulo do topo, que continua como estava). Tres situacoes:
+// "rascunho" (nunca veio de um fechamento, ou ja foi salva por cima desde
+// entao — ORIGEM_FECHADA zera ao salvar, ver salvarRascunho()); "fechada
+// vN" (acabou de abrir a versao fechada, nada foi editado ainda); "reaberta
+// da vN" (veio de uma versao fechada e ja foi mexida desde a abertura).
+function situacaoSemana() {
+  if (!ORIGEM_FECHADA) return 'rascunho';
+  return RASCUNHO_SUJO ? 'reaberta da v' + ORIGEM_FECHADA.versao : 'fechada v' + ORIGEM_FECHADA.versao;
+}
+
+// Cabecalho com a semana aberta em destaque, entre "Semanas salvas" e os
+// cards de volume — deixa claro, sem precisar rolar, a qual semana o
+// painel se refere. Vive dentro de #app, que ja some inteiro sem semana
+// aberta — nao precisa de hide proprio.
+function renderSemanaHome() {
+  const box = document.getElementById('semanaHome');
+  if (!box || !ST || !ST.semana) return;
+  const ano = anoDaSemana(PROD);
+  box.innerHTML = '<span class="titulo">Semana ' + fmt0(ST.semana) + '/' + ano +
+    (ST.periodo ? ' · ' + esc(ST.periodo) : '') +
+    (ST.dataMapa ? ' · cotações de ' + esc(ST.dataMapa) : '') + '</span>' +
+    '<span class="situacao">' + esc(situacaoSemana()) + '</span>';
 }
 
 function renderKpis() {
@@ -1297,6 +1332,7 @@ async function salvarRascunho() {
     RASCUNHO_SALVO_EM = j.salvoEm; RASCUNHO_SALVO_POR = j.salvoPor;
     ORIGEM_FECHADA = null;  // a partir daqui e rascunho normal, mesmo que tenha vindo de uma semana fechada
     marcarRascunhoSujo(false);
+    renderSemanaHome();  // mesmo motivo de iniciar(): so agora o sujo esta limpo de verdade
     ST.usuario = $('#who').value; ST.salvoEm = agora(); ST._syncIso = j.salvoEm;
     persistir(); carimbo();
   } catch (e) {

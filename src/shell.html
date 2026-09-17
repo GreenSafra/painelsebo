@@ -116,6 +116,12 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:6px 9px;
 
 /* ---------- Home ---------- */
 #secaoHome{margin-top:0}
+/* cabecalho com a semana aberta em destaque, entre "Semanas salvas" e os
+   cards de volume — sempre visivel sem rolar, dentro de #app (some junto
+   com o resto quando nao ha semana aberta, mesma regra de sempre). */
+.semanaHome{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 16px}
+.semanaHome .titulo{font-size:19px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.semanaHome .situacao{font-size:12.5px;color:var(--mute)}
 
 /* ---------- consolidado/analise/usuarios embutidos ---------- */
 /* Sem altura fixa: a pagina de dentro avisa a propria altura por
@@ -530,6 +536,7 @@ footer img{height:17px;width:auto;opacity:.75}
   </div>
 
   <main id="app" class="hide">
+    <div class="semanaHome" id="semanaHome"></div>
     <div class="warn hide" id="avisoOrigem"></div>
     <div class="kpis" id="kpis"></div>
     <div id="avisos"></div>
