@@ -1681,5 +1681,7 @@ function opcoes(ds, travas, topN, manter, modo) {
 // "require('./src/core.js')" pega so o que interessa do lado do servidor —
 // nada de leitura de xlsx nem geracao de planilha, que sao coisa de navegador.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { montar, comparacaoTerceiros, ehPropriaFabrica, recalcularTerceirosSemana };
+  module.exports = {
+    montar, comparacaoTerceiros, ehPropriaFabrica, recalcularTerceirosSemana, agregarSemana
+  };
 }
