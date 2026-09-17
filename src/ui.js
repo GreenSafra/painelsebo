@@ -103,6 +103,8 @@ function setupImport() {
   };
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
   $('#bNovaSemana').onclick = novaSemana;
+  const sh = document.getElementById('salvasHead');
+  if (sh) sh.onclick = alternarSalvas;
   const ls = document.getElementById('lnkSair');
   if (ls) ls.onclick = e => { e.preventDefault(); sair(); };
   const lt = document.getElementById('lnkTrocarSenha');
@@ -1163,12 +1165,35 @@ function podeTrocarSemana() {
   );
 }
 
+// Alterna a lista "Semanas salvas" entre recolhida e aberta. O botao e
+// um <button> de verdade (nao uma div com role="button"): Enter/Espaço ja
+// disparam onclick nativamente, sem precisar de keydown a mao.
+function alternarSalvas() {
+  const head = document.getElementById('salvasHead');
+  const ul = document.getElementById('salvasList');
+  const chev = document.getElementById('salvasChev');
+  if (!head || !ul) return;
+  const aberto = head.getAttribute('aria-expanded') === 'true';
+  head.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+  ul.classList.toggle('hide', aberto);
+  if (chev) chev.textContent = aberto ? '▸' : '▾';
+}
+
 function renderSemanasSalvas(lista) {
   const box = document.getElementById('salvasBox');
   const ul = document.getElementById('salvasList');
+  const head = document.getElementById('salvasHead');
+  const titulo = document.getElementById('salvasTitulo');
+  const chev = document.getElementById('salvasChev');
   if (!box || !ul) return;
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
+  // sempre recolhida ao (re)popular a lista — inclusive quando a lista
+  // ja estava aberta antes de um refresh (descartar rascunho, nova semana).
+  ul.classList.add('hide');
+  if (head) head.setAttribute('aria-expanded', 'false');
+  if (chev) chev.textContent = '▸';
+  if (titulo) titulo.textContent = 'Semanas salvas (' + lista.length + ')';
   ul.innerHTML = lista.map(r => {
     const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
     return '<div class="rascunho">' +

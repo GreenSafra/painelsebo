@@ -111,6 +111,12 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .linkb{background:none;border:0;padding:0;font:inherit;color:var(--azul);
   font-weight:600;cursor:pointer;text-decoration:underline}
 .linkb:hover{opacity:.8}
+#salvasBox{margin:18px 0}
+.salvashead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;
+  background:none;border:0;padding:0;margin-bottom:10px;font:inherit;
+  font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer}
+.salvashead:hover{color:var(--azul)}
+.salvashead .chev{font-size:11px;color:var(--mute);width:1em;display:inline-block;flex:none}
 .nec.recolhido #necRows,.nec.recolhido .addnec{display:none}
 .tercm{height:20px;width:20px;flex:none;border-radius:50%;background:var(--sebo);
   display:inline-flex;align-items:center;justify-content:center;
@@ -469,8 +475,11 @@ footer img{height:17px;width:auto;opacity:.75}
   </div>
   <div class="err hide" id="impErr"></div>
   <div id="salvasBox" class="hide">
-    <h3>Semanas salvas</h3>
-    <div id="salvasList" class="rascunhos"></div>
+    <button type="button" class="salvashead" id="salvasHead" aria-expanded="false" aria-controls="salvasList">
+      <span class="chev" id="salvasChev" aria-hidden="true">▸</span>
+      <span id="salvasTitulo">Semanas salvas</span>
+    </button>
+    <div id="salvasList" class="rascunhos hide"></div>
   </div>
   <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
@@ -2153,6 +2162,8 @@ function setupImport() {
   };
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
   $('#bNovaSemana').onclick = novaSemana;
+  const sh = document.getElementById('salvasHead');
+  if (sh) sh.onclick = alternarSalvas;
   const ls = document.getElementById('lnkSair');
   if (ls) ls.onclick = e => { e.preventDefault(); sair(); };
   const lt = document.getElementById('lnkTrocarSenha');
@@ -3213,12 +3224,35 @@ function podeTrocarSemana() {
   );
 }
 
+// Alterna a lista "Semanas salvas" entre recolhida e aberta. O botao e
+// um <button> de verdade (nao uma div com role="button"): Enter/Espaço ja
+// disparam onclick nativamente, sem precisar de keydown a mao.
+function alternarSalvas() {
+  const head = document.getElementById('salvasHead');
+  const ul = document.getElementById('salvasList');
+  const chev = document.getElementById('salvasChev');
+  if (!head || !ul) return;
+  const aberto = head.getAttribute('aria-expanded') === 'true';
+  head.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+  ul.classList.toggle('hide', aberto);
+  if (chev) chev.textContent = aberto ? '▸' : '▾';
+}
+
 function renderSemanasSalvas(lista) {
   const box = document.getElementById('salvasBox');
   const ul = document.getElementById('salvasList');
+  const head = document.getElementById('salvasHead');
+  const titulo = document.getElementById('salvasTitulo');
+  const chev = document.getElementById('salvasChev');
   if (!box || !ul) return;
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
+  // sempre recolhida ao (re)popular a lista — inclusive quando a lista
+  // ja estava aberta antes de um refresh (descartar rascunho, nova semana).
+  ul.classList.add('hide');
+  if (head) head.setAttribute('aria-expanded', 'false');
+  if (chev) chev.textContent = '▸';
+  if (titulo) titulo.textContent = 'Semanas salvas (' + lista.length + ')';
   ul.innerHTML = lista.map(r => {
     const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
     return '<div class="rascunho">' +

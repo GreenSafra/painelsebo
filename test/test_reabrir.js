@@ -216,7 +216,39 @@ async function importar(progArq, mapaArq) {
   T('lista: só o rascunho tem botão descartar',
     w.document.querySelectorAll('#salvasList .rascunho-descartar').length === 1);
 
+  // ============ 9b. "Semanas salvas" começa recolhida, com contagem e seta ============
+  const salvasHead = w.document.getElementById('salvasHead');
+  const salvasList = w.document.getElementById('salvasList');
+  const salvasChev = w.document.getElementById('salvasChev');
+  T('recém populada: começa recolhida', salvasList.classList.contains('hide'));
+  T('recém populada: aria-expanded=false', salvasHead.getAttribute('aria-expanded') === 'false');
+  T('recém populada: seta fechada', salvasChev.textContent === '▸');
+  T('recém populada: título mostra a quantidade',
+    w.document.getElementById('salvasTitulo').textContent === 'Semanas salvas (2)');
+
+  salvasHead.click();
+  T('clicar no título expande a lista', !salvasList.classList.contains('hide'));
+  T('expandida: aria-expanded=true', salvasHead.getAttribute('aria-expanded') === 'true');
+  T('expandida: seta aberta', salvasChev.textContent === '▾');
+
+  salvasHead.click();
+  T('clicar de novo recolhe a lista', salvasList.classList.contains('hide'));
+  T('recolhida de novo: aria-expanded=false', salvasHead.getAttribute('aria-expanded') === 'false');
+  T('recolhida de novo: seta fechada', salvasChev.textContent === '▸');
+
+  // repopular (ex.: depois de descartar um rascunho) sempre volta a recolher,
+  // mesmo que a lista estivesse aberta antes do refresh
+  salvasHead.click();  // abre de novo
+  T('pré-condição: aberta antes de repopular', !salvasList.classList.contains('hide'));
+  w.renderSemanasSalvas(listaMista);
+  T('repopular a lista volta a recolher', salvasList.classList.contains('hide'));
+
+  // sem nenhuma semana salva, o bloco inteiro some
+  w.renderSemanasSalvas([]);
+  T('lista vazia: esconde o bloco inteiro', box.classList.contains('hide'));
+
   // ============ 10. Alterações pendentes: confirma antes de abrir outra semana pela lista ============
+  w.renderSemanasSalvas(listaMista);  // repopula pra bateria 10 achar os botoes de novo
   w.RASCUNHO_SUJO = true;
   let confirmChamado = false;
   w.confirm = () => { confirmChamado = true; return false; };
