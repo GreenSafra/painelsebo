@@ -74,6 +74,13 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
   c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 const nf = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const rs = v => 'R$ ' + nf.format(v);
+// Dentro do iframe do painel, navegar tem que trocar a pagina inteira.
+// Aberta direto (sem casca), window.top e a propria janela.
+function navTopo(url) { window.top.location.href = url; }
+function sessaoExpirada(r) {
+  if (r.status === 401) { navTopo('/entrar'); return true; }
+  return false;
+}
 
 // Semana <-> valor de <input type="week"> (formato ISO "AAAA-Www").
 // As colunas ano/semana da tabela cotacoes ja sao semana ISO (mesmo
@@ -133,6 +140,7 @@ function renderRanking(lista) {
 
 async function buscarLinhas(w) {
   const r = await fetch('/api/cotacoes?ano=' + w.ano + '&semana=' + w.semana);
+  if (sessaoExpirada(r)) return [];
   if (!r.ok) return [];
   return r.json();
 }
@@ -176,6 +184,7 @@ $('#semana').onchange = () => {
 
 async function iniciar() {
   const r = await fetch('/api/cotacoes/semanas');
+  if (sessaoExpirada(r)) return;
   const j = r.ok ? await r.json() : [];
   // API devolve DESC (mais recente primeiro); aqui a ordem crescente e
   // o que interessa, pra achar "a semana anterior" andando um indice atras.
@@ -195,6 +204,22 @@ async function iniciar() {
 }
 
 iniciar();
+
+// Aberta dentro do iframe do painel: avisa a propria altura toda vez que o
+// conteudo muda (troca de semana, carregamento), pra secao do painel
+// crescer junto e nunca precisar de rolagem propria.
+if (window.parent !== window) {
+  (function () {
+    function enviarAltura() {
+      window.parent.postMessage(
+        { tipo: 'alturaFrame', secao: 'analise', altura: document.documentElement.scrollHeight },
+        location.origin
+      );
+    }
+    new ResizeObserver(enviarAltura).observe(document.body);
+    window.addEventListener('load', enviarAltura);
+  })();
+}
 </script>
 </body>
 </html>

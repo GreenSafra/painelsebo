@@ -136,6 +136,28 @@ function ligarMenu() {
   window.onpopstate = () => navegarPara(location.pathname, { empurrar: false });
   const sh = document.getElementById('salvasHead');
   if (sh) sh.onclick = alternarSalvas;
+  ligarMensagensFrame();
+}
+
+var SECAO_PARA_FRAME = {
+  consolidado: 'frameConsolidado', analise: 'frameAnalise', usuarios: 'frameUsuarios'
+};
+
+// Consolidado/Analise/Usuarios vivem num iframe sem altura fixa (ver CSS
+// .iframesec iframe) — quem decide a altura e a propria pagina de dentro,
+// via ResizeObserver + postMessage a cada mudanca de conteudo (troca de
+// periodo, expandir/recolher, exclusao, carregamento assincrono). Confere
+// a origem: so aceita mensagem da mesma origem deste painel.
+function ligarMensagensFrame() {
+  window.addEventListener('message', e => {
+    if (e.origin !== location.origin) return;
+    const d = e.data;
+    if (!d || d.tipo !== 'alturaFrame') return;
+    const id = SECAO_PARA_FRAME[d.secao];
+    const f = id && document.getElementById(id);
+    const alt = Number(d.altura);
+    if (f && alt > 0) f.style.height = alt + 'px';
+  });
 }
 
 // So o clique alterna — o estado inicial (recolhida com semana aberta,

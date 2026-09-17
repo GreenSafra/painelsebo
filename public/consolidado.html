@@ -130,6 +130,16 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
 function estaSujo() {
   try { return localStorage.getItem('sebo_sujo') === '1'; } catch (e) { return false; }
 }
+// Dentro do iframe do painel, navegar tem que trocar a pagina inteira, nao
+// so o conteudo do iframe. Aberta direto (sem casca), window.top e a
+// propria janela, entao o efeito e o mesmo de location.href.
+function navTopo(url) { window.top.location.href = url; }
+// Sessao caiu enquanto a pagina estava aberta dentro do iframe: manda o
+// painel inteiro pro login, nao so o iframe.
+function sessaoExpirada(r) {
+  if (r.status === 401) { navTopo('/entrar'); return true; }
+  return false;
+}
 
 function selo(cli) {
   if (/biopower/i.test(cli)) return '<span class="selo s-bio"></span>';
@@ -184,7 +194,9 @@ function marcarModo(m) {
 async function popularPeriodo(m) {
   const sel = $('#periodo');
   if (m === 'semana') {
-    const j = await (await fetch('/api/semanas')).json();
+    const r = await fetch('/api/semanas');
+    if (sessaoExpirada(r)) return null;
+    const j = await r.json();
     if (!j.length) { sel.innerHTML = ''; return null; }
     sel.innerHTML = j.map(s => {
       const v = s.ano + '-' + s.semana;
@@ -193,7 +205,9 @@ async function popularPeriodo(m) {
     }).join('');
     return sel.options[0].value;
   }
-  const j = await (await fetch('/api/meses')).json();
+  const r = await fetch('/api/meses');
+  if (sessaoExpirada(r)) return null;
+  const j = await r.json();
   if (!j.length) { sel.innerHTML = ''; return null; }
   sel.innerHTML = j.map(x =>
     '<option value="' + x.mes + '">' + nomeMes(x.mes) + '</option>').join('');
@@ -381,7 +395,7 @@ function render(d) {
       if (estaSujo() && !confirm(
         'Há alterações não salvas na semana em andamento no painel. Abrir esta semana mesmo assim?'
       )) return;
-      location.href = '/?abrirSemana=' + b.dataset.ano + '-' + b.dataset.semana;
+      navTopo('/?abrirSemana=' + b.dataset.ano + '-' + b.dataset.semana);
     };
   });
 
@@ -392,6 +406,7 @@ function render(d) {
       if (!confirm('Apagar a semana ' + semana + ' (' + nf.format(ton) + ' t, ' + linhas +
           ' linhas)? Isso não pode ser desfeito.')) return;
       const r = await fetch('/api/semanas?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
+      if (sessaoExpirada(r)) return;
       if (!r.ok) { alert('Não consegui apagar essa semana.'); return; }
       // Apagou justo a semana escolhida no modo Semana: ela some da lista,
       // repopula e cai em outra semana valida — sem trocar de modo.
@@ -415,6 +430,7 @@ async function carregar() {
       ? '/api/consolidado?semana=' + encodeURIComponent(v)
       : '/api/consolidado?mes=' + encodeURIComponent(v);
     const r = await fetch(url);
+    if (sessaoExpirada(r)) return;
     const j = await r.json();
     if (!r.ok) throw new Error(j.erro || 'Falha ao carregar.');
     $('#sub').textContent = subtitulo(j);
@@ -438,6 +454,23 @@ async function carregar() {
   const valorInicial = params.get(modoInicial);
   await trocarModo(modoInicial, valorInicial);
 })();
+
+// Aberta dentro do iframe do painel: avisa a propria altura toda vez que o
+// conteudo muda de tamanho (troca de modo/periodo, carregamento, exclusao),
+// pra secao do painel crescer junto e nunca precisar de rolagem propria.
+// Aberta direto (sem casca), window.parent === window e nada disto roda.
+if (window.parent !== window) {
+  (function () {
+    function enviarAltura() {
+      window.parent.postMessage(
+        { tipo: 'alturaFrame', secao: 'consolidado', altura: document.documentElement.scrollHeight },
+        location.origin
+      );
+    }
+    new ResizeObserver(enviarAltura).observe(document.body);
+    window.addEventListener('load', enviarAltura);
+  })();
+}
 </script>
 </body>
 </html>

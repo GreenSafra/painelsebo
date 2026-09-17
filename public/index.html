@@ -118,8 +118,10 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:6px 9px;
 #secaoHome{margin-top:0}
 
 /* ---------- consolidado/analise/usuarios embutidos ---------- */
-.iframesec iframe{width:100%;border:0;display:block;
-  height:calc(100vh - 170px);min-height:520px;background:var(--card)}
+/* Sem altura fixa: a pagina de dentro avisa a propria altura por
+   postMessage (ver ligarMensagensFrame em ui.js) e o iframe cresce junto —
+   rolagem so pela barra do navegador, nunca uma segunda dentro da secao. */
+.iframesec iframe{width:100%;border:0;display:block;height:300px;background:var(--card)}
 
 /* ---------- kpis ---------- */
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
@@ -641,15 +643,15 @@ footer img{height:17px;width:auto;opacity:.75}
 </section>
 
 <section class="hide iframesec" id="secaoConsolidado">
-  <iframe id="frameConsolidado" title="Consolidado"></iframe>
+  <iframe id="frameConsolidado" title="Consolidado" scrolling="no"></iframe>
 </section>
 
 <section class="hide iframesec" id="secaoAnalise">
-  <iframe id="frameAnalise" title="Análise de cotações"></iframe>
+  <iframe id="frameAnalise" title="Análise de cotações" scrolling="no"></iframe>
 </section>
 
 <section class="hide iframesec" id="secaoUsuarios">
-  <iframe id="frameUsuarios" title="Usuários"></iframe>
+  <iframe id="frameUsuarios" title="Usuários" scrolling="no"></iframe>
 </section>
 </div>
 
@@ -2399,6 +2401,28 @@ function ligarMenu() {
   window.onpopstate = () => navegarPara(location.pathname, { empurrar: false });
   const sh = document.getElementById('salvasHead');
   if (sh) sh.onclick = alternarSalvas;
+  ligarMensagensFrame();
+}
+
+var SECAO_PARA_FRAME = {
+  consolidado: 'frameConsolidado', analise: 'frameAnalise', usuarios: 'frameUsuarios'
+};
+
+// Consolidado/Analise/Usuarios vivem num iframe sem altura fixa (ver CSS
+// .iframesec iframe) — quem decide a altura e a propria pagina de dentro,
+// via ResizeObserver + postMessage a cada mudanca de conteudo (troca de
+// periodo, expandir/recolher, exclusao, carregamento assincrono). Confere
+// a origem: so aceita mensagem da mesma origem deste painel.
+function ligarMensagensFrame() {
+  window.addEventListener('message', e => {
+    if (e.origin !== location.origin) return;
+    const d = e.data;
+    if (!d || d.tipo !== 'alturaFrame') return;
+    const id = SECAO_PARA_FRAME[d.secao];
+    const f = id && document.getElementById(id);
+    const alt = Number(d.altura);
+    if (f && alt > 0) f.style.height = alt + 'px';
+  });
 }
 
 // So o clique alterna — o estado inicial (recolhida com semana aberta,

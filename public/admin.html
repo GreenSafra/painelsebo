@@ -111,6 +111,14 @@ function esc(s){
   });
 }
 
+// Dentro do iframe do painel, navegar tem que trocar a pagina inteira.
+// Aberta direto (sem casca), window.top e a propria janela.
+function navTopo(url){ window.top.location.href = url; }
+function sessaoExpirada(r){
+  if(r.status === 401){ navTopo('/entrar'); return true; }
+  return false;
+}
+
 function data(v){
   if(!v) return '';
   var d = new Date(v);
@@ -170,12 +178,13 @@ async function carregar(){
   var r = await fetch('/api/eu');
   var e = await r.json();
   if(!e.usuario || (e.usuario.papel !== 'master' && e.usuario.papel !== 'admin')){
-    location.href = '/entrar'; return;
+    navTopo('/entrar'); return;
   }
   MEU_ID = e.usuario.id;
   document.getElementById('quem').textContent = e.usuario.nome + ' · ' + e.usuario.email;
 
   var r2 = await fetch('/api/usuarios');
+  if(sessaoExpirada(r2)) return;
   if(!r2.ok){ diz('Não foi possível carregar a lista.'); return; }
   var lista = (await r2.json()).usuarios || [];
 
@@ -203,6 +212,7 @@ document.addEventListener('click', async function(ev){
       b.dataset.nome + '? A senha atual dela para de funcionar.')) return;
   b.disabled = true;
   var r = await fetch('/api/usuarios/' + b.dataset.id + '/' + acao, {method:'POST'});
+  if(sessaoExpirada(r)) return;
   var d = await r.json();
   if(!r.ok){ diz(d.erro || 'Não foi possível concluir.'); b.disabled = false; return; }
   if(acao === 'redefinir-senha'){
@@ -230,6 +240,22 @@ document.getElementById('btnFecharSenha').onclick = function(){
 };
 
 carregar();
+
+// Aberta dentro do iframe do painel: avisa a propria altura toda vez que o
+// conteudo muda (lista carregada, acao concluida), pra secao do painel
+// crescer junto e nunca precisar de rolagem propria.
+if (window.parent !== window) {
+  (function () {
+    function enviarAltura() {
+      window.parent.postMessage(
+        { tipo: 'alturaFrame', secao: 'usuarios', altura: document.documentElement.scrollHeight },
+        location.origin
+      );
+    }
+    new ResizeObserver(enviarAltura).observe(document.body);
+    window.addEventListener('load', enviarAltura);
+  })();
+}
 </script>
 </body>
 </html>
