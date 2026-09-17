@@ -69,10 +69,6 @@ h2{font-size:14px;margin:24px 0 10px;color:var(--fraco);font-weight:600;
       <h1>Usuários</h1>
       <div class="quem" id="quem"></div>
     </div>
-    <div class="links">
-      <a class="btn" href="/">Ir ao painel</a>
-      <button class="btn" id="btnSair">Sair</button>
-    </div>
   </header>
 
   <div class="aviso" id="aviso"></div>
@@ -231,11 +227,6 @@ document.getElementById('btnFecharSenha').onclick = function(){
   document.getElementById('ovlValor').textContent = '';
   diz('Senha redefinida.', 'bom');
   carregar();
-};
-
-document.getElementById('btnSair').onclick = async function(){
-  await fetch('/api/sair', {method:'POST'});
-  location.href = '/entrar';
 };
 
 carregar();

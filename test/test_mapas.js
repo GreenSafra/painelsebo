@@ -1,13 +1,12 @@
-// Tela de upload avulso de Mapa (public/mapas.html) — pagina estatica,
-// duplica o parsing de xlsx do core.js (nao passa pelo build). Testa o
-// carregamento real do arquivo (pega bug de digitacao na duplicacao), os
-// avisos de lote (mesma semana no lote, ja tem cotacao gravada), a lista
-// "Mapas gravados" (listagem e exclusao) e a remocao de arquivo da
-// selecao antes de gravar. A gravacao em si fica por revisao de codigo,
-// sem Postgres local.
+// Bloco "Cotações do Mapa" dentro de /importar (public/index.html) — upload
+// avulso de Mapa, sem abrir semana nenhuma. Testa o carregamento real do
+// arquivo, os avisos de lote (mesma semana no lote, já tem cotação
+// gravada), a lista "Mapas gravados" (listagem e exclusão) e a remoção de
+// arquivo da seleção antes de gravar. A gravação em si fica por revisão de
+// código, sem Postgres local, mesmo padrão das levas anteriores.
 process.chdir(__dirname);
 const path = require('path');
-const MAPAS = path.join(__dirname, '..', 'public', 'mapas.html');
+const PAINEL = path.join(__dirname, '..', 'public', 'index.html');
 const fs = require('fs');
 const { JSDOM } = require('jsdom');
 
@@ -49,8 +48,8 @@ function fake(name, p) {
     }
     return respFake(404, {});
   };
-  const dom = new JSDOM(fs.readFileSync(MAPAS, 'utf8'), {
-    runScripts: 'dangerously', url: 'https://x/',
+  const dom = new JSDOM(fs.readFileSync(PAINEL, 'utf8'), {
+    runScripts: 'dangerously', url: 'https://x/importar',
     beforeParse(window) { window.fetch = mockFetch; window.alert = () => {}; }
   });
   const w = dom.window;
@@ -58,19 +57,22 @@ function fake(name, p) {
   w.CompressionStream = CompressionStream;
   w.Response = Response;
   w.Blob = Blob;
-  await new Promise(r => setTimeout(r, 100));
+  w.HTMLElement.prototype.scrollIntoView = function () {};
+  w.Element.prototype.scrollIntoView = function () {};
+  await new Promise(r => setTimeout(r, 150));
   const d = w.document;
 
-  T('pagina carregou sem quebrar', !!d.querySelector('#tabela'));
+  T('página carregou sem quebrar', !!d.querySelector('#cotTabela'));
+  T('abriu direto em /importar (URL pedida)', !d.querySelector('#importBox').classList.contains('hide'));
 
   // ---------- listagem de Mapas gravados ----------
   T('lista de Mapas gravados mostra a semana existente',
-    d.querySelector('#gravados').textContent.indexOf('10/2025') >= 0);
+    d.querySelector('#cotGravados').textContent.indexOf('10/2025') >= 0);
   T('lista de Mapas gravados mostra linhas e clientes',
-    d.querySelector('#gravados').textContent.indexOf('12') >= 0 &&
-    d.querySelector('#gravados').textContent.indexOf('5') >= 0);
+    d.querySelector('#cotGravados').textContent.indexOf('12') >= 0 &&
+    d.querySelector('#cotGravados').textContent.indexOf('5') >= 0);
   T('data da cotação formatada em dd/mm/aaaa',
-    d.querySelector('#gravados').textContent.indexOf('06/03/2025') >= 0);
+    d.querySelector('#cotGravados').textContent.indexOf('06/03/2025') >= 0);
 
   // descobre pra qual ano/semana o mapa2.xlsx calcula (sem semana fechada pra casar)
   const sheets = await w.readXlsx(fake('mapa2.xlsx', 'in/mapa2.xlsx'));
@@ -81,42 +83,42 @@ function fake(name, p) {
   // agora finge que aquela semana ja tem cotacao gravada tambem, e recarrega a lista
   const semanaMapa2 = { ano: rCalc.ano, semana: rCalc.semana, linhas: 8, clientes: 4, data_cotacao: null };
   cotacoesExistentes = [semanaX, semanaMapa2];
-  await w.carregarListas();
-  w.renderGravados();
+  await w.cotCarregarListas();
+  w.cotRenderGravados();
 
   T('as duas semanas gravadas aparecem na lista',
-    d.querySelectorAll('#gravados tbody tr').length === 2);
+    d.querySelectorAll('#cotGravados tbody tr').length === 2);
 
   // sobe o MESMO mapa duas vezes -> duas linhas na mesma semana calculada
-  await w.adicionarArquivos([
+  await w.cotAdicionarArquivos([
     fake('mapa2.xlsx', 'in/mapa2.xlsx'),
     fake('mapa2-de-novo.xlsx', 'in/mapa2.xlsx')
   ]);
 
-  T('as duas linhas do lote foram adicionadas', w.arquivos.length === 2, w.arquivos.length + '');
+  T('as duas linhas do lote foram adicionadas', w.COT_ARQUIVOS.length === 2, w.COT_ARQUIVOS.length + '');
   T('as duas resolveram para a mesma semana calculada',
-    w.arquivos.every(a => a.ano === rCalc.ano && a.semana === rCalc.semana));
-  T('aviso de mesma semana no lote', w.arquivos.every(a => a.duplicadoNoLote === true));
-  T('aviso de semana que ja tem cotacao gravada', w.arquivos.every(a => a.jaTemCotacao === true));
+    w.COT_ARQUIVOS.every(a => a.ano === rCalc.ano && a.semana === rCalc.semana));
+  T('aviso de mesma semana no lote', w.COT_ARQUIVOS.every(a => a.duplicadoNoLote === true));
+  T('aviso de semana que ja tem cotacao gravada', w.COT_ARQUIVOS.every(a => a.jaTemCotacao === true));
 
-  const badges = [...d.querySelectorAll('.badge.calculada')];
+  const badges = [...d.querySelectorAll('.cotbadge.calculada')];
   T('duas linhas com o selo "calculada" na tela', badges.length === 2, badges.length + '');
 
   T('botao confirmar habilita (as duas ja tem ano/semana)',
-    !d.querySelector('#bConfirmar').disabled);
+    !d.querySelector('#cotBConfirmar').disabled);
 
   // ---------- remocao de arquivo da selecao (antes de gravar) ----------
-  const nomeRemovido = w.arquivos[0].nome;
-  const nomeRestante = w.arquivos[1].nome;
+  const nomeRemovido = w.COT_ARQUIVOS[0].nome;
+  const nomeRestante = w.COT_ARQUIVOS[1].nome;
   const btnRemover = d.querySelector('button[data-remover="0"]');
   T('botao remover existe na linha do arquivo selecionado', !!btnRemover);
   btnRemover.dispatchEvent(new w.Event('click'));
 
-  T('remover tira o arquivo da selecao (nao chama gravacao)', w.arquivos.length === 1, w.arquivos.length + '');
+  T('remover tira o arquivo da selecao (nao chama gravacao)', w.COT_ARQUIVOS.length === 1, w.COT_ARQUIVOS.length + '');
   T('sobrou o outro arquivo, nao o removido',
-    w.arquivos[0].nome === nomeRestante && w.arquivos[0].nome !== nomeRemovido);
+    w.COT_ARQUIVOS[0].nome === nomeRestante && w.COT_ARQUIVOS[0].nome !== nomeRemovido);
   T('a tabela de selecionados reflete a remocao',
-    d.querySelectorAll('#tabela tbody tr').length === 1);
+    d.querySelectorAll('#cotTabela tbody tr').length === 1);
   T('nenhuma chamada de gravacao foi feita so por remover da selecao',
     !chamadas.some(c => c.url === '/api/cotacoes/lote'));
 
@@ -129,7 +131,7 @@ function fake(name, p) {
   await new Promise(r => setTimeout(r, 40));
   T('cancelar a confirmacao nao chama DELETE', !chamadas.some(c => c.method === 'DELETE'));
   T('semana continua na lista apos cancelar',
-    d.querySelector('#gravados').textContent.indexOf('10/2025') >= 0);
+    d.querySelector('#cotGravados').textContent.indexOf('10/2025') >= 0);
 
   w.confirm = () => true;
   btnExcluirX.dispatchEvent(new w.Event('click'));
@@ -138,11 +140,11 @@ function fake(name, p) {
   T('confirmar chama DELETE /api/cotacoes com ano e semana certos',
     dels.length === 1 && dels[0].url === '/api/cotacoes?ano=2025&semana=10',
     dels.map(c => c.url).join(', '));
-  T('a semana excluida some da lista', d.querySelector('#gravados').textContent.indexOf('10/2025') === -1);
+  T('a semana excluida some da lista', d.querySelector('#cotGravados').textContent.indexOf('10/2025') === -1);
   T('a outra semana gravada continua na lista',
-    d.querySelector('#gravados').textContent.indexOf(rCalc.semana + '/' + rCalc.ano) >= 0);
+    d.querySelector('#cotGravados').textContent.indexOf(rCalc.semana + '/' + rCalc.ano) >= 0);
   T('so restou uma linha na lista de Mapas gravados',
-    d.querySelectorAll('#gravados tbody tr').length === 1);
+    d.querySelectorAll('#cotGravados tbody tr').length === 1);
 
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);

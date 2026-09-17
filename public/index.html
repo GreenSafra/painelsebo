@@ -30,31 +30,32 @@ table{border-collapse:collapse;width:100%}
 button{font:inherit;color:inherit;cursor:pointer}
 .hide{display:none!important}
 
-/* ---------- topo ---------- */
-header{border-bottom:1px solid var(--line);margin-bottom:26px}
-.hbar{display:flex;align-items:flex-end;gap:20px;padding:22px 0 16px;flex-wrap:wrap}
-.hbar img.brand{height:34px;width:auto;display:block}
+/* ---------- topo (fixo ao rolar: cabecalho + menu) ---------- */
+header{border-bottom:1px solid var(--line);margin-bottom:26px;
+  position:sticky;top:0;z-index:30;background:var(--paper)}
+.hbar{display:flex;align-items:flex-end;gap:20px;padding:16px 0 12px;flex-wrap:wrap}
+.hbar img.brand{height:30px;width:auto;display:block}
 .htitle{flex:1;min-width:220px}
-.htitle h1{font-size:26px;line-height:1.1;color:var(--azul)}
+.htitle h1{font-size:22px;line-height:1.1;color:var(--azul)}
 .htitle p{margin:3px 0 0;color:var(--mute);font-size:13.5px}
 .stamp{text-align:right;font-size:12.5px;color:var(--mute);line-height:1.5}
 .stamp b{color:var(--ink);font-weight:600}
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .hlinks{display:flex;gap:10px}
 
-.acts{display:flex;gap:8px;align-items:center;padding-bottom:16px;flex-wrap:wrap}
+.menu{display:flex;gap:8px;align-items:center;padding-bottom:12px;flex-wrap:wrap}
 .btn{background:var(--paper);color:var(--ink);border:1px solid var(--line);
   border-radius:var(--r);padding:7px 13px;font-size:13.5px;
-  transition:border-color .12s,background .12s}
+  transition:border-color .12s,background .12s;text-decoration:none;
+  display:inline-flex;align-items:center}
 .btn:hover{border-color:var(--azul);color:var(--azul);background:#D5D6DF}
-.btn.pri{background:var(--azul);color:#fff;border-color:var(--azul)}
-.btn.pri:hover{background:#16165C}
+.btn.pri,.btn.mnu.ativo{background:var(--azul);color:#fff;border-color:var(--azul)}
+.btn.pri:hover,.btn.mnu.ativo:hover{background:#16165C;color:#fff}
 .btn:disabled{opacity:.4;cursor:default}
 .btn:disabled:hover{border-color:var(--line);color:var(--ink);background:var(--paper)}
-.fechamsg{font-size:12px;margin-left:8px;opacity:.85}
+.fechamsg{font-size:12px;margin-left:-2px;margin-right:4px;opacity:.85}
 .fechamsg.ok{color:#5FBF7F}
 .fechamsg.ruim{color:#E06C6C}
-.btn.lnk{text-decoration:none;display:inline-flex;align-items:center}
 select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   font:inherit;font-size:13.5px;background:var(--card)}
 .quem{display:inline-flex;align-items:center;padding:0 10px;font-weight:600}
@@ -74,6 +75,43 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .drop .file{font-size:12.5px;color:var(--azul);word-break:break-all;margin-top:6px}
 .err{color:var(--alertd);font-size:13px;margin-top:8px}
 .note{font-size:12.5px;color:var(--mute);margin:10px 0 0}
+
+/* ---------- cotações do mapa (bloco dentro de Importar) ---------- */
+.cotmapa{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.cotmapa h2{font-size:17px;margin-bottom:4px;color:var(--azul)}
+.cottbl{width:100%;border-collapse:collapse;background:var(--card);
+  border:1px solid var(--line);font-size:13.5px;margin-top:12px}
+.cottbl th,.cottbl td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+.cottbl th{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--mute);
+  font-weight:600;background:#F4F5F8}
+.cottbl tbody tr:last-child td{border-bottom:0}
+.cotmuted{color:var(--mute)}
+.cotbadge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;
+  border-radius:20px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.cotbadge.casada{background:var(--posbg,#EAF6EF);color:#0F7B40}
+.cotbadge.calculada{background:#fdf6e7;color:#8a5a00}
+.cotbadge.pendente{background:var(--alertbg);color:var(--alertd)}
+.cotavisolinha{font-size:12px;color:#8a5a00;margin-top:4px}
+.cotavisolinha.forte{color:var(--alertd)}
+.cotsem{padding:6px;border:1px solid var(--line);border-radius:var(--r);width:64px;
+  font-family:inherit;font-size:13.5px}
+.cotano{padding:6px;border:1px solid var(--line);border-radius:var(--r);width:74px;
+  font-family:inherit;font-size:13.5px}
+.cotperiodo{font-size:12px;color:var(--mute)}
+.cotacoes{display:flex;gap:10px;align-items:center;margin-top:14px}
+.cotresultado{font-size:13.5px;margin-top:4px}
+.cotresultado .ok{color:#0F7B40}
+.cotresultado .erro{color:var(--alertd)}
+.cotvazio{background:var(--card);border:1px solid var(--line);padding:24px;
+  text-align:center;color:var(--mute);font-size:14px;margin-top:12px}
+
+/* ---------- Home ---------- */
+#secaoHome{margin-top:0}
+
+/* ---------- consolidado/analise/usuarios embutidos ---------- */
+.iframesec iframe{width:100%;border:0;display:block;
+  height:calc(100vh - 170px);min-height:520px;background:var(--card)}
 
 /* ---------- kpis ---------- */
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
@@ -111,12 +149,8 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .linkb{background:none;border:0;padding:0;font:inherit;color:var(--azul);
   font-weight:600;cursor:pointer;text-decoration:underline}
 .linkb:hover{opacity:.8}
-#salvasBox{margin:10px 0 0}
-.salvashead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;
-  background:none;border:0;padding:0;margin-bottom:10px;font:inherit;
-  font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer}
-.salvashead:hover{color:var(--azul)}
-.salvashead .chev{font-size:11px;color:var(--mute);width:1em;display:inline-block;flex:none}
+#salvasBox{margin:0 0 22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+#salvasBox h2{font-size:17px;color:var(--azul);margin-bottom:2px}
 .nec.recolhido #necRows,.nec.recolhido .addnec{display:none}
 .tercm{height:20px;width:20px;flex:none;border-radius:50%;background:var(--sebo);
   display:inline-flex;align-items:center;justify-content:center;
@@ -277,11 +311,14 @@ footer img{height:17px;width:auto;opacity:.75}
   .htitle p{font-size:12.5px}
   .hright{order:3;flex:1 1 100%;align-items:flex-start}
   .stamp{text-align:left;font-size:12px}
-  .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:14px}
-  .acts .btn{width:100%;padding:11px 8px;font-size:13.5px;text-align:center;
-    line-height:1.25;min-height:44px}
-  .acts .spacer{display:none}
-  select.who{grid-column:1/-1;width:100%;padding:10px 9px;font-size:16px;min-height:44px}
+  /* linha rolavel horizontal: nunca ocupa metade da tela, so uma faixa fina
+     no topo — em vez da grade de botoes que tomava varias linhas antes. */
+  .menu{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:10px;gap:6px}
+  .menu .btn{flex:none;white-space:nowrap;padding:8px 12px;font-size:13px;min-height:40px}
+  .menu .fechamsg{display:none}
+  .menu .spacer{flex:none;width:8px}
+  select.who{flex:none;min-width:130px;font-size:14px;min-height:40px}
 
   .kpis{grid-template-columns:1fr}
   .kpi{padding:12px 14px}
@@ -343,10 +380,13 @@ footer img{height:17px;width:auto;opacity:.75}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-.rascunhos{display:flex;flex-direction:column;gap:6px;margin:14px 0 20px}
-.rascunho{display:flex;align-items:stretch;gap:8px}
-.rascunho-abrir{flex:1;text-align:left;background:var(--paper);border:1px solid var(--line);
-  border-radius:var(--r);padding:9px 13px;font:inherit;font-size:13px;cursor:pointer}
+.rascunhos{display:flex;flex-direction:column;gap:6px;margin:10px 0 0}
+.rascunho{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
+  padding:9px 13px}
+.rascunho-info{flex:1;min-width:200px;font-size:13px}
+.rascunho-abrir{flex:none;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer}
 .rascunho-abrir:hover{border-color:var(--azul);color:var(--azul)}
 .rascunho-descartar{flex:none;background:none;border:0;color:var(--mute);font-size:12px;
   text-decoration:underline;cursor:pointer;padding:0 4px}
@@ -423,7 +463,7 @@ footer img{height:17px;width:auto;opacity:.75}
   <div class="hbar">
     <img class="brand" id="lgFriboi" alt="Friboi">
     <div class="htitle">
-      <h1>Alocação de sebo</h1>
+      <h1>Painel de sebo</h1>
       <p id="sub">Importe as planilhas da semana para começar</p>
     </div>
     <div class="hright">
@@ -434,26 +474,103 @@ footer img{height:17px;width:auto;opacity:.75}
       </div>
     </div>
   </div>
-  <div class="acts">
-    <button class="btn" id="bNovaSemana" disabled>Nova semana</button>
-    <button class="btn" id="bImport">Importar planilhas</button>
-    <button class="btn" id="bSave" disabled>Salvar</button>
+  <nav class="menu" id="menu" aria-label="Seções do painel">
+    <a class="btn mnu" href="/" data-rota="/">Home</a>
+    <button class="btn mnu" id="bNovaSemana" disabled>Nova semana</button>
+    <a class="btn mnu" href="/importar" data-rota="/importar">Importar planilhas</a>
+    <button class="btn mnu" id="bSave" disabled>Salvar</button>
     <span id="msgSalvar" class="fechamsg"></span>
-    <button class="btn" id="bFechar">Fechar semana</button>
+    <button class="btn mnu" id="bFechar" disabled>Fechar semana</button>
     <span id="fechaMsg" class="fechamsg"></span>
-    <button class="btn" id="bProg" disabled>Exportar programação</button>
-    <a class="btn lnk" href="/consolidado" target="_blank" rel="noopener">Consolidado</a>
-    <a class="btn lnk" href="/mapas">Cotações do Mapa</a>
-    <a class="btn lnk" href="/analise" target="_blank" rel="noopener">Análise de cotações</a>
-    <a class="btn lnk hide" href="/admin" target="_blank" rel="noopener" id="lnkAdmin">Usuários</a>
+    <button class="btn mnu" id="bProg" disabled>Exportar programação</button>
+    <a class="btn mnu" href="/consolidado" data-rota="/consolidado">Consolidado</a>
+    <a class="btn mnu" href="/analise" data-rota="/analise">Análise de cotações</a>
+    <a class="btn mnu hide" href="/usuarios" data-rota="/usuarios" id="lnkUsuarios">Usuários</a>
     <div class="spacer"></div>
     <select class="who" id="who" aria-label="Quem está operando">
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
     </select>
-  </div>
+  </nav>
 </header>
 
-<section class="import" id="importBox">
+<section id="secaoHome">
+  <div class="warn hide" id="avisoSemSemana">Nenhuma semana aberta.
+    <a href="/importar" data-rota="/importar">Importe as planilhas</a> para começar.</div>
+  <div id="salvasBox" class="hide">
+    <h2>Semanas salvas</h2>
+    <div id="salvasList" class="rascunhos"></div>
+  </div>
+
+  <main id="app" class="hide">
+    <div class="warn hide" id="avisoOrigem"></div>
+    <div class="kpis" id="kpis"></div>
+    <div id="avisos"></div>
+
+    <section class="nec" id="necBox">
+      <div class="nechead">
+        <h2>Destinos da semana</h2>
+        <div class="modos" role="radiogroup" aria-label="Critério de distribuição">
+          <label class="modo">
+            <input type="radio" name="modo" value="mercado" id="modoMer">
+            <span><b>Mercado livre</b>
+              <em>Ninguém tem prioridade. Todo destino disputa pela cotação do Mapa e
+                  ganha o melhor NET por tonelada.</em></span>
+          </label>
+          <label class="modo">
+            <input type="radio" name="modo" value="prioridade" id="modoPri" checked>
+            <span><b>Prioridade de volume</b>
+              <em>Atende primeiro os volumes digitados abaixo. O que sobrar vai para o
+                  melhor NET.</em></span>
+          </label>
+        </div>
+      </div>
+      <div class="necresumo" id="necResumo">
+        <span id="necResumoTxt"></span>
+        <button class="linkb" id="bVerDest" aria-expanded="false"
+                aria-controls="necRows">mostrar</button>
+      </div>
+      <div id="necRows"></div>
+      <div class="necfoot">
+        <span id="necTot"></span>
+        <span class="spacer"></span>
+        <span class="pend hide" id="pend">alterações ainda não aplicadas</span>
+        <button class="mini" id="bAddNec">Acrescentar terceiro</button>
+        <button class="btn pri" id="bRodar">Rodar</button>
+      </div>
+      <div class="addnec hide" id="addNec">
+        <select id="selNec" aria-label="Cliente do mapa"></select>
+        <button class="mini" id="bAddOk">Incluir</button>
+        <button class="mini" id="bAddNo">Cancelar</button>
+      </div>
+    </section>
+
+    <div class="grid">
+      <div class="mapbox">
+        <h2 class="maph">Unidades da semana</h2>
+        <svg id="map" viewBox="0 0 520 560" role="img" aria-label="Mapa do Brasil por estado"></svg>
+        <div class="legend" id="legend"></div>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="sec">
+        <h2>Distribuição por estado</h2>
+        <p class="hint">Para onde foi a produção de cada estado. Clique para abrir o detalhe
+          unidade por unidade.</p>
+        <table class="t" id="tblUF"></table>
+      </div>
+    </div>
+
+    <section class="detail hide" id="detail"></section>
+    <section id="resumoSemana" class="hide"></section>
+  </main>
+
+  <footer>
+    <span id="foot"></span>
+    <span class="spacer"></span>
+    <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
+  </footer>
+</section>
+
+<section class="import hide" id="importBox">
   <h2>Planilhas da semana</h2>
   <p>Solte os dois arquivos abaixo ou clique para escolher. A necessidade das fábricas
      próprias você digita depois, aqui mesmo no painel.</p>
@@ -474,85 +591,42 @@ footer img{height:17px;width:auto;opacity:.75}
       <div class="file" data-f="mapa"></div>
     </div>
   </div>
-  <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
+  <div class="note">Programação e Mapa abrem a semana na tela: escolha os dois pra começar
+     a distribuir. O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
   <div class="err hide" id="impErr"></div>
-  <div id="salvasBox" class="hide">
-    <button type="button" class="salvashead" id="salvasHead" aria-expanded="false" aria-controls="salvasList">
-      <span class="chev" id="salvasChev" aria-hidden="true">▸</span>
-      <span id="salvasTitulo">Semanas salvas</span>
-    </button>
-    <div id="salvasList" class="rascunhos hide"></div>
+
+  <div class="cotmapa">
+    <h2>Cotações do Mapa</h2>
+    <p class="note">Suba um ou mais Mapas de ofertas para gravar a série de preços por cliente.
+       Isto só grava histórico de preços, não abre nenhuma semana: cada Mapa vira uma linha por
+       cliente com a oferta bruta (sem NET: NET embute frete e varia por origem, a série aqui é
+       de preço pedido). Não precisa da Programação nem fechar a semana para isto.</p>
+    <input type="file" id="cotArquivos" multiple accept=".xlsx,.xlsm">
+
+    <h3 style="margin-top:18px;font-size:14.5px">Mapas gravados</h3>
+    <div id="cotGravados"><p class="cotmuted">Carregando…</p></div>
+
+    <div id="cotTabela"></div>
+    <div class="cotacoes hide" id="cotAcoes">
+      <button class="btn pri" id="cotBConfirmar" disabled>Confirmar e gravar</button>
+      <span class="cotmuted" id="cotMsgConfirmar"></span>
+    </div>
+    <div id="cotResultado"></div>
   </div>
 </section>
 
-<main id="app" class="hide">
-  <div class="warn hide" id="avisoOrigem"></div>
-  <div class="kpis" id="kpis"></div>
-  <div id="avisos"></div>
+<section class="hide iframesec" id="secaoConsolidado">
+  <iframe id="frameConsolidado" title="Consolidado"></iframe>
+</section>
 
-  <section class="nec" id="necBox">
-    <div class="nechead">
-      <h2>Destinos da semana</h2>
-      <div class="modos" role="radiogroup" aria-label="Critério de distribuição">
-        <label class="modo">
-          <input type="radio" name="modo" value="mercado" id="modoMer">
-          <span><b>Mercado livre</b>
-            <em>Ninguém tem prioridade. Todo destino disputa pela cotação do Mapa e
-                ganha o melhor NET por tonelada.</em></span>
-        </label>
-        <label class="modo">
-          <input type="radio" name="modo" value="prioridade" id="modoPri" checked>
-          <span><b>Prioridade de volume</b>
-            <em>Atende primeiro os volumes digitados abaixo. O que sobrar vai para o
-                melhor NET.</em></span>
-        </label>
-      </div>
-    </div>
-    <div class="necresumo" id="necResumo">
-      <span id="necResumoTxt"></span>
-      <button class="linkb" id="bVerDest" aria-expanded="false"
-              aria-controls="necRows">mostrar</button>
-    </div>
-    <div id="necRows"></div>
-    <div class="necfoot">
-      <span id="necTot"></span>
-      <span class="spacer"></span>
-      <span class="pend hide" id="pend">alterações ainda não aplicadas</span>
-      <button class="mini" id="bAddNec">Acrescentar terceiro</button>
-      <button class="btn pri" id="bRodar">Rodar</button>
-    </div>
-    <div class="addnec hide" id="addNec">
-      <select id="selNec" aria-label="Cliente do mapa"></select>
-      <button class="mini" id="bAddOk">Incluir</button>
-      <button class="mini" id="bAddNo">Cancelar</button>
-    </div>
-  </section>
+<section class="hide iframesec" id="secaoAnalise">
+  <iframe id="frameAnalise" title="Análise de cotações"></iframe>
+</section>
 
-  <div class="grid">
-    <div class="mapbox">
-      <h2 class="maph">Unidades da semana</h2>
-      <svg id="map" viewBox="0 0 520 560" role="img" aria-label="Mapa do Brasil por estado"></svg>
-      <div class="legend" id="legend"></div>
-      <div class="tip" id="tip"></div>
-    </div>
-    <div class="sec">
-      <h2>Distribuição por estado</h2>
-      <p class="hint">Para onde foi a produção de cada estado. Clique para abrir o detalhe
-        unidade por unidade.</p>
-      <table class="t" id="tblUF"></table>
-    </div>
-  </div>
-
-  <section class="detail hide" id="detail"></section>
-  <section id="resumoSemana" class="hide"></section>
-</main>
-
-<footer>
-  <span id="foot"></span>
-  <span class="spacer"></span>
-  <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
-</footer>
+<section class="hide iframesec" id="secaoUsuarios">
+  <iframe id="frameUsuarios" title="Usuários"></iframe>
+</section>
 </div>
 
 <div class="ovl hide" id="ovlSenha">
@@ -2216,10 +2290,7 @@ function setupImport() {
       if (e.dataTransfer.files[0]) receber(d.dataset.k, e.dataTransfer.files[0]);
     };
   });
-  $('#bImport').onclick = () => {
-    $('#importBox').classList.remove('hide');
-    $('#importBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  ligarMenu();
   $('#bSave').onclick = salvarRascunho;
   $('#bProg').onclick = exportarProg;
   document.getElementById('bFechar').onclick = async () => {
@@ -2268,8 +2339,6 @@ function setupImport() {
   };
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
   $('#bNovaSemana').onclick = novaSemana;
-  const sh = document.getElementById('salvasHead');
-  if (sh) sh.onclick = alternarSalvas;
   const ls = document.getElementById('lnkSair');
   if (ls) ls.onclick = e => { e.preventDefault(); sair(); };
   const lt = document.getElementById('lnkTrocarSenha');
@@ -2278,6 +2347,57 @@ function setupImport() {
   if (tsCancelar) tsCancelar.onclick = fecharTrocaSenha;
   const tsSalvar = document.getElementById('tsSalvar');
   if (tsSalvar) tsSalvar.onclick = salvarTrocaSenha;
+}
+
+/* ====================== NAVEGAÇÃO ENTRE SEÇÕES ====================== */
+// Menu fixo, so o conteudo abaixo troca — Consolidado/Analise/Usuarios vivem
+// num iframe (mesma pagina deles, sem casca, servida com ?frame=1); Home e
+// Importar sao secoes de verdade dentro deste documento. Cada rota tem URL
+// propria (history.pushState), recarregar ou "voltar" cai na secao certa
+// porque o servidor devolve este mesmo documento pra qualquer uma delas e o
+// boot() le a URL.
+var SECAO_DE_ROTA = {
+  '/': 'secaoHome', '/importar': 'importBox',
+  '/consolidado': 'secaoConsolidado', '/analise': 'secaoAnalise', '/usuarios': 'secaoUsuarios'
+};
+var ROTA_ATUAL = '/';
+
+function ligarMenu() {
+  $$('[data-rota]').forEach(a => {
+    a.onclick = e => {
+      // clique modificado (ctrl/cmd/shift/meio-botao) abre em nova aba —
+      // comportamento nativo do navegador, nao interceptar.
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      navegarPara(a.getAttribute('data-rota'));
+    };
+  });
+  window.onpopstate = () => navegarPara(location.pathname, { empurrar: false });
+}
+
+function ligarFrame(id, url) {
+  const f = document.getElementById(id);
+  if (f) f.src = url;
+}
+
+// opts.empurrar=false (usado no boot e no popstate): so mostra a secao,
+// nao mexe no historico — senao cada carregamento de pagina empilharia
+// uma entrada nova.
+function navegarPara(rota, opts) {
+  const empurrar = !opts || opts.empurrar !== false;
+  if (!(rota in SECAO_DE_ROTA)) rota = '/';
+  const mudou = rota !== ROTA_ATUAL;
+  ROTA_ATUAL = rota;
+  Object.keys(SECAO_DE_ROTA).forEach(r => {
+    const el = document.getElementById(SECAO_DE_ROTA[r]);
+    if (el) el.classList.toggle('hide', r !== rota);
+  });
+  $$('[data-rota]').forEach(a => a.classList.toggle('ativo', a.getAttribute('data-rota') === rota));
+  if (empurrar && location.pathname !== rota) history.pushState(null, '', rota);
+  if (rota === '/consolidado') ligarFrame('frameConsolidado', '/consolidado?frame=1');
+  if (rota === '/analise') ligarFrame('frameAnalise', '/analise?frame=1');
+  if (rota === '/usuarios') ligarFrame('frameUsuarios', '/usuarios?frame=1');
+  if (mudou) { try { window.scrollTo(0, 0); } catch (e) { } }
 }
 
 // Logout ja existe no servidor (POST /api/sair) — so faltava o botao.
@@ -2345,7 +2465,8 @@ async function receber(k, file) {
     arquivos[k] = file.name;
     box.classList.add('ok');
     document.querySelector('[data-f="' + k + '"]').textContent = file.name;
-    if (PROD && MAPA) iniciar();
+    // Programação + Mapa completos: a semana abriu, vai pra Home.
+    if (PROD && MAPA) { iniciar(); navegarPara('/'); }
   } catch (e) {
     box.classList.remove('ok');
     document.querySelector('[data-f="' + k + '"]').textContent = '';
@@ -2356,6 +2477,14 @@ async function receber(k, file) {
 function erro(m) {
   const e = $('#impErr');
   e.textContent = m; e.classList.toggle('hide', !m);
+}
+
+// Home sem semana aberta mostra so a lista de "Semanas salvas" e este
+// aviso; com semana, o aviso some e #app aparece — as duas coisas nunca
+// ficam visiveis juntas.
+function atualizarAvisoSemSemana() {
+  const el = document.getElementById('avisoSemSemana');
+  if (el) el.classList.toggle('hide', !!PROD);
 }
 
 function iniciar(restaurando) {
@@ -2369,10 +2498,11 @@ function iniciar(restaurando) {
   // importa o que veio salvo (rascunho, localStorage), nao precisa lembrar
   ST.verDest = false;
   ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
-  $('#importBox').classList.add('hide');
   $('#app').classList.remove('hide');
+  atualizarAvisoSemSemana();
   $('#bSave').disabled = false;
   $('#bProg').disabled = !PROGBUF;
+  $('#bFechar').disabled = false;
   $('#bNovaSemana').disabled = false;
   recalcular();
   identificar();
@@ -2399,7 +2529,7 @@ async function identificar() {
     const nome = j.usuario.nome;
     // gerenciar usuarios e coisa de master ou admin, igual a trava do servidor
     if (j.usuario.papel === 'master' || j.usuario.papel === 'admin') {
-      const la = document.getElementById('lnkAdmin');
+      const la = document.getElementById('lnkUsuarios');
       if (la) la.classList.remove('hide');
     }
     const sel = $('#who');
@@ -3368,35 +3498,14 @@ function podeTrocarSemana() {
   );
 }
 
-// Alterna a lista "Semanas salvas" entre recolhida e aberta. O botao e
-// um <button> de verdade (nao uma div com role="button"): Enter/Espaço ja
-// disparam onclick nativamente, sem precisar de keydown a mao.
-function alternarSalvas() {
-  const head = document.getElementById('salvasHead');
-  const ul = document.getElementById('salvasList');
-  const chev = document.getElementById('salvasChev');
-  if (!head || !ul) return;
-  const aberto = head.getAttribute('aria-expanded') === 'true';
-  head.setAttribute('aria-expanded', aberto ? 'false' : 'true');
-  ul.classList.toggle('hide', aberto);
-  if (chev) chev.textContent = aberto ? '▸' : '▾';
-}
-
+// Sempre visivel, ja expandida (fica no topo da Home) — nao tem mais botao
+// de recolher/abrir. Cada linha mostra o resumo e um botao "Abrir".
 function renderSemanasSalvas(lista) {
   const box = document.getElementById('salvasBox');
   const ul = document.getElementById('salvasList');
-  const head = document.getElementById('salvasHead');
-  const titulo = document.getElementById('salvasTitulo');
-  const chev = document.getElementById('salvasChev');
   if (!box || !ul) return;
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
-  // sempre recolhida ao (re)popular a lista — inclusive quando a lista
-  // ja estava aberta antes de um refresh (descartar rascunho, nova semana).
-  ul.classList.add('hide');
-  if (head) head.setAttribute('aria-expanded', 'false');
-  if (chev) chev.textContent = '▸';
-  if (titulo) titulo.textContent = 'Semanas salvas (' + lista.length + ')';
   ul.innerHTML = lista.map(r => {
     const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
     // so uma semana FECHADA pode ficar sem pacote (fechada antes da coluna
@@ -3405,12 +3514,11 @@ function renderSemanasSalvas(lista) {
     const badges = (semPacote ? ' · <span class="semplan">sem planilhas</span>' : '') +
       (r.preenchida ? ' · <span class="semplan">planilha preenchida</span>' : '');
     return '<div class="rascunho">' +
+      '<span class="rascunho-info">Semana ' + r.semana + '/' + r.ano +
+        (r.periodo ? ' (' + esc(r.periodo) + ')' : '') + ', ' + situacao + badges +
+        ' · ' + esc(r.quem || '-') + ' às ' + esc(fmtDataHora(r.quando)) + '</span>' +
       '<button class="rascunho-abrir" data-tipo="' + r.situacao + '" data-ano="' + r.ano +
-        '" data-semana="' + r.semana + '">' +
-        'Semana ' + r.semana + '/' + r.ano + (r.periodo ? ' (' + esc(r.periodo) + ')' : '') +
-        ', ' + situacao + badges +
-        ' · ' + esc(r.quem || '-') + ' às ' + esc(fmtDataHora(r.quando)) +
-      '</button>' +
+        '" data-semana="' + r.semana + '">Abrir</button>' +
       (r.situacao === 'rascunho'
         ? '<button class="rascunho-descartar" data-ano="' + r.ano + '" data-semana="' + r.semana +
           '" title="Apagar este rascunho do servidor">descartar</button>'
@@ -3421,8 +3529,8 @@ function renderSemanasSalvas(lista) {
     b.onclick = () => {
       if (!podeTrocarSemana()) return;
       const ano = Number(b.dataset.ano), semana = Number(b.dataset.semana);
-      if (b.dataset.tipo === 'fechada') carregarSemanaFechada(ano, semana);
-      else carregarRascunho(ano, semana);
+      const p = b.dataset.tipo === 'fechada' ? carregarSemanaFechada(ano, semana) : carregarRascunho(ano, semana);
+      p.then(() => navegarPara('/'));
     };
   });
   [].forEach.call(ul.querySelectorAll('.rascunho-descartar'), b => {
@@ -3459,10 +3567,12 @@ function novaSemana() {
   arquivos = {};
   RASCUNHO_SALVO_EM = null; RASCUNHO_SALVO_POR = null; ORIGEM_FECHADA = null;
   marcarRascunhoSujo(false);
-  $('#bSave').disabled = true; $('#bProg').disabled = true; $('#bNovaSemana').disabled = true;
+  $('#bSave').disabled = true; $('#bProg').disabled = true;
+  $('#bFechar').disabled = true; $('#bNovaSemana').disabled = true;
   $('#sub').textContent = ''; $('#stamp').innerHTML = ''; $('#foot').textContent = '';
   $('#app').classList.add('hide');
-  $('#importBox').classList.remove('hide');
+  atualizarAvisoSemSemana();
+  navegarPara('/importar');
   carregarSemanasSalvas();  // atualiza a lista (pode ter mudado nesta sessao)
 }
 
@@ -3539,6 +3649,207 @@ async function buscarCandidatoServidor() {
   return null;
 }
 
+/* ====================== COTAÇÕES DO MAPA (bloco dentro de Importar) ====================== */
+// Upload avulso de um ou mais Mapas, so pra gravar a serie de precos por
+// cliente — nao abre semana nenhuma (por isso "cot" prefixado em tudo:
+// nomes como "arquivos" e "render" ja sao do fluxo principal de Programação
+// + Mapa). readXlsx/readMapa/extrairCotacoes/resolverSemanaDoMapa sao os
+// mesmos de core.js — nao ha leitor duplicado aqui.
+var COT_SEMANAS_FECHADAS = [];
+var COT_SEMANAS_COM_COTACAO = new Set();
+var COT_GRAVADAS = [];   // { ano, semana, linhas, clientes, data_cotacao }
+var COT_ARQUIVOS = [];   // { nome, mapa, cotacoes, ano, semana, statusOrigem, periodo }
+
+function cotFmtDataBR(iso) {
+  if (!iso) return '-';
+  const [a, m, d] = String(iso).slice(0, 10).split('-');
+  return d + '/' + m + '/' + a;
+}
+
+function cotContarClientes(cotacoes) {
+  return new Set(cotacoes.map(c => c.cliente)).size;
+}
+
+function cotChave(ano, semana) { return ano + '/' + semana; }
+
+function cotRecomputar() {
+  const contagem = new Map();
+  COT_ARQUIVOS.forEach(a => {
+    if (a.ano == null || a.semana == null) return;
+    const k = cotChave(a.ano, a.semana);
+    contagem.set(k, (contagem.get(k) || 0) + 1);
+  });
+  COT_ARQUIVOS.forEach(a => {
+    a.duplicadoNoLote = (a.ano != null && a.semana != null) &&
+      contagem.get(cotChave(a.ano, a.semana)) > 1;
+    a.jaTemCotacao = (a.ano != null && a.semana != null) &&
+      COT_SEMANAS_COM_COTACAO.has(cotChave(a.ano, a.semana));
+  });
+}
+
+function cotRender() {
+  const box = document.getElementById('cotTabela');
+  const acoes = document.getElementById('cotAcoes');
+  if (!box || !acoes) return;
+  if (!COT_ARQUIVOS.length) {
+    box.innerHTML = '';
+    acoes.classList.add('hide');
+    return;
+  }
+  cotRecomputar();
+  let h = '<table class="cottbl"><thead><tr><th>Arquivo</th><th>Data da cotação</th>' +
+    '<th>Linhas</th><th>Clientes</th><th>Semana</th><th></th></tr></thead><tbody>';
+  COT_ARQUIVOS.forEach((a, idx) => {
+    const badge = a.statusOrigem === 'casada' ? 'casada'
+      : a.statusOrigem === 'calculada' ? 'calculada' : 'pendente';
+    h += '<tr><td>' + esc(a.nome) + '</td>' +
+      '<td>' + esc(a.mapa.data || '-') + '</td>' +
+      '<td>' + a.cotacoes.length + '</td>' +
+      '<td>' + cotContarClientes(a.cotacoes) + '</td>' +
+      '<td><span class="cotbadge ' + badge + '">' + badge + '</span>' +
+      (a.periodo ? '<div class="cotperiodo">' + esc(a.periodo) + '</div>' : '') +
+      '<div style="margin-top:6px">' +
+      '<input class="cotano" type="number" data-idx="' + idx + '" data-campo="ano" placeholder="ano" value="' +
+      (a.ano == null ? '' : a.ano) + '"> ' +
+      '<input class="cotsem" type="number" data-idx="' + idx + '" data-campo="semana" placeholder="sem." value="' +
+      (a.semana == null ? '' : a.semana) + '">' +
+      '</div>';
+    if (a.duplicadoNoLote) {
+      h += '<div class="cotavisolinha forte">mesma semana que outro arquivo deste lote</div>';
+    }
+    if (a.jaTemCotacao) {
+      h += '<div class="cotavisolinha">já tem cotação gravada, subir de novo substitui</div>';
+    }
+    h += '</td><td><button class="btn" data-remover="' + idx + '">remover</button></td></tr>';
+  });
+  h += '</tbody></table>';
+  box.innerHTML = h;
+
+  [].forEach.call(box.querySelectorAll('input[data-campo]'), inp => {
+    inp.onchange = () => {
+      const idx = Number(inp.dataset.idx);
+      const v = inp.value === '' ? null : Number(inp.value);
+      COT_ARQUIVOS[idx][inp.dataset.campo] = (v != null && isFinite(v)) ? v : null;
+      cotRender();
+    };
+  });
+  [].forEach.call(box.querySelectorAll('button[data-remover]'), b => {
+    b.onclick = () => { COT_ARQUIVOS.splice(Number(b.dataset.remover), 1); cotRender(); };
+  });
+
+  acoes.classList.remove('hide');
+  const faltando = COT_ARQUIVOS.some(a => a.ano == null || a.semana == null);
+  const bConfirmar = document.getElementById('cotBConfirmar');
+  bConfirmar.disabled = faltando;
+  document.getElementById('cotMsgConfirmar').textContent = faltando
+    ? 'Defina o ano e a semana de todo arquivo pendente antes de gravar.' : '';
+}
+
+async function cotCarregarListas() {
+  try {
+    const [rs, rc] = await Promise.all([fetch('/api/semanas'), fetch('/api/cotacoes/semanas')]);
+    COT_SEMANAS_FECHADAS = rs.ok ? await rs.json() : [];
+    COT_GRAVADAS = rc.ok ? await rc.json() : [];
+  } catch (e) {
+    COT_SEMANAS_FECHADAS = []; COT_GRAVADAS = [];
+  }
+  COT_SEMANAS_COM_COTACAO = new Set(COT_GRAVADAS.map(c => cotChave(c.ano, c.semana)));
+}
+
+function cotRenderGravados() {
+  const box = document.getElementById('cotGravados');
+  if (!box) return;
+  if (!COT_GRAVADAS.length) {
+    box.innerHTML = '<div class="cotvazio">Nenhum Mapa gravado ainda.</div>';
+    return;
+  }
+  let h = '<table class="cottbl"><thead><tr><th>Semana</th><th>Data da cotação</th>' +
+    '<th>Linhas</th><th>Clientes</th><th></th></tr></thead><tbody>';
+  COT_GRAVADAS.forEach(c => {
+    h += '<tr><td>' + c.semana + '/' + c.ano + '</td>' +
+      '<td>' + cotFmtDataBR(c.data_cotacao) + '</td>' +
+      '<td>' + c.linhas + '</td>' +
+      '<td>' + c.clientes + '</td>' +
+      '<td><button class="btn" data-ano="' + c.ano + '" data-semana="' + c.semana +
+      '" data-linhas="' + c.linhas + '">Excluir</button></td></tr>';
+  });
+  h += '</tbody></table>';
+  box.innerHTML = h;
+
+  [].forEach.call(box.querySelectorAll('button[data-ano]'), b => {
+    b.onclick = async () => {
+      const ano = b.dataset.ano, semana = b.dataset.semana, linhas = b.dataset.linhas;
+      if (!confirm('Excluir as ' + linhas + ' cotações da semana ' + semana + '/' + ano + '?')) return;
+      const r = await fetch('/api/cotacoes?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
+      if (!r.ok) { alert('Não consegui excluir essa semana.'); return; }
+      await cotCarregarListas();
+      cotRenderGravados();
+      cotRender();
+    };
+  });
+}
+
+async function cotAdicionarArquivos(files) {
+  for (const file of files) {
+    try {
+      const sheets = await readXlsx(file);
+      const mapa = readMapa(sheets);
+      const cotacoes = extrairCotacoes(mapa);
+      const r = resolverSemanaDoMapa(mapa.dataSerial, COT_SEMANAS_FECHADAS);
+      COT_ARQUIVOS.push({
+        nome: file.name, mapa, cotacoes,
+        ano: r.ano != null ? r.ano : null,
+        semana: r.semana != null ? r.semana : null,
+        statusOrigem: r.status, periodo: r.periodo || null
+      });
+    } catch (e) {
+      alert(file.name + ': ' + e.message);
+    }
+  }
+  cotRender();
+}
+
+function ligarCotacoesMapa() {
+  const inp = document.getElementById('cotArquivos');
+  if (inp) inp.onchange = e => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    cotAdicionarArquivos(files);
+  };
+  const bConfirmar = document.getElementById('cotBConfirmar');
+  if (bConfirmar) bConfirmar.onclick = async () => {
+    bConfirmar.disabled = true;
+    document.getElementById('cotMsgConfirmar').textContent = 'Gravando…';
+    try {
+      const itens = COT_ARQUIVOS.map(a => ({ ano: a.ano, semana: a.semana, cotacoes: a.cotacoes }));
+      const r = await fetch('/api/cotacoes/lote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itens })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.erro || 'Falha ao gravar.');
+      let h = '<div class="cotmapa" style="margin-top:14px;padding-top:0;border-top:0">' +
+        '<h3 style="font-size:14.5px;margin:0 0 8px">Resultado</h3>';
+      j.resultados.forEach(res => {
+        h += '<div class="cotresultado">' + res.ano + '/' + res.semana + ': ' +
+          (res.ok ? '<span class="ok">' + res.gravadas + ' cotação(ões) gravada(s)</span>'
+                  : '<span class="erro">' + esc(res.erro || 'falhou') + '</span>') +
+          '</div>';
+      });
+      h += '</div>';
+      document.getElementById('cotResultado').innerHTML = h;
+      COT_ARQUIVOS = [];
+      await cotCarregarListas();
+      cotRenderGravados();
+      cotRender();
+    } catch (e) {
+      document.getElementById('cotMsgConfirmar').textContent = e.message;
+      bConfirmar.disabled = false;
+    }
+  };
+  cotCarregarListas().then(cotRenderGravados);
+}
+
 /* ====================== BOOT ====================== */
 async function boot() {
   $('#lgFriboi').src = 'data:image/png;base64,' + LOGOS.friboi.b64;
@@ -3546,6 +3857,7 @@ async function boot() {
   $('#lgFlora').src = 'data:image/png;base64,' + LOGOS.flora.b64;
   setupImport();
   ligarAddNec();
+  ligarCotacoesMapa();
   const bd = document.getElementById('bd');
   const txt = bd && bd.textContent.trim();
   if (txt) {
@@ -3554,6 +3866,7 @@ async function boot() {
     if (b.progb64) PROGBUF = deB64(b.progb64);
     MAPA.rows.forEach((r, i) => r.i = i);
     iniciar(true);  // arquivo ja distribuido: nao regravar sebo_dados
+    navegarPara(location.pathname, { empurrar: false });
     return;
   }
   // Link "abrir" do consolidado ou de outra pagina: intencao explicita,
@@ -3564,6 +3877,7 @@ async function boot() {
     history.replaceState(null, '', location.pathname);
     await carregarSemanaFechada(Number(mAbrir[1]), Number(mAbrir[2]));
     await carregarSemanasSalvas();
+    navegarPara('/', { empurrar: false });
     return;
   }
   try {
@@ -3632,6 +3946,13 @@ async function boot() {
   }
 
   await carregarSemanasSalvas();
+  // iniciar() ja chama isto quando alguma coisa foi restaurada; sem nada pra
+  // restaurar (nenhum local, nenhum candidato do servidor), ninguem mais
+  // chamaria — a Home ficaria "sem semana" sem o aviso aparecer.
+  atualizarAvisoSemSemana();
+  // honra a URL que a pessoa realmente abriu (deep link, recarregar,
+  // "voltar") — a restauracao acima so prepara o estado, nao decide a tela.
+  navegarPara(location.pathname, { empurrar: false });
 }
 
 function arrancar() {

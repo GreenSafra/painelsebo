@@ -42,18 +42,19 @@ T('linha do editor com todas as áreas', areasOpt.every(s=>!!d.querySelector(s))
 const inputs=[...d.querySelectorAll('input[type=number]')];
 T('campos numéricos existem para receber o tamanho de 16px', inputs.length>0, inputs.length+' campos');
 T('mapa em SVG escalável', d.querySelector('#map').getAttribute('viewBox')==='0 0 520 560');
-const chaves=['.kpis{grid-template-columns:1fr}','.acts .btn{width:100%','table.t{font-size:12.5px;min-width:430px}','.cmp{grid-template-columns:1fr'];
+const chaves=['.kpis{grid-template-columns:1fr}','table.t{font-size:12.5px;min-width:430px}','.cmp{grid-template-columns:1fr'];
 chaves.forEach(k=>T('regra móvel: '+k.split('{')[0], css.indexOf(k)>=0));
+T('regra móvel: .menu (linha rolável, não grade)', /\.menu\{[^}]*overflow-x:auto/.test(css));
 
  T('meta color-scheme travado em claro', /<meta name="color-scheme" content="light only">/.test(html));
  T('color-scheme only light no :root', /color-scheme:only light/.test(html));
  T('botao com fundo e cor explicitos',
    /\.btn\{background:var\(--paper\);color:var\(--ink\)/.test(html));
  T('sem fundo transparente no botao', !/\.btn\{background:transparent/.test(html));
- T('barra de botoes em grade no celular',
-   /\.acts\{display:grid;grid-template-columns:1fr 1fr/.test(css));
- T('seletor de usuario na linha inteira', /select\.who\{grid-column:1\/-1/.test(css));
- T('alvo de toque de 44px', (css.match(/min-height:44px/g)||[]).length>=2);
+ T('menu vira uma faixa rolável, não grade de botões (não ocupa metade da tela)',
+   /\.menu\{flex-wrap:nowrap;overflow-x:auto/.test(css));
+ T('botões do menu não quebram linha (rolagem horizontal)', /\.menu \.btn\{flex:none;white-space:nowrap/.test(css));
+ T('alvo de toque de pelo menos 40px', (css.match(/min-height:40px/g)||[]).length>=2);
  T('wrap com fundo proprio contra inversao',
    /\.wrap\{[^}]*background:var\(--paper\)/.test(html));
  T('wrap cobre a tela toda', /\.wrap\{[^}]*min-height:100vh/.test(html));

@@ -376,30 +376,43 @@ app.get('/entrar', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'entrar.html'));
 });
 
+function ehAdmin(req) {
+  return req.usuario && (req.usuario.papel === 'master' || req.usuario.papel === 'admin');
+}
+
+// Consolidado, Análise e Usuários vivem dentro do painel (menu fixo, só o
+// conteúdo abaixo troca) — a navegação de verdade entre eles acontece num
+// iframe. Aberta direto (recarregar, "voltar", link externo) a rota serve
+// o mesmo index.html de sempre, que le a URL e mostra a seção certa; o
+// proprio painel, ao entrar naquela seção, aponta o iframe para
+// "?frame=1", que devolve so o conteudo (sem a casca do painel em volta).
 app.get('/consolidado', (req, res) => {
   if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
-  res.sendFile(path.join(__dirname, 'public', 'consolidado.html'));
-});
-
-app.get('/mapas', (req, res) => {
-  if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
-  res.sendFile(path.join(__dirname, 'public', 'mapas.html'));
+  if (req.query.frame) return res.sendFile(path.join(__dirname, 'public', 'consolidado.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/analise', (req, res) => {
   if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
-  res.sendFile(path.join(__dirname, 'public', 'analise.html'));
+  if (req.query.frame) return res.sendFile(path.join(__dirname, 'public', 'analise.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/admin', (req, res) => {
-  if (!req.usuario || (req.usuario.papel !== 'master' && req.usuario.papel !== 'admin') || temSenhaPendente(req)) {
-    return res.redirect('/entrar');
-  }
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+app.get('/usuarios', (req, res) => {
+  if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
+  if (!ehAdmin(req)) return res.redirect('/');
+  if (req.query.frame) return res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// O painel so sai daqui para quem esta logado.
-app.get(['/', '/index.html'], (req, res) => {
+// Rotas antigas: o conteudo mudou de lugar, mas um link ou favorito velho
+// ainda deve chegar ao destino certo.
+app.get('/mapas', (req, res) => res.redirect('/importar'));
+app.get('/admin', (req, res) => res.redirect('/usuarios'));
+
+// O painel so sai daqui para quem esta logado. "/importar" e a mesma casca
+// — e o JS do painel, lendo a URL, que decide qual seção mostrar.
+app.get(['/', '/index.html', '/importar'], (req, res) => {
   if (!req.usuario || temSenhaPendente(req)) return res.redirect('/entrar');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

@@ -10,7 +10,9 @@ const T=(n,c,x)=>console.log((c?'  ok  ':'  FALHA ')+n+(x?' — '+x:''));
 (async()=>{
  await new Promise(r=>setTimeout(r,80));
  const d=w.document;
- T('tela de importação visível', !d.querySelector('#importBox').classList.contains('hide'));
+ T('Home visível (é a seção que abre no login)', !d.querySelector('#secaoHome').classList.contains('hide'));
+ T('tela de importação escondida (não é a seção padrão)', d.querySelector('#importBox').classList.contains('hide'));
+ T('aviso de semana nenhuma aberta aparece', !d.querySelector('#avisoSemSemana').classList.contains('hide'));
  T('painel escondido', d.querySelector('#app').classList.contains('hide'));
  T('salvar desabilitado', d.querySelector('#bSave').disabled);
  T('duas áreas de upload', d.querySelectorAll('.drop').length===2);

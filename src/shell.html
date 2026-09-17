@@ -30,31 +30,32 @@ table{border-collapse:collapse;width:100%}
 button{font:inherit;color:inherit;cursor:pointer}
 .hide{display:none!important}
 
-/* ---------- topo ---------- */
-header{border-bottom:1px solid var(--line);margin-bottom:26px}
-.hbar{display:flex;align-items:flex-end;gap:20px;padding:22px 0 16px;flex-wrap:wrap}
-.hbar img.brand{height:34px;width:auto;display:block}
+/* ---------- topo (fixo ao rolar: cabecalho + menu) ---------- */
+header{border-bottom:1px solid var(--line);margin-bottom:26px;
+  position:sticky;top:0;z-index:30;background:var(--paper)}
+.hbar{display:flex;align-items:flex-end;gap:20px;padding:16px 0 12px;flex-wrap:wrap}
+.hbar img.brand{height:30px;width:auto;display:block}
 .htitle{flex:1;min-width:220px}
-.htitle h1{font-size:26px;line-height:1.1;color:var(--azul)}
+.htitle h1{font-size:22px;line-height:1.1;color:var(--azul)}
 .htitle p{margin:3px 0 0;color:var(--mute);font-size:13.5px}
 .stamp{text-align:right;font-size:12.5px;color:var(--mute);line-height:1.5}
 .stamp b{color:var(--ink);font-weight:600}
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .hlinks{display:flex;gap:10px}
 
-.acts{display:flex;gap:8px;align-items:center;padding-bottom:16px;flex-wrap:wrap}
+.menu{display:flex;gap:8px;align-items:center;padding-bottom:12px;flex-wrap:wrap}
 .btn{background:var(--paper);color:var(--ink);border:1px solid var(--line);
   border-radius:var(--r);padding:7px 13px;font-size:13.5px;
-  transition:border-color .12s,background .12s}
+  transition:border-color .12s,background .12s;text-decoration:none;
+  display:inline-flex;align-items:center}
 .btn:hover{border-color:var(--azul);color:var(--azul);background:#D5D6DF}
-.btn.pri{background:var(--azul);color:#fff;border-color:var(--azul)}
-.btn.pri:hover{background:#16165C}
+.btn.pri,.btn.mnu.ativo{background:var(--azul);color:#fff;border-color:var(--azul)}
+.btn.pri:hover,.btn.mnu.ativo:hover{background:#16165C;color:#fff}
 .btn:disabled{opacity:.4;cursor:default}
 .btn:disabled:hover{border-color:var(--line);color:var(--ink);background:var(--paper)}
-.fechamsg{font-size:12px;margin-left:8px;opacity:.85}
+.fechamsg{font-size:12px;margin-left:-2px;margin-right:4px;opacity:.85}
 .fechamsg.ok{color:#5FBF7F}
 .fechamsg.ruim{color:#E06C6C}
-.btn.lnk{text-decoration:none;display:inline-flex;align-items:center}
 select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   font:inherit;font-size:13.5px;background:var(--card)}
 .quem{display:inline-flex;align-items:center;padding:0 10px;font-weight:600}
@@ -74,6 +75,43 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .drop .file{font-size:12.5px;color:var(--azul);word-break:break-all;margin-top:6px}
 .err{color:var(--alertd);font-size:13px;margin-top:8px}
 .note{font-size:12.5px;color:var(--mute);margin:10px 0 0}
+
+/* ---------- cotações do mapa (bloco dentro de Importar) ---------- */
+.cotmapa{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.cotmapa h2{font-size:17px;margin-bottom:4px;color:var(--azul)}
+.cottbl{width:100%;border-collapse:collapse;background:var(--card);
+  border:1px solid var(--line);font-size:13.5px;margin-top:12px}
+.cottbl th,.cottbl td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);
+  vertical-align:top}
+.cottbl th{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--mute);
+  font-weight:600;background:#F4F5F8}
+.cottbl tbody tr:last-child td{border-bottom:0}
+.cotmuted{color:var(--mute)}
+.cotbadge{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;
+  border-radius:20px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.cotbadge.casada{background:var(--posbg,#EAF6EF);color:#0F7B40}
+.cotbadge.calculada{background:#fdf6e7;color:#8a5a00}
+.cotbadge.pendente{background:var(--alertbg);color:var(--alertd)}
+.cotavisolinha{font-size:12px;color:#8a5a00;margin-top:4px}
+.cotavisolinha.forte{color:var(--alertd)}
+.cotsem{padding:6px;border:1px solid var(--line);border-radius:var(--r);width:64px;
+  font-family:inherit;font-size:13.5px}
+.cotano{padding:6px;border:1px solid var(--line);border-radius:var(--r);width:74px;
+  font-family:inherit;font-size:13.5px}
+.cotperiodo{font-size:12px;color:var(--mute)}
+.cotacoes{display:flex;gap:10px;align-items:center;margin-top:14px}
+.cotresultado{font-size:13.5px;margin-top:4px}
+.cotresultado .ok{color:#0F7B40}
+.cotresultado .erro{color:var(--alertd)}
+.cotvazio{background:var(--card);border:1px solid var(--line);padding:24px;
+  text-align:center;color:var(--mute);font-size:14px;margin-top:12px}
+
+/* ---------- Home ---------- */
+#secaoHome{margin-top:0}
+
+/* ---------- consolidado/analise/usuarios embutidos ---------- */
+.iframesec iframe{width:100%;border:0;display:block;
+  height:calc(100vh - 170px);min-height:520px;background:var(--card)}
 
 /* ---------- kpis ---------- */
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
@@ -111,12 +149,8 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
 .linkb{background:none;border:0;padding:0;font:inherit;color:var(--azul);
   font-weight:600;cursor:pointer;text-decoration:underline}
 .linkb:hover{opacity:.8}
-#salvasBox{margin:10px 0 0}
-.salvashead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;
-  background:none;border:0;padding:0;margin-bottom:10px;font:inherit;
-  font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer}
-.salvashead:hover{color:var(--azul)}
-.salvashead .chev{font-size:11px;color:var(--mute);width:1em;display:inline-block;flex:none}
+#salvasBox{margin:0 0 22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+#salvasBox h2{font-size:17px;color:var(--azul);margin-bottom:2px}
 .nec.recolhido #necRows,.nec.recolhido .addnec{display:none}
 .tercm{height:20px;width:20px;flex:none;border-radius:50%;background:var(--sebo);
   display:inline-flex;align-items:center;justify-content:center;
@@ -277,11 +311,14 @@ footer img{height:17px;width:auto;opacity:.75}
   .htitle p{font-size:12.5px}
   .hright{order:3;flex:1 1 100%;align-items:flex-start}
   .stamp{text-align:left;font-size:12px}
-  .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-bottom:14px}
-  .acts .btn{width:100%;padding:11px 8px;font-size:13.5px;text-align:center;
-    line-height:1.25;min-height:44px}
-  .acts .spacer{display:none}
-  select.who{grid-column:1/-1;width:100%;padding:10px 9px;font-size:16px;min-height:44px}
+  /* linha rolavel horizontal: nunca ocupa metade da tela, so uma faixa fina
+     no topo — em vez da grade de botoes que tomava varias linhas antes. */
+  .menu{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:10px;gap:6px}
+  .menu .btn{flex:none;white-space:nowrap;padding:8px 12px;font-size:13px;min-height:40px}
+  .menu .fechamsg{display:none}
+  .menu .spacer{flex:none;width:8px}
+  select.who{flex:none;min-width:130px;font-size:14px;min-height:40px}
 
   .kpis{grid-template-columns:1fr}
   .kpi{padding:12px 14px}
@@ -343,10 +380,13 @@ footer img{height:17px;width:auto;opacity:.75}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-.rascunhos{display:flex;flex-direction:column;gap:6px;margin:14px 0 20px}
-.rascunho{display:flex;align-items:stretch;gap:8px}
-.rascunho-abrir{flex:1;text-align:left;background:var(--paper);border:1px solid var(--line);
-  border-radius:var(--r);padding:9px 13px;font:inherit;font-size:13px;cursor:pointer}
+.rascunhos{display:flex;flex-direction:column;gap:6px;margin:10px 0 0}
+.rascunho{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
+  padding:9px 13px}
+.rascunho-info{flex:1;min-width:200px;font-size:13px}
+.rascunho-abrir{flex:none;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer}
 .rascunho-abrir:hover{border-color:var(--azul);color:var(--azul)}
 .rascunho-descartar{flex:none;background:none;border:0;color:var(--mute);font-size:12px;
   text-decoration:underline;cursor:pointer;padding:0 4px}
@@ -423,7 +463,7 @@ footer img{height:17px;width:auto;opacity:.75}
   <div class="hbar">
     <img class="brand" id="lgFriboi" alt="Friboi">
     <div class="htitle">
-      <h1>Alocação de sebo</h1>
+      <h1>Painel de sebo</h1>
       <p id="sub">Importe as planilhas da semana para começar</p>
     </div>
     <div class="hright">
@@ -434,26 +474,103 @@ footer img{height:17px;width:auto;opacity:.75}
       </div>
     </div>
   </div>
-  <div class="acts">
-    <button class="btn" id="bNovaSemana" disabled>Nova semana</button>
-    <button class="btn" id="bImport">Importar planilhas</button>
-    <button class="btn" id="bSave" disabled>Salvar</button>
+  <nav class="menu" id="menu" aria-label="Seções do painel">
+    <a class="btn mnu" href="/" data-rota="/">Home</a>
+    <button class="btn mnu" id="bNovaSemana" disabled>Nova semana</button>
+    <a class="btn mnu" href="/importar" data-rota="/importar">Importar planilhas</a>
+    <button class="btn mnu" id="bSave" disabled>Salvar</button>
     <span id="msgSalvar" class="fechamsg"></span>
-    <button class="btn" id="bFechar">Fechar semana</button>
+    <button class="btn mnu" id="bFechar" disabled>Fechar semana</button>
     <span id="fechaMsg" class="fechamsg"></span>
-    <button class="btn" id="bProg" disabled>Exportar programação</button>
-    <a class="btn lnk" href="/consolidado" target="_blank" rel="noopener">Consolidado</a>
-    <a class="btn lnk" href="/mapas">Cotações do Mapa</a>
-    <a class="btn lnk" href="/analise" target="_blank" rel="noopener">Análise de cotações</a>
-    <a class="btn lnk hide" href="/admin" target="_blank" rel="noopener" id="lnkAdmin">Usuários</a>
+    <button class="btn mnu" id="bProg" disabled>Exportar programação</button>
+    <a class="btn mnu" href="/consolidado" data-rota="/consolidado">Consolidado</a>
+    <a class="btn mnu" href="/analise" data-rota="/analise">Análise de cotações</a>
+    <a class="btn mnu hide" href="/usuarios" data-rota="/usuarios" id="lnkUsuarios">Usuários</a>
     <div class="spacer"></div>
     <select class="who" id="who" aria-label="Quem está operando">
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
     </select>
-  </div>
+  </nav>
 </header>
 
-<section class="import" id="importBox">
+<section id="secaoHome">
+  <div class="warn hide" id="avisoSemSemana">Nenhuma semana aberta.
+    <a href="/importar" data-rota="/importar">Importe as planilhas</a> para começar.</div>
+  <div id="salvasBox" class="hide">
+    <h2>Semanas salvas</h2>
+    <div id="salvasList" class="rascunhos"></div>
+  </div>
+
+  <main id="app" class="hide">
+    <div class="warn hide" id="avisoOrigem"></div>
+    <div class="kpis" id="kpis"></div>
+    <div id="avisos"></div>
+
+    <section class="nec" id="necBox">
+      <div class="nechead">
+        <h2>Destinos da semana</h2>
+        <div class="modos" role="radiogroup" aria-label="Critério de distribuição">
+          <label class="modo">
+            <input type="radio" name="modo" value="mercado" id="modoMer">
+            <span><b>Mercado livre</b>
+              <em>Ninguém tem prioridade. Todo destino disputa pela cotação do Mapa e
+                  ganha o melhor NET por tonelada.</em></span>
+          </label>
+          <label class="modo">
+            <input type="radio" name="modo" value="prioridade" id="modoPri" checked>
+            <span><b>Prioridade de volume</b>
+              <em>Atende primeiro os volumes digitados abaixo. O que sobrar vai para o
+                  melhor NET.</em></span>
+          </label>
+        </div>
+      </div>
+      <div class="necresumo" id="necResumo">
+        <span id="necResumoTxt"></span>
+        <button class="linkb" id="bVerDest" aria-expanded="false"
+                aria-controls="necRows">mostrar</button>
+      </div>
+      <div id="necRows"></div>
+      <div class="necfoot">
+        <span id="necTot"></span>
+        <span class="spacer"></span>
+        <span class="pend hide" id="pend">alterações ainda não aplicadas</span>
+        <button class="mini" id="bAddNec">Acrescentar terceiro</button>
+        <button class="btn pri" id="bRodar">Rodar</button>
+      </div>
+      <div class="addnec hide" id="addNec">
+        <select id="selNec" aria-label="Cliente do mapa"></select>
+        <button class="mini" id="bAddOk">Incluir</button>
+        <button class="mini" id="bAddNo">Cancelar</button>
+      </div>
+    </section>
+
+    <div class="grid">
+      <div class="mapbox">
+        <h2 class="maph">Unidades da semana</h2>
+        <svg id="map" viewBox="0 0 520 560" role="img" aria-label="Mapa do Brasil por estado"></svg>
+        <div class="legend" id="legend"></div>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="sec">
+        <h2>Distribuição por estado</h2>
+        <p class="hint">Para onde foi a produção de cada estado. Clique para abrir o detalhe
+          unidade por unidade.</p>
+        <table class="t" id="tblUF"></table>
+      </div>
+    </div>
+
+    <section class="detail hide" id="detail"></section>
+    <section id="resumoSemana" class="hide"></section>
+  </main>
+
+  <footer>
+    <span id="foot"></span>
+    <span class="spacer"></span>
+    <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
+  </footer>
+</section>
+
+<section class="import hide" id="importBox">
   <h2>Planilhas da semana</h2>
   <p>Solte os dois arquivos abaixo ou clique para escolher. A necessidade das fábricas
      próprias você digita depois, aqui mesmo no painel.</p>
@@ -474,85 +591,42 @@ footer img{height:17px;width:auto;opacity:.75}
       <div class="file" data-f="mapa"></div>
     </div>
   </div>
-  <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
+  <div class="note">Programação e Mapa abrem a semana na tela: escolha os dois pra começar
+     a distribuir. O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
   <div class="err hide" id="impErr"></div>
-  <div id="salvasBox" class="hide">
-    <button type="button" class="salvashead" id="salvasHead" aria-expanded="false" aria-controls="salvasList">
-      <span class="chev" id="salvasChev" aria-hidden="true">▸</span>
-      <span id="salvasTitulo">Semanas salvas</span>
-    </button>
-    <div id="salvasList" class="rascunhos hide"></div>
+
+  <div class="cotmapa">
+    <h2>Cotações do Mapa</h2>
+    <p class="note">Suba um ou mais Mapas de ofertas para gravar a série de preços por cliente.
+       Isto só grava histórico de preços, não abre nenhuma semana: cada Mapa vira uma linha por
+       cliente com a oferta bruta (sem NET: NET embute frete e varia por origem, a série aqui é
+       de preço pedido). Não precisa da Programação nem fechar a semana para isto.</p>
+    <input type="file" id="cotArquivos" multiple accept=".xlsx,.xlsm">
+
+    <h3 style="margin-top:18px;font-size:14.5px">Mapas gravados</h3>
+    <div id="cotGravados"><p class="cotmuted">Carregando…</p></div>
+
+    <div id="cotTabela"></div>
+    <div class="cotacoes hide" id="cotAcoes">
+      <button class="btn pri" id="cotBConfirmar" disabled>Confirmar e gravar</button>
+      <span class="cotmuted" id="cotMsgConfirmar"></span>
+    </div>
+    <div id="cotResultado"></div>
   </div>
 </section>
 
-<main id="app" class="hide">
-  <div class="warn hide" id="avisoOrigem"></div>
-  <div class="kpis" id="kpis"></div>
-  <div id="avisos"></div>
+<section class="hide iframesec" id="secaoConsolidado">
+  <iframe id="frameConsolidado" title="Consolidado"></iframe>
+</section>
 
-  <section class="nec" id="necBox">
-    <div class="nechead">
-      <h2>Destinos da semana</h2>
-      <div class="modos" role="radiogroup" aria-label="Critério de distribuição">
-        <label class="modo">
-          <input type="radio" name="modo" value="mercado" id="modoMer">
-          <span><b>Mercado livre</b>
-            <em>Ninguém tem prioridade. Todo destino disputa pela cotação do Mapa e
-                ganha o melhor NET por tonelada.</em></span>
-        </label>
-        <label class="modo">
-          <input type="radio" name="modo" value="prioridade" id="modoPri" checked>
-          <span><b>Prioridade de volume</b>
-            <em>Atende primeiro os volumes digitados abaixo. O que sobrar vai para o
-                melhor NET.</em></span>
-        </label>
-      </div>
-    </div>
-    <div class="necresumo" id="necResumo">
-      <span id="necResumoTxt"></span>
-      <button class="linkb" id="bVerDest" aria-expanded="false"
-              aria-controls="necRows">mostrar</button>
-    </div>
-    <div id="necRows"></div>
-    <div class="necfoot">
-      <span id="necTot"></span>
-      <span class="spacer"></span>
-      <span class="pend hide" id="pend">alterações ainda não aplicadas</span>
-      <button class="mini" id="bAddNec">Acrescentar terceiro</button>
-      <button class="btn pri" id="bRodar">Rodar</button>
-    </div>
-    <div class="addnec hide" id="addNec">
-      <select id="selNec" aria-label="Cliente do mapa"></select>
-      <button class="mini" id="bAddOk">Incluir</button>
-      <button class="mini" id="bAddNo">Cancelar</button>
-    </div>
-  </section>
+<section class="hide iframesec" id="secaoAnalise">
+  <iframe id="frameAnalise" title="Análise de cotações"></iframe>
+</section>
 
-  <div class="grid">
-    <div class="mapbox">
-      <h2 class="maph">Unidades da semana</h2>
-      <svg id="map" viewBox="0 0 520 560" role="img" aria-label="Mapa do Brasil por estado"></svg>
-      <div class="legend" id="legend"></div>
-      <div class="tip" id="tip"></div>
-    </div>
-    <div class="sec">
-      <h2>Distribuição por estado</h2>
-      <p class="hint">Para onde foi a produção de cada estado. Clique para abrir o detalhe
-        unidade por unidade.</p>
-      <table class="t" id="tblUF"></table>
-    </div>
-  </div>
-
-  <section class="detail hide" id="detail"></section>
-  <section id="resumoSemana" class="hide"></section>
-</main>
-
-<footer>
-  <span id="foot"></span>
-  <span class="spacer"></span>
-  <img id="lgBio" alt="BioPower"><img id="lgFlora" alt="Flora">
-</footer>
+<section class="hide iframesec" id="secaoUsuarios">
+  <iframe id="frameUsuarios" title="Usuários"></iframe>
+</section>
 </div>
 
 <div class="ovl hide" id="ovlSenha">

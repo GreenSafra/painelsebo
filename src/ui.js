@@ -51,10 +51,7 @@ function setupImport() {
       if (e.dataTransfer.files[0]) receber(d.dataset.k, e.dataTransfer.files[0]);
     };
   });
-  $('#bImport').onclick = () => {
-    $('#importBox').classList.remove('hide');
-    $('#importBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  ligarMenu();
   $('#bSave').onclick = salvarRascunho;
   $('#bProg').onclick = exportarProg;
   document.getElementById('bFechar').onclick = async () => {
@@ -103,8 +100,6 @@ function setupImport() {
   };
   $('#who').onchange = () => { ST && (ST.usuario = $('#who').value); carimbo(); persistir(); };
   $('#bNovaSemana').onclick = novaSemana;
-  const sh = document.getElementById('salvasHead');
-  if (sh) sh.onclick = alternarSalvas;
   const ls = document.getElementById('lnkSair');
   if (ls) ls.onclick = e => { e.preventDefault(); sair(); };
   const lt = document.getElementById('lnkTrocarSenha');
@@ -113,6 +108,57 @@ function setupImport() {
   if (tsCancelar) tsCancelar.onclick = fecharTrocaSenha;
   const tsSalvar = document.getElementById('tsSalvar');
   if (tsSalvar) tsSalvar.onclick = salvarTrocaSenha;
+}
+
+/* ====================== NAVEGAÇÃO ENTRE SEÇÕES ====================== */
+// Menu fixo, so o conteudo abaixo troca — Consolidado/Analise/Usuarios vivem
+// num iframe (mesma pagina deles, sem casca, servida com ?frame=1); Home e
+// Importar sao secoes de verdade dentro deste documento. Cada rota tem URL
+// propria (history.pushState), recarregar ou "voltar" cai na secao certa
+// porque o servidor devolve este mesmo documento pra qualquer uma delas e o
+// boot() le a URL.
+var SECAO_DE_ROTA = {
+  '/': 'secaoHome', '/importar': 'importBox',
+  '/consolidado': 'secaoConsolidado', '/analise': 'secaoAnalise', '/usuarios': 'secaoUsuarios'
+};
+var ROTA_ATUAL = '/';
+
+function ligarMenu() {
+  $$('[data-rota]').forEach(a => {
+    a.onclick = e => {
+      // clique modificado (ctrl/cmd/shift/meio-botao) abre em nova aba —
+      // comportamento nativo do navegador, nao interceptar.
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      navegarPara(a.getAttribute('data-rota'));
+    };
+  });
+  window.onpopstate = () => navegarPara(location.pathname, { empurrar: false });
+}
+
+function ligarFrame(id, url) {
+  const f = document.getElementById(id);
+  if (f) f.src = url;
+}
+
+// opts.empurrar=false (usado no boot e no popstate): so mostra a secao,
+// nao mexe no historico — senao cada carregamento de pagina empilharia
+// uma entrada nova.
+function navegarPara(rota, opts) {
+  const empurrar = !opts || opts.empurrar !== false;
+  if (!(rota in SECAO_DE_ROTA)) rota = '/';
+  const mudou = rota !== ROTA_ATUAL;
+  ROTA_ATUAL = rota;
+  Object.keys(SECAO_DE_ROTA).forEach(r => {
+    const el = document.getElementById(SECAO_DE_ROTA[r]);
+    if (el) el.classList.toggle('hide', r !== rota);
+  });
+  $$('[data-rota]').forEach(a => a.classList.toggle('ativo', a.getAttribute('data-rota') === rota));
+  if (empurrar && location.pathname !== rota) history.pushState(null, '', rota);
+  if (rota === '/consolidado') ligarFrame('frameConsolidado', '/consolidado?frame=1');
+  if (rota === '/analise') ligarFrame('frameAnalise', '/analise?frame=1');
+  if (rota === '/usuarios') ligarFrame('frameUsuarios', '/usuarios?frame=1');
+  if (mudou) { try { window.scrollTo(0, 0); } catch (e) { } }
 }
 
 // Logout ja existe no servidor (POST /api/sair) — so faltava o botao.
@@ -180,7 +226,8 @@ async function receber(k, file) {
     arquivos[k] = file.name;
     box.classList.add('ok');
     document.querySelector('[data-f="' + k + '"]').textContent = file.name;
-    if (PROD && MAPA) iniciar();
+    // Programação + Mapa completos: a semana abriu, vai pra Home.
+    if (PROD && MAPA) { iniciar(); navegarPara('/'); }
   } catch (e) {
     box.classList.remove('ok');
     document.querySelector('[data-f="' + k + '"]').textContent = '';
@@ -191,6 +238,14 @@ async function receber(k, file) {
 function erro(m) {
   const e = $('#impErr');
   e.textContent = m; e.classList.toggle('hide', !m);
+}
+
+// Home sem semana aberta mostra so a lista de "Semanas salvas" e este
+// aviso; com semana, o aviso some e #app aparece — as duas coisas nunca
+// ficam visiveis juntas.
+function atualizarAvisoSemSemana() {
+  const el = document.getElementById('avisoSemSemana');
+  if (el) el.classList.toggle('hide', !!PROD);
 }
 
 function iniciar(restaurando) {
@@ -204,10 +259,11 @@ function iniciar(restaurando) {
   // importa o que veio salvo (rascunho, localStorage), nao precisa lembrar
   ST.verDest = false;
   ST.semana = PROD.semana; ST.periodo = PROD.periodo; ST.dataMapa = MAPA.data;
-  $('#importBox').classList.add('hide');
   $('#app').classList.remove('hide');
+  atualizarAvisoSemSemana();
   $('#bSave').disabled = false;
   $('#bProg').disabled = !PROGBUF;
+  $('#bFechar').disabled = false;
   $('#bNovaSemana').disabled = false;
   recalcular();
   identificar();
@@ -234,7 +290,7 @@ async function identificar() {
     const nome = j.usuario.nome;
     // gerenciar usuarios e coisa de master ou admin, igual a trava do servidor
     if (j.usuario.papel === 'master' || j.usuario.papel === 'admin') {
-      const la = document.getElementById('lnkAdmin');
+      const la = document.getElementById('lnkUsuarios');
       if (la) la.classList.remove('hide');
     }
     const sel = $('#who');
@@ -1203,35 +1259,14 @@ function podeTrocarSemana() {
   );
 }
 
-// Alterna a lista "Semanas salvas" entre recolhida e aberta. O botao e
-// um <button> de verdade (nao uma div com role="button"): Enter/Espaço ja
-// disparam onclick nativamente, sem precisar de keydown a mao.
-function alternarSalvas() {
-  const head = document.getElementById('salvasHead');
-  const ul = document.getElementById('salvasList');
-  const chev = document.getElementById('salvasChev');
-  if (!head || !ul) return;
-  const aberto = head.getAttribute('aria-expanded') === 'true';
-  head.setAttribute('aria-expanded', aberto ? 'false' : 'true');
-  ul.classList.toggle('hide', aberto);
-  if (chev) chev.textContent = aberto ? '▸' : '▾';
-}
-
+// Sempre visivel, ja expandida (fica no topo da Home) — nao tem mais botao
+// de recolher/abrir. Cada linha mostra o resumo e um botao "Abrir".
 function renderSemanasSalvas(lista) {
   const box = document.getElementById('salvasBox');
   const ul = document.getElementById('salvasList');
-  const head = document.getElementById('salvasHead');
-  const titulo = document.getElementById('salvasTitulo');
-  const chev = document.getElementById('salvasChev');
   if (!box || !ul) return;
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
-  // sempre recolhida ao (re)popular a lista — inclusive quando a lista
-  // ja estava aberta antes de um refresh (descartar rascunho, nova semana).
-  ul.classList.add('hide');
-  if (head) head.setAttribute('aria-expanded', 'false');
-  if (chev) chev.textContent = '▸';
-  if (titulo) titulo.textContent = 'Semanas salvas (' + lista.length + ')';
   ul.innerHTML = lista.map(r => {
     const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
     // so uma semana FECHADA pode ficar sem pacote (fechada antes da coluna
@@ -1240,12 +1275,11 @@ function renderSemanasSalvas(lista) {
     const badges = (semPacote ? ' · <span class="semplan">sem planilhas</span>' : '') +
       (r.preenchida ? ' · <span class="semplan">planilha preenchida</span>' : '');
     return '<div class="rascunho">' +
+      '<span class="rascunho-info">Semana ' + r.semana + '/' + r.ano +
+        (r.periodo ? ' (' + esc(r.periodo) + ')' : '') + ', ' + situacao + badges +
+        ' · ' + esc(r.quem || '-') + ' às ' + esc(fmtDataHora(r.quando)) + '</span>' +
       '<button class="rascunho-abrir" data-tipo="' + r.situacao + '" data-ano="' + r.ano +
-        '" data-semana="' + r.semana + '">' +
-        'Semana ' + r.semana + '/' + r.ano + (r.periodo ? ' (' + esc(r.periodo) + ')' : '') +
-        ', ' + situacao + badges +
-        ' · ' + esc(r.quem || '-') + ' às ' + esc(fmtDataHora(r.quando)) +
-      '</button>' +
+        '" data-semana="' + r.semana + '">Abrir</button>' +
       (r.situacao === 'rascunho'
         ? '<button class="rascunho-descartar" data-ano="' + r.ano + '" data-semana="' + r.semana +
           '" title="Apagar este rascunho do servidor">descartar</button>'
@@ -1256,8 +1290,8 @@ function renderSemanasSalvas(lista) {
     b.onclick = () => {
       if (!podeTrocarSemana()) return;
       const ano = Number(b.dataset.ano), semana = Number(b.dataset.semana);
-      if (b.dataset.tipo === 'fechada') carregarSemanaFechada(ano, semana);
-      else carregarRascunho(ano, semana);
+      const p = b.dataset.tipo === 'fechada' ? carregarSemanaFechada(ano, semana) : carregarRascunho(ano, semana);
+      p.then(() => navegarPara('/'));
     };
   });
   [].forEach.call(ul.querySelectorAll('.rascunho-descartar'), b => {
@@ -1294,10 +1328,12 @@ function novaSemana() {
   arquivos = {};
   RASCUNHO_SALVO_EM = null; RASCUNHO_SALVO_POR = null; ORIGEM_FECHADA = null;
   marcarRascunhoSujo(false);
-  $('#bSave').disabled = true; $('#bProg').disabled = true; $('#bNovaSemana').disabled = true;
+  $('#bSave').disabled = true; $('#bProg').disabled = true;
+  $('#bFechar').disabled = true; $('#bNovaSemana').disabled = true;
   $('#sub').textContent = ''; $('#stamp').innerHTML = ''; $('#foot').textContent = '';
   $('#app').classList.add('hide');
-  $('#importBox').classList.remove('hide');
+  atualizarAvisoSemSemana();
+  navegarPara('/importar');
   carregarSemanasSalvas();  // atualiza a lista (pode ter mudado nesta sessao)
 }
 
@@ -1374,6 +1410,207 @@ async function buscarCandidatoServidor() {
   return null;
 }
 
+/* ====================== COTAÇÕES DO MAPA (bloco dentro de Importar) ====================== */
+// Upload avulso de um ou mais Mapas, so pra gravar a serie de precos por
+// cliente — nao abre semana nenhuma (por isso "cot" prefixado em tudo:
+// nomes como "arquivos" e "render" ja sao do fluxo principal de Programação
+// + Mapa). readXlsx/readMapa/extrairCotacoes/resolverSemanaDoMapa sao os
+// mesmos de core.js — nao ha leitor duplicado aqui.
+var COT_SEMANAS_FECHADAS = [];
+var COT_SEMANAS_COM_COTACAO = new Set();
+var COT_GRAVADAS = [];   // { ano, semana, linhas, clientes, data_cotacao }
+var COT_ARQUIVOS = [];   // { nome, mapa, cotacoes, ano, semana, statusOrigem, periodo }
+
+function cotFmtDataBR(iso) {
+  if (!iso) return '-';
+  const [a, m, d] = String(iso).slice(0, 10).split('-');
+  return d + '/' + m + '/' + a;
+}
+
+function cotContarClientes(cotacoes) {
+  return new Set(cotacoes.map(c => c.cliente)).size;
+}
+
+function cotChave(ano, semana) { return ano + '/' + semana; }
+
+function cotRecomputar() {
+  const contagem = new Map();
+  COT_ARQUIVOS.forEach(a => {
+    if (a.ano == null || a.semana == null) return;
+    const k = cotChave(a.ano, a.semana);
+    contagem.set(k, (contagem.get(k) || 0) + 1);
+  });
+  COT_ARQUIVOS.forEach(a => {
+    a.duplicadoNoLote = (a.ano != null && a.semana != null) &&
+      contagem.get(cotChave(a.ano, a.semana)) > 1;
+    a.jaTemCotacao = (a.ano != null && a.semana != null) &&
+      COT_SEMANAS_COM_COTACAO.has(cotChave(a.ano, a.semana));
+  });
+}
+
+function cotRender() {
+  const box = document.getElementById('cotTabela');
+  const acoes = document.getElementById('cotAcoes');
+  if (!box || !acoes) return;
+  if (!COT_ARQUIVOS.length) {
+    box.innerHTML = '';
+    acoes.classList.add('hide');
+    return;
+  }
+  cotRecomputar();
+  let h = '<table class="cottbl"><thead><tr><th>Arquivo</th><th>Data da cotação</th>' +
+    '<th>Linhas</th><th>Clientes</th><th>Semana</th><th></th></tr></thead><tbody>';
+  COT_ARQUIVOS.forEach((a, idx) => {
+    const badge = a.statusOrigem === 'casada' ? 'casada'
+      : a.statusOrigem === 'calculada' ? 'calculada' : 'pendente';
+    h += '<tr><td>' + esc(a.nome) + '</td>' +
+      '<td>' + esc(a.mapa.data || '-') + '</td>' +
+      '<td>' + a.cotacoes.length + '</td>' +
+      '<td>' + cotContarClientes(a.cotacoes) + '</td>' +
+      '<td><span class="cotbadge ' + badge + '">' + badge + '</span>' +
+      (a.periodo ? '<div class="cotperiodo">' + esc(a.periodo) + '</div>' : '') +
+      '<div style="margin-top:6px">' +
+      '<input class="cotano" type="number" data-idx="' + idx + '" data-campo="ano" placeholder="ano" value="' +
+      (a.ano == null ? '' : a.ano) + '"> ' +
+      '<input class="cotsem" type="number" data-idx="' + idx + '" data-campo="semana" placeholder="sem." value="' +
+      (a.semana == null ? '' : a.semana) + '">' +
+      '</div>';
+    if (a.duplicadoNoLote) {
+      h += '<div class="cotavisolinha forte">mesma semana que outro arquivo deste lote</div>';
+    }
+    if (a.jaTemCotacao) {
+      h += '<div class="cotavisolinha">já tem cotação gravada, subir de novo substitui</div>';
+    }
+    h += '</td><td><button class="btn" data-remover="' + idx + '">remover</button></td></tr>';
+  });
+  h += '</tbody></table>';
+  box.innerHTML = h;
+
+  [].forEach.call(box.querySelectorAll('input[data-campo]'), inp => {
+    inp.onchange = () => {
+      const idx = Number(inp.dataset.idx);
+      const v = inp.value === '' ? null : Number(inp.value);
+      COT_ARQUIVOS[idx][inp.dataset.campo] = (v != null && isFinite(v)) ? v : null;
+      cotRender();
+    };
+  });
+  [].forEach.call(box.querySelectorAll('button[data-remover]'), b => {
+    b.onclick = () => { COT_ARQUIVOS.splice(Number(b.dataset.remover), 1); cotRender(); };
+  });
+
+  acoes.classList.remove('hide');
+  const faltando = COT_ARQUIVOS.some(a => a.ano == null || a.semana == null);
+  const bConfirmar = document.getElementById('cotBConfirmar');
+  bConfirmar.disabled = faltando;
+  document.getElementById('cotMsgConfirmar').textContent = faltando
+    ? 'Defina o ano e a semana de todo arquivo pendente antes de gravar.' : '';
+}
+
+async function cotCarregarListas() {
+  try {
+    const [rs, rc] = await Promise.all([fetch('/api/semanas'), fetch('/api/cotacoes/semanas')]);
+    COT_SEMANAS_FECHADAS = rs.ok ? await rs.json() : [];
+    COT_GRAVADAS = rc.ok ? await rc.json() : [];
+  } catch (e) {
+    COT_SEMANAS_FECHADAS = []; COT_GRAVADAS = [];
+  }
+  COT_SEMANAS_COM_COTACAO = new Set(COT_GRAVADAS.map(c => cotChave(c.ano, c.semana)));
+}
+
+function cotRenderGravados() {
+  const box = document.getElementById('cotGravados');
+  if (!box) return;
+  if (!COT_GRAVADAS.length) {
+    box.innerHTML = '<div class="cotvazio">Nenhum Mapa gravado ainda.</div>';
+    return;
+  }
+  let h = '<table class="cottbl"><thead><tr><th>Semana</th><th>Data da cotação</th>' +
+    '<th>Linhas</th><th>Clientes</th><th></th></tr></thead><tbody>';
+  COT_GRAVADAS.forEach(c => {
+    h += '<tr><td>' + c.semana + '/' + c.ano + '</td>' +
+      '<td>' + cotFmtDataBR(c.data_cotacao) + '</td>' +
+      '<td>' + c.linhas + '</td>' +
+      '<td>' + c.clientes + '</td>' +
+      '<td><button class="btn" data-ano="' + c.ano + '" data-semana="' + c.semana +
+      '" data-linhas="' + c.linhas + '">Excluir</button></td></tr>';
+  });
+  h += '</tbody></table>';
+  box.innerHTML = h;
+
+  [].forEach.call(box.querySelectorAll('button[data-ano]'), b => {
+    b.onclick = async () => {
+      const ano = b.dataset.ano, semana = b.dataset.semana, linhas = b.dataset.linhas;
+      if (!confirm('Excluir as ' + linhas + ' cotações da semana ' + semana + '/' + ano + '?')) return;
+      const r = await fetch('/api/cotacoes?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
+      if (!r.ok) { alert('Não consegui excluir essa semana.'); return; }
+      await cotCarregarListas();
+      cotRenderGravados();
+      cotRender();
+    };
+  });
+}
+
+async function cotAdicionarArquivos(files) {
+  for (const file of files) {
+    try {
+      const sheets = await readXlsx(file);
+      const mapa = readMapa(sheets);
+      const cotacoes = extrairCotacoes(mapa);
+      const r = resolverSemanaDoMapa(mapa.dataSerial, COT_SEMANAS_FECHADAS);
+      COT_ARQUIVOS.push({
+        nome: file.name, mapa, cotacoes,
+        ano: r.ano != null ? r.ano : null,
+        semana: r.semana != null ? r.semana : null,
+        statusOrigem: r.status, periodo: r.periodo || null
+      });
+    } catch (e) {
+      alert(file.name + ': ' + e.message);
+    }
+  }
+  cotRender();
+}
+
+function ligarCotacoesMapa() {
+  const inp = document.getElementById('cotArquivos');
+  if (inp) inp.onchange = e => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    cotAdicionarArquivos(files);
+  };
+  const bConfirmar = document.getElementById('cotBConfirmar');
+  if (bConfirmar) bConfirmar.onclick = async () => {
+    bConfirmar.disabled = true;
+    document.getElementById('cotMsgConfirmar').textContent = 'Gravando…';
+    try {
+      const itens = COT_ARQUIVOS.map(a => ({ ano: a.ano, semana: a.semana, cotacoes: a.cotacoes }));
+      const r = await fetch('/api/cotacoes/lote', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itens })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.erro || 'Falha ao gravar.');
+      let h = '<div class="cotmapa" style="margin-top:14px;padding-top:0;border-top:0">' +
+        '<h3 style="font-size:14.5px;margin:0 0 8px">Resultado</h3>';
+      j.resultados.forEach(res => {
+        h += '<div class="cotresultado">' + res.ano + '/' + res.semana + ': ' +
+          (res.ok ? '<span class="ok">' + res.gravadas + ' cotação(ões) gravada(s)</span>'
+                  : '<span class="erro">' + esc(res.erro || 'falhou') + '</span>') +
+          '</div>';
+      });
+      h += '</div>';
+      document.getElementById('cotResultado').innerHTML = h;
+      COT_ARQUIVOS = [];
+      await cotCarregarListas();
+      cotRenderGravados();
+      cotRender();
+    } catch (e) {
+      document.getElementById('cotMsgConfirmar').textContent = e.message;
+      bConfirmar.disabled = false;
+    }
+  };
+  cotCarregarListas().then(cotRenderGravados);
+}
+
 /* ====================== BOOT ====================== */
 async function boot() {
   $('#lgFriboi').src = 'data:image/png;base64,' + LOGOS.friboi.b64;
@@ -1381,6 +1618,7 @@ async function boot() {
   $('#lgFlora').src = 'data:image/png;base64,' + LOGOS.flora.b64;
   setupImport();
   ligarAddNec();
+  ligarCotacoesMapa();
   const bd = document.getElementById('bd');
   const txt = bd && bd.textContent.trim();
   if (txt) {
@@ -1389,6 +1627,7 @@ async function boot() {
     if (b.progb64) PROGBUF = deB64(b.progb64);
     MAPA.rows.forEach((r, i) => r.i = i);
     iniciar(true);  // arquivo ja distribuido: nao regravar sebo_dados
+    navegarPara(location.pathname, { empurrar: false });
     return;
   }
   // Link "abrir" do consolidado ou de outra pagina: intencao explicita,
@@ -1399,6 +1638,7 @@ async function boot() {
     history.replaceState(null, '', location.pathname);
     await carregarSemanaFechada(Number(mAbrir[1]), Number(mAbrir[2]));
     await carregarSemanasSalvas();
+    navegarPara('/', { empurrar: false });
     return;
   }
   try {
@@ -1467,6 +1707,13 @@ async function boot() {
   }
 
   await carregarSemanasSalvas();
+  // iniciar() ja chama isto quando alguma coisa foi restaurada; sem nada pra
+  // restaurar (nenhum local, nenhum candidato do servidor), ninguem mais
+  // chamaria — a Home ficaria "sem semana" sem o aviso aparecer.
+  atualizarAvisoSemSemana();
+  // honra a URL que a pessoa realmente abriu (deep link, recarregar,
+  // "voltar") — a restauracao acima so prepara o estado, nao decide a tela.
+  navegarPara(location.pathname, { empurrar: false });
 }
 
 function arrancar() {
