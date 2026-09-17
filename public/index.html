@@ -43,9 +43,13 @@ header{border-bottom:1px solid var(--line);margin-bottom:26px;
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .hlinks{display:flex;gap:10px}
 
-.menu{display:flex;gap:8px;align-items:center;padding-bottom:12px;flex-wrap:wrap}
+/* menu: grupos com um respiro maior entre eles, botoes coladinhos dentro
+   de cada grupo — cabe numa linha so ate em notebook (wrap trava em
+   1180px, entao e o alvo real, nao a largura da tela). */
+.menu{display:flex;gap:14px;align-items:center;padding-bottom:6px;flex-wrap:wrap}
+.mgrp{display:flex;gap:6px;align-items:center}
 .btn{background:var(--paper);color:var(--ink);border:1px solid var(--line);
-  border-radius:var(--r);padding:7px 13px;font-size:13.5px;
+  border-radius:var(--r);padding:6px 11px;font-size:13px;
   transition:border-color .12s,background .12s;text-decoration:none;
   display:inline-flex;align-items:center}
 .btn:hover{border-color:var(--azul);color:var(--azul);background:#D5D6DF}
@@ -53,11 +57,15 @@ header{border-bottom:1px solid var(--line);margin-bottom:26px;
 .btn.pri:hover,.btn.mnu.ativo:hover{background:#16165C;color:#fff}
 .btn:disabled{opacity:.4;cursor:default}
 .btn:disabled:hover{border-color:var(--line);color:var(--ink);background:var(--paper)}
-.fechamsg{font-size:12px;margin-left:-2px;margin-right:4px;opacity:.85}
+/* linha de status da acao de fechar — fora da linha de botoes de proposito,
+   so ocupa espaco quando tem algo a dizer */
+.fecharow{min-height:0}
+.fechamsg{font-size:12px;opacity:.85;display:inline-block}
+.fechamsg:empty{display:none}
 .fechamsg.ok{color:#5FBF7F}
 .fechamsg.ruim{color:#E06C6C}
-select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
-  font:inherit;font-size:13.5px;background:var(--card)}
+select.who{border:1px solid var(--line);border-radius:var(--r);padding:6px 9px;
+  font:inherit;font-size:13px;background:var(--card)}
 .quem{display:inline-flex;align-items:center;padding:0 10px;font-weight:600}
 .spacer{flex:1}
 
@@ -150,7 +158,11 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:7px 9px;
   font-weight:600;cursor:pointer;text-decoration:underline}
 .linkb:hover{opacity:.8}
 #salvasBox{margin:0 0 22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
-#salvasBox h2{font-size:17px;color:var(--azul);margin-bottom:2px}
+.salvashead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;
+  background:none;border:0;padding:0;font:inherit;
+  font-size:17px;font-weight:600;color:var(--azul);cursor:pointer}
+.salvashead:hover{opacity:.85}
+.salvashead .chev{font-size:13px;color:var(--mute);width:1em;display:inline-block;flex:none}
 .nec.recolhido #necRows,.nec.recolhido .addnec{display:none}
 .tercm{height:20px;width:20px;flex:none;border-radius:50%;background:var(--sebo);
   display:inline-flex;align-items:center;justify-content:center;
@@ -314,9 +326,9 @@ footer img{height:17px;width:auto;opacity:.75}
   /* linha rolavel horizontal: nunca ocupa metade da tela, so uma faixa fina
      no topo — em vez da grade de botoes que tomava varias linhas antes. */
   .menu{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
-    padding-bottom:10px;gap:6px}
+    padding-bottom:10px;gap:10px}
+  .mgrp{flex:none;gap:6px}
   .menu .btn{flex:none;white-space:nowrap;padding:8px 12px;font-size:13px;min-height:40px}
-  .menu .fechamsg{display:none}
   .menu .spacer{flex:none;width:8px}
   select.who{flex:none;min-width:130px;font-size:14px;min-height:40px}
 
@@ -475,30 +487,42 @@ footer img{height:17px;width:auto;opacity:.75}
     </div>
   </div>
   <nav class="menu" id="menu" aria-label="Seções do painel">
-    <a class="btn mnu" href="/" data-rota="/">Home</a>
-    <button class="btn mnu" id="bNovaSemana" disabled>Nova semana</button>
-    <a class="btn mnu" href="/importar" data-rota="/importar">Importar planilhas</a>
-    <button class="btn mnu" id="bSave" disabled>Salvar</button>
-    <span id="msgSalvar" class="fechamsg"></span>
-    <button class="btn mnu" id="bFechar" disabled>Fechar semana</button>
-    <span id="fechaMsg" class="fechamsg"></span>
-    <button class="btn mnu" id="bProg" disabled>Exportar programação</button>
-    <a class="btn mnu" href="/consolidado" data-rota="/consolidado">Consolidado</a>
-    <a class="btn mnu" href="/analise" data-rota="/analise">Análise de cotações</a>
-    <a class="btn mnu hide" href="/usuarios" data-rota="/usuarios" id="lnkUsuarios">Usuários</a>
+    <span class="mgrp">
+      <a class="btn mnu" href="/" data-rota="/">Home</a>
+    </span>
+    <span class="mgrp">
+      <button class="btn mnu" id="bNovaSemana" disabled>Nova semana</button>
+      <a class="btn mnu" href="/importar" data-rota="/importar">Importar planilhas</a>
+    </span>
+    <span class="mgrp">
+      <button class="btn mnu" id="bSave" disabled>Salvar</button>
+      <button class="btn mnu" id="bFechar" disabled>Fechar semana</button>
+      <button class="btn mnu" id="bProg" disabled>Exportar programação</button>
+    </span>
+    <span class="mgrp">
+      <a class="btn mnu" href="/consolidado" data-rota="/consolidado">Consolidado</a>
+      <a class="btn mnu" href="/analise" data-rota="/analise">Análise de cotações</a>
+    </span>
+    <span class="mgrp">
+      <a class="btn mnu hide" href="/usuarios" data-rota="/usuarios" id="lnkUsuarios">Usuários</a>
+    </span>
     <div class="spacer"></div>
     <select class="who" id="who" aria-label="Quem está operando">
       <option>Usuário 1</option><option>Usuário 2</option><option>Usuário 3</option>
     </select>
   </nav>
+  <div class="fecharow"><span id="fechaMsg" class="fechamsg"></span></div>
 </header>
 
 <section id="secaoHome">
   <div class="warn hide" id="avisoSemSemana">Nenhuma semana aberta.
     <a href="/importar" data-rota="/importar">Importe as planilhas</a> para começar.</div>
   <div id="salvasBox" class="hide">
-    <h2>Semanas salvas</h2>
-    <div id="salvasList" class="rascunhos"></div>
+    <button type="button" class="salvashead" id="salvasHead" aria-expanded="false" aria-controls="salvasList">
+      <span class="chev" id="salvasChev" aria-hidden="true">▸</span>
+      <span id="salvasTitulo">Semanas salvas</span>
+    </button>
+    <div id="salvasList" class="rascunhos hide"></div>
   </div>
 
   <main id="app" class="hide">
@@ -2373,6 +2397,23 @@ function ligarMenu() {
     };
   });
   window.onpopstate = () => navegarPara(location.pathname, { empurrar: false });
+  const sh = document.getElementById('salvasHead');
+  if (sh) sh.onclick = alternarSalvas;
+}
+
+// So o clique alterna — o estado inicial (recolhida com semana aberta,
+// expandida sem) e decidido de novo em cada renderSemanasSalvas(), nunca
+// lembrado daqui.
+function alternarSalvas() {
+  const head = document.getElementById('salvasHead');
+  const ul = document.getElementById('salvasList');
+  const chev = document.getElementById('salvasChev');
+  if (!head || !ul) return;
+  const aberto = head.getAttribute('aria-expanded') === 'true';
+  const novo = !aberto;
+  head.setAttribute('aria-expanded', novo ? 'true' : 'false');
+  ul.classList.toggle('hide', !novo);
+  if (chev) chev.textContent = novo ? '▾' : '▸';
 }
 
 function ligarFrame(id, url) {
@@ -2511,8 +2552,9 @@ function iniciar(restaurando) {
   if (!restaurando) persistirDados();
   // iniciar() sempre termina "limpo": nada foi mudado pelo usuario ainda,
   // seja import novo, arquivo #bd, restauracao local ou rascunho carregado.
+  // marcarRascunhoSujo ja atualiza o selo do botao Salvar sozinho — nao
+  // precisa de outro carimbo() aqui, o subtitulo nao depende do sujo.
   marcarRascunhoSujo(false);
-  atualizarCarimboRascunho();
 }
 
 // Com login, quem esta operando vem da sessao, nao de um seletor. O nome
@@ -2613,7 +2655,6 @@ function render() {
   else { const b = $('#detail'); b.classList.add('hide'); b.innerHTML = ''; }
   renderResumoSemana();
   persistir();
-  atualizarCarimboRascunho();
 }
 
 // Mesma leitura de public/consolidado.html (cards, aviso, bloco por fabrica
@@ -2736,11 +2777,24 @@ function renderResumoSemana() {
   box.innerHTML = h;
 }
 
+// Status da semana (salva/reaberta, por quem, quando) mora no fim do
+// subtitulo — nao mais solto na linha de botoes, onde empurrava o menu.
+// "nao salvo" e outra historia: isso vira o selo no botao Salvar
+// (marcarRascunhoSujo()), nao entra aqui.
+function statusRascunho() {
+  if (!RASCUNHO_SALVO_EM) return '';
+  const quem = RASCUNHO_SALVO_POR || '-';
+  const hora = fmtHora(RASCUNHO_SALVO_EM);
+  return ORIGEM_FECHADA
+    ? ' · reaberta da v' + ORIGEM_FECHADA.versao + ' por ' + quem + ' às ' + hora
+    : ' · salvo por ' + quem + ' às ' + hora;
+}
+
 function carimbo() {
   if (!ST) return;
   const sem = ST.semana ? 'Semana ' + fmt0(ST.semana) : 'Semana';
   $('#sub').textContent = sem + (ST.periodo ? ' · ' + ST.periodo : '') +
-    (ST.dataMapa ? ' · cotações de ' + ST.dataMapa : '');
+    (ST.dataMapa ? ' · cotações de ' + ST.dataMapa : '') + statusRascunho();
   $('#stamp').innerHTML = ST.salvoEm
     ? 'Última alteração<br><b>' + esc(ST.usuario) + '</b> · ' + esc(ST.salvoEm)
     : 'Operando agora<br><b>' + esc(ST.usuario) + '</b>';
@@ -3419,29 +3473,17 @@ function mostrarAvisoReimportar(ano, semana) {
 function marcarRascunhoSujo(v) {
   RASCUNHO_SUJO = v;
   try { localStorage.setItem('sebo_sujo', v ? '1' : ''); } catch (e) { }
+  // selo discreto no botao, em vez de texto solto na linha de botoes —
+  // unica indicacao de "nao salvo", por isso vive aqui, na fonte da verdade
+  // de RASCUNHO_SUJO (funciona mesmo quando quem mudou o estado nao chama
+  // carimbo() depois, como novaSemana()).
+  const b = document.getElementById('bSave');
+  if (b) b.textContent = 'Salvar' + (v ? ' •' : '');
 }
 
 const fmtHora = iso => new Date(iso).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const fmtDataHora = iso => new Date(iso).toLocaleString('pt-BR',
   { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
-function atualizarCarimboRascunho() {
-  const el = document.getElementById('msgSalvar');
-  if (!el) return;
-  if (RASCUNHO_SUJO) {
-    el.className = 'fechamsg ruim';
-    el.textContent = 'há alterações não salvas';
-  } else if (RASCUNHO_SALVO_EM) {
-    el.className = 'fechamsg';
-    el.textContent = ORIGEM_FECHADA
-      ? 'reaberto da semana fechada v' + ORIGEM_FECHADA.versao + ', por ' +
-        (RASCUNHO_SALVO_POR || '-') + ' às ' + fmtHora(RASCUNHO_SALVO_EM)
-      : 'salvo por ' + (RASCUNHO_SALVO_POR || '-') + ' às ' + fmtHora(RASCUNHO_SALVO_EM);
-  } else {
-    el.className = 'fechamsg';
-    el.textContent = '';
-  }
-}
 
 async function salvarRascunho() {
   const bt = document.getElementById('bSave');
@@ -3471,7 +3513,7 @@ async function salvarRascunho() {
     ORIGEM_FECHADA = null;  // a partir daqui e rascunho normal, mesmo que tenha vindo de uma semana fechada
     marcarRascunhoSujo(false);
     ST.usuario = $('#who').value; ST.salvoEm = agora(); ST._syncIso = j.salvoEm;
-    persistir(); carimbo(); atualizarCarimboRascunho();
+    persistir(); carimbo();
   } catch (e) {
     erro('Não consegui salvar no servidor: ' + e.message);
   } finally {
@@ -3503,9 +3545,20 @@ function podeTrocarSemana() {
 function renderSemanasSalvas(lista) {
   const box = document.getElementById('salvasBox');
   const ul = document.getElementById('salvasList');
+  const head = document.getElementById('salvasHead');
+  const chev = document.getElementById('salvasChev');
+  const titulo = document.getElementById('salvasTitulo');
   if (!box || !ul) return;
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
+  if (titulo) titulo.textContent = 'Semanas salvas (' + lista.length + ')';
+  // Sempre recalculado aqui, nunca lembrado entre recargas: com semana
+  // aberta comeca recolhida; sem semana aberta e a unica coisa util na
+  // tela, entao abre expandida.
+  const aberta = !PROD;
+  if (head) head.setAttribute('aria-expanded', aberta ? 'true' : 'false');
+  if (chev) chev.textContent = aberta ? '▾' : '▸';
+  ul.classList.toggle('hide', !aberta);
   ul.innerHTML = lista.map(r => {
     const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
     // so uma semana FECHADA pode ficar sem pacote (fechada antes da coluna

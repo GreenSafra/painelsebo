@@ -103,6 +103,9 @@ async function importar(progArq, mapaArq) {
   T('sem rascunho: marca a origem como semana fechada v2',
     w.ORIGEM_FECHADA && w.ORIGEM_FECHADA.versao === 2, JSON.stringify(w.ORIGEM_FECHADA));
   T('sem rascunho: carimbo mostra quem fechou', w.RASCUNHO_SALVO_POR === 'Ciclano');
+  T('subtítulo mostra "reaberta da vN por quem", não texto solto no menu',
+    w.document.getElementById('sub').textContent.indexOf('reaberta da v2 por Ciclano às') >= 0,
+    w.document.getElementById('sub').textContent);
 
   // ============ 3. Nem rascunho nem semana fechada no servidor: fica na Home (seção do login) ============
   limparLocal();
@@ -225,13 +228,45 @@ async function importar(progArq, mapaArq) {
     { ano: 2026, semana: 37, periodo: '08/09 a 14/09', situacao: 'fechada', versao: 3, quando: '2026-09-15T10:00:00.000Z', quem: 'Ciclano', tem_pacote: true },
     { ano: 2026, semana: 32, periodo: '04/08 a 10/08', situacao: 'fechada', versao: 1, quando: '2026-08-10T10:00:00.000Z', quem: 'Antigo', tem_pacote: false }
   ];
+  T('pré-condição: há semana aberta nesta bateria', !!w.PROD);
   w.renderSemanasSalvas(listaMista);
   const box = w.document.getElementById('salvasBox');
+  const salvasHead = w.document.getElementById('salvasHead');
+  const salvasChev = w.document.getElementById('salvasChev');
+  const salvasList = w.document.getElementById('salvasList');
   const linhas = [...w.document.querySelectorAll('#salvasList .rascunho')];
   const itens = [...w.document.querySelectorAll('#salvasList .rascunho-abrir')];
-  T('lista: caixa fica visível com itens, já expandida (sem recolher)',
-    !box.classList.contains('hide') && !w.document.getElementById('salvasList').classList.contains('hide') &&
-    linhas.length === 3);
+  T('lista: caixa fica visível com itens', !box.classList.contains('hide') && linhas.length === 3);
+  T('título mostra a quantidade', w.document.getElementById('salvasTitulo').textContent === 'Semanas salvas (3)');
+  T('com semana aberta: lista nasce recolhida', salvasList.classList.contains('hide') &&
+    salvasHead.getAttribute('aria-expanded') === 'false' && salvasChev.textContent === '▸');
+
+  salvasHead.click();
+  T('clicar expande a lista', !salvasList.classList.contains('hide') &&
+    salvasHead.getAttribute('aria-expanded') === 'true' && salvasChev.textContent === '▾');
+  salvasHead.click();
+  T('clicar de novo recolhe', salvasList.classList.contains('hide') &&
+    salvasHead.getAttribute('aria-expanded') === 'false' && salvasChev.textContent === '▸');
+
+  // repopular (ex.: apos abrir a lista e depois descartar um rascunho) nao
+  // lembra que estava aberta — recalcula do zero: com semana aberta, recolhida.
+  salvasHead.click();  // abre de novo
+  T('pré-condição: aberta antes de repopular', !salvasList.classList.contains('hide'));
+  w.renderSemanasSalvas(listaMista);
+  T('repopular não lembra o estado anterior: volta a recolher (semana aberta)',
+    salvasList.classList.contains('hide'));
+
+  // exceção: sem nenhuma semana aberta, a lista e a unica coisa util na
+  // tela — abre expandida, sem precisar clicar.
+  const prodSalvo = w.PROD;
+  w.PROD = null;
+  w.renderSemanasSalvas(listaMista);
+  T('sem semana aberta: lista nasce expandida (exceção)',
+    !salvasList.classList.contains('hide') && salvasHead.getAttribute('aria-expanded') === 'true' &&
+    salvasChev.textContent === '▾');
+  w.PROD = prodSalvo;
+  w.renderSemanasSalvas(listaMista);  // volta a recolhida pro resto da bateria
+
   T('lista: todo item tem um botão "Abrir" separado da descrição',
     itens.length === 3 && itens.every(b => b.textContent.trim() === 'Abrir'));
   const infoDe = tipo => linhas.find(l => l.querySelector('.rascunho-abrir').dataset.tipo === tipo &&

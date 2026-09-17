@@ -90,6 +90,25 @@ const respFake = (status, corpo) => ({
     corpoEnviado.semana === w.PROD.semana && !!corpoEnviado.dados);
   T('carimbo mostra quem salvou', w.RASCUNHO_SALVO_POR === 'Ronaldo' && !w.RASCUNHO_SUJO);
 
+  // ============ 1b. status da semana no subtítulo, não solto na linha de botões ============
+  const sub1 = w.document.getElementById('sub').textContent;
+  T('subtítulo termina com o status de quem salvou e quando', sub1.indexOf('salvo por Ronaldo às') >= 0, sub1);
+  T('não existe mais #msgSalvar na linha de botões (status saiu de lá)',
+    !w.document.getElementById('msgSalvar'));
+  T('#fechaMsg não fica dentro do <nav> do menu',
+    !w.document.getElementById('menu').contains(w.document.getElementById('fechaMsg')));
+  T('botão Salvar sem selo de pendência (acabou de salvar)',
+    w.document.getElementById('bSave').textContent.trim() === 'Salvar');
+
+  // marca alteração pendente (é o que render() faz a cada recálculo) e
+  // confere o selo no botão
+  w.marcarRascunhoSujo(true);
+  T('com alteração pendente, botão Salvar ganha o selo "•"',
+    w.document.getElementById('bSave').textContent.trim() === 'Salvar •');
+  T('subtítulo não some por causa da pendência (continua com o último status salvo)',
+    w.document.getElementById('sub').textContent.indexOf('salvo por Ronaldo às') >= 0);
+  w.marcarRascunhoSujo(false);  // deixa limpo pro resto dos cenarios deste arquivo
+
   const pacoteSalvo = corpoEnviado.dados;
   // zera tudo, como se fosse uma sessao nova
   w.PROD = null; w.MAPA = null; w.PROGBUF = null; w.ST = null;

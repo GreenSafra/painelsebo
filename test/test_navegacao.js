@@ -51,6 +51,24 @@ function preparar(w) {
   T('Usuários começa escondido (gated por papel)',
     d1.querySelector('#lnkUsuarios').classList.contains('hide'));
 
+  // ---- menu agrupado: [Home] · [Nova semana, Importar] · [Salvar, Fechar, Exportar] · [Consolidado, Análise] · [Usuários] ----
+  const grupos = [...d1.querySelectorAll('#menu .mgrp')].map(g =>
+    [...g.querySelectorAll('button, a')].map(el => (el.textContent || '').trim()));
+  T('menu tem 5 grupos', grupos.length === 5, JSON.stringify(grupos));
+  T('grupo 1: Home sozinho', JSON.stringify(grupos[0]) === JSON.stringify(['Home']));
+  T('grupo 2: Nova semana + Importar planilhas', JSON.stringify(grupos[1]) === JSON.stringify(['Nova semana', 'Importar planilhas']));
+  T('grupo 3: Salvar, Fechar semana, Exportar programação',
+    JSON.stringify(grupos[2]) === JSON.stringify(['Salvar', 'Fechar semana', 'Exportar programação']));
+  T('grupo 4: Consolidado + Análise de cotações',
+    JSON.stringify(grupos[3]) === JSON.stringify(['Consolidado', 'Análise de cotações']));
+  T('grupo 5: Usuários sozinho', JSON.stringify(grupos[4]) === JSON.stringify(['Usuários']));
+
+  // ---- nenhum texto de status dentro da linha de botões ----
+  T('#fechaMsg não fica dentro do <nav class="menu">',
+    !d1.querySelector('#menu').contains(d1.querySelector('#fechaMsg')));
+  T('não existe mais #msgSalvar em lugar nenhum (status foi pro subtítulo)',
+    !d1.querySelector('#msgSalvar'));
+
   T('boot em "/" mostra a Home destacada no menu',
     d1.querySelector('[data-rota="/"]').classList.contains('ativo') &&
     !d1.querySelector('#secaoHome').classList.contains('hide'));

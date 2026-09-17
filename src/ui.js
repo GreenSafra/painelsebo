@@ -134,6 +134,23 @@ function ligarMenu() {
     };
   });
   window.onpopstate = () => navegarPara(location.pathname, { empurrar: false });
+  const sh = document.getElementById('salvasHead');
+  if (sh) sh.onclick = alternarSalvas;
+}
+
+// So o clique alterna — o estado inicial (recolhida com semana aberta,
+// expandida sem) e decidido de novo em cada renderSemanasSalvas(), nunca
+// lembrado daqui.
+function alternarSalvas() {
+  const head = document.getElementById('salvasHead');
+  const ul = document.getElementById('salvasList');
+  const chev = document.getElementById('salvasChev');
+  if (!head || !ul) return;
+  const aberto = head.getAttribute('aria-expanded') === 'true';
+  const novo = !aberto;
+  head.setAttribute('aria-expanded', novo ? 'true' : 'false');
+  ul.classList.toggle('hide', !novo);
+  if (chev) chev.textContent = novo ? '▾' : '▸';
 }
 
 function ligarFrame(id, url) {
@@ -272,8 +289,9 @@ function iniciar(restaurando) {
   if (!restaurando) persistirDados();
   // iniciar() sempre termina "limpo": nada foi mudado pelo usuario ainda,
   // seja import novo, arquivo #bd, restauracao local ou rascunho carregado.
+  // marcarRascunhoSujo ja atualiza o selo do botao Salvar sozinho — nao
+  // precisa de outro carimbo() aqui, o subtitulo nao depende do sujo.
   marcarRascunhoSujo(false);
-  atualizarCarimboRascunho();
 }
 
 // Com login, quem esta operando vem da sessao, nao de um seletor. O nome
@@ -374,7 +392,6 @@ function render() {
   else { const b = $('#detail'); b.classList.add('hide'); b.innerHTML = ''; }
   renderResumoSemana();
   persistir();
-  atualizarCarimboRascunho();
 }
 
 // Mesma leitura de public/consolidado.html (cards, aviso, bloco por fabrica
@@ -497,11 +514,24 @@ function renderResumoSemana() {
   box.innerHTML = h;
 }
 
+// Status da semana (salva/reaberta, por quem, quando) mora no fim do
+// subtitulo — nao mais solto na linha de botoes, onde empurrava o menu.
+// "nao salvo" e outra historia: isso vira o selo no botao Salvar
+// (marcarRascunhoSujo()), nao entra aqui.
+function statusRascunho() {
+  if (!RASCUNHO_SALVO_EM) return '';
+  const quem = RASCUNHO_SALVO_POR || '-';
+  const hora = fmtHora(RASCUNHO_SALVO_EM);
+  return ORIGEM_FECHADA
+    ? ' · reaberta da v' + ORIGEM_FECHADA.versao + ' por ' + quem + ' às ' + hora
+    : ' · salvo por ' + quem + ' às ' + hora;
+}
+
 function carimbo() {
   if (!ST) return;
   const sem = ST.semana ? 'Semana ' + fmt0(ST.semana) : 'Semana';
   $('#sub').textContent = sem + (ST.periodo ? ' · ' + ST.periodo : '') +
-    (ST.dataMapa ? ' · cotações de ' + ST.dataMapa : '');
+    (ST.dataMapa ? ' · cotações de ' + ST.dataMapa : '') + statusRascunho();
   $('#stamp').innerHTML = ST.salvoEm
     ? 'Última alteração<br><b>' + esc(ST.usuario) + '</b> · ' + esc(ST.salvoEm)
     : 'Operando agora<br><b>' + esc(ST.usuario) + '</b>';
@@ -1180,29 +1210,17 @@ function mostrarAvisoReimportar(ano, semana) {
 function marcarRascunhoSujo(v) {
   RASCUNHO_SUJO = v;
   try { localStorage.setItem('sebo_sujo', v ? '1' : ''); } catch (e) { }
+  // selo discreto no botao, em vez de texto solto na linha de botoes —
+  // unica indicacao de "nao salvo", por isso vive aqui, na fonte da verdade
+  // de RASCUNHO_SUJO (funciona mesmo quando quem mudou o estado nao chama
+  // carimbo() depois, como novaSemana()).
+  const b = document.getElementById('bSave');
+  if (b) b.textContent = 'Salvar' + (v ? ' •' : '');
 }
 
 const fmtHora = iso => new Date(iso).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const fmtDataHora = iso => new Date(iso).toLocaleString('pt-BR',
   { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
-function atualizarCarimboRascunho() {
-  const el = document.getElementById('msgSalvar');
-  if (!el) return;
-  if (RASCUNHO_SUJO) {
-    el.className = 'fechamsg ruim';
-    el.textContent = 'há alterações não salvas';
-  } else if (RASCUNHO_SALVO_EM) {
-    el.className = 'fechamsg';
-    el.textContent = ORIGEM_FECHADA
-      ? 'reaberto da semana fechada v' + ORIGEM_FECHADA.versao + ', por ' +
-        (RASCUNHO_SALVO_POR || '-') + ' às ' + fmtHora(RASCUNHO_SALVO_EM)
-      : 'salvo por ' + (RASCUNHO_SALVO_POR || '-') + ' às ' + fmtHora(RASCUNHO_SALVO_EM);
-  } else {
-    el.className = 'fechamsg';
-    el.textContent = '';
-  }
-}
 
 async function salvarRascunho() {
   const bt = document.getElementById('bSave');
@@ -1232,7 +1250,7 @@ async function salvarRascunho() {
     ORIGEM_FECHADA = null;  // a partir daqui e rascunho normal, mesmo que tenha vindo de uma semana fechada
     marcarRascunhoSujo(false);
     ST.usuario = $('#who').value; ST.salvoEm = agora(); ST._syncIso = j.salvoEm;
-    persistir(); carimbo(); atualizarCarimboRascunho();
+    persistir(); carimbo();
   } catch (e) {
     erro('Não consegui salvar no servidor: ' + e.message);
   } finally {
@@ -1264,9 +1282,20 @@ function podeTrocarSemana() {
 function renderSemanasSalvas(lista) {
   const box = document.getElementById('salvasBox');
   const ul = document.getElementById('salvasList');
+  const head = document.getElementById('salvasHead');
+  const chev = document.getElementById('salvasChev');
+  const titulo = document.getElementById('salvasTitulo');
   if (!box || !ul) return;
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
+  if (titulo) titulo.textContent = 'Semanas salvas (' + lista.length + ')';
+  // Sempre recalculado aqui, nunca lembrado entre recargas: com semana
+  // aberta comeca recolhida; sem semana aberta e a unica coisa util na
+  // tela, entao abre expandida.
+  const aberta = !PROD;
+  if (head) head.setAttribute('aria-expanded', aberta ? 'true' : 'false');
+  if (chev) chev.textContent = aberta ? '▾' : '▸';
+  ul.classList.toggle('hide', !aberta);
   ul.innerHTML = lista.map(r => {
     const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
     // so uma semana FECHADA pode ficar sem pacote (fechada antes da coluna
