@@ -210,6 +210,136 @@ function carregarPagina(url, mockFetch) {
     T('sem edição pendente: não pergunta nada antes de navegar', !confirmMsg3);
   }
 
+  // ---------- bateria 4: "Média terceiros" (net_ter_med) no lugar do antigo
+  // "Melhor terceiro" como conta principal — o melhor vira linha informativa ----------
+  {
+    const propriaComMedia = {
+      cliente: 'JBS - BioPower Lins',
+      ton_realizado: 900, net_realizado: 5200,
+      net_ter_realizado: 5000, net_ter_melhor_realizado: 5800, n_ter_realizado: 4,
+      ton_comp_realizado: 700, saving_realizado: 140000,
+      ton_otimo: 900, net_otimo: 5200,
+      net_ter_otimo: 5000, net_ter_melhor_otimo: 5800, n_ter_otimo: 4,
+      ton_comp_otimo: 700, saving_otimo: 140000
+    };
+    const mockFetch4 = async url => {
+      if (url === '/api/semanas') return respFake(200, [semana38]);
+      if (url === '/api/consolidado?semana=2026-38') {
+        return respFake(200, consolFake('semana', {
+          ano: 2026, semana: 38, porPropria: [propriaComMedia],
+          semanasFechadas: [Object.assign({}, semana38, { tem_pacote: true })]
+        }));
+      }
+      return respFake(404, {});
+    };
+    const dom4 = carregarPagina('https://x/?semana=2026-38', mockFetch4);
+    const w4 = dom4.window;
+    await new Promise(r => setTimeout(r, 150));
+    const d4 = w4.document;
+
+    const duo = d4.querySelector('.duo > div');
+    T('bloco da fabrica renderizado', !!duo);
+    const linhasTxt = duo ? [...duo.querySelectorAll('.lin')].map(l => l.textContent) : [];
+    T('"Média terceiros" e a linha principal, com a contagem de ofertas',
+      linhasTxt.some(t => t.indexOf('Média terceiros') === 0 && t.indexOf('média de 4 ofertas') >= 0),
+      linhasTxt.join(' | '));
+    T('"Melhor terceiro" (R$ 5.436-like) aparece so como linha informativa (.lin.sec)',
+      !!duo.querySelector('.lin.sec') &&
+      duo.querySelector('.lin.sec').textContent.indexOf('Melhor terceiro') === 0 &&
+      duo.querySelector('.lin.sec').textContent.indexOf('5.800') >= 0);
+    T('"Sem comparação" aparece com as 200 t (900 - 700) que nao tiveram terceiro',
+      linhasTxt.some(t => t.indexOf('Sem comparação') === 0 && t.indexOf('200') >= 0), linhasTxt);
+    T('texto explicativo fala em "média", nao mais em "melhor oferta"',
+      d4.querySelector('.nota').textContent.indexOf('média do NET') >= 0);
+  }
+
+  // ---------- bateria 5: semana(s) sem pacote ficam marcadas e fora do total ----------
+  {
+    // 5a. modo mes, 2 semanas no periodo, 1 sem pacote
+    const mockFetch5a = async url => {
+      if (url === '/api/meses') return respFake(200, [{ mes: '2026-09', toneladas: 22120 }]);
+      if (url === '/api/consolidado?mes=2026-09') {
+        return respFake(200, consolFake('mes', {
+          mes: '2026-09',
+          porPropria: [{
+            cliente: 'JBS - BioPower Lins', ton_realizado: 900, net_realizado: 5200,
+            net_ter_realizado: 5000, net_ter_melhor_realizado: 5000, n_ter_realizado: 1,
+            ton_comp_realizado: 900, saving_realizado: 180000,
+            ton_otimo: 900, net_otimo: 5200, net_ter_otimo: 5000, net_ter_melhor_otimo: 5000,
+            n_ter_otimo: 1, ton_comp_otimo: 900, saving_otimo: 180000
+          }],
+          semanasFechadas: [
+            Object.assign({}, semana38, { tem_pacote: true }),
+            Object.assign({}, semana37, { tem_pacote: false })
+          ]
+        }));
+      }
+      return respFake(404, {});
+    };
+    const dom5a = carregarPagina('https://x/?mes=2026-09', mockFetch5a);
+    const w5a = dom5a.window;
+    await new Promise(r => setTimeout(r, 150));
+    const d5a = w5a.document;
+    const aviso5a = d5a.querySelector('.avisoPacote');
+    T('modo mes com 1 de 2 semanas sem pacote: aviso aparece com a contagem certa',
+      !!aviso5a && aviso5a.textContent.indexOf('1 de 2 semana(s)') >= 0,
+      aviso5a && aviso5a.textContent);
+    T('aviso explica que a(s) semana(s) ficaram fora do Ganho sobre o mercado',
+      !!aviso5a && aviso5a.textContent.indexOf('fora do Ganho sobre o mercado') >= 0);
+
+    // 5b. modo semana, a unica semana do periodo sem pacote
+    const mockFetch5b = async url => {
+      if (url === '/api/semanas') return respFake(200, [semana38]);
+      if (url === '/api/consolidado?semana=2026-38') {
+        return respFake(200, consolFake('semana', {
+          ano: 2026, semana: 38,
+          porPropria: [{
+            cliente: 'JBS - BioPower Lins', ton_realizado: 900, net_realizado: 5200,
+            net_ter_realizado: null, net_ter_melhor_realizado: null, n_ter_realizado: null,
+            ton_comp_realizado: 0, saving_realizado: null,
+            ton_otimo: 900, net_otimo: 5200, net_ter_otimo: null, net_ter_melhor_otimo: null,
+            n_ter_otimo: null, ton_comp_otimo: 0, saving_otimo: null
+          }],
+          semanasFechadas: [Object.assign({}, semana38, { tem_pacote: false })]
+        }));
+      }
+      return respFake(404, {});
+    };
+    const dom5b = carregarPagina('https://x/?semana=2026-38', mockFetch5b);
+    const w5b = dom5b.window;
+    await new Promise(r => setTimeout(r, 150));
+    const d5b = w5b.document;
+    const aviso5b = d5b.querySelector('.avisoPacote');
+    T('modo semana sem pacote: aviso especifico de "reabra e feche com as planilhas"',
+      !!aviso5b && aviso5b.textContent.indexOf('reabra e feche com as planilhas') >= 0,
+      aviso5b && aviso5b.textContent);
+
+    // 5c. todas as semanas do periodo com pacote: sem aviso nenhum
+    // (porPropria com volume > 0, senao a tela nem chega a renderizar o
+    // bloco onde o aviso vive — mesma ressalva do "temDado" em render())
+    const mockFetch5c = async url => {
+      if (url === '/api/semanas') return respFake(200, [semana38]);
+      if (url === '/api/consolidado?semana=2026-38') {
+        return respFake(200, consolFake('semana', {
+          ano: 2026, semana: 38,
+          porPropria: [{
+            cliente: 'JBS - BioPower Lins', ton_realizado: 900, net_realizado: 5200,
+            net_ter_realizado: 5000, net_ter_melhor_realizado: 5000, n_ter_realizado: 1,
+            ton_comp_realizado: 900, saving_realizado: 180000,
+            ton_otimo: 900, net_otimo: 5200, net_ter_otimo: 5000, net_ter_melhor_otimo: 5000,
+            n_ter_otimo: 1, ton_comp_otimo: 900, saving_otimo: 180000
+          }],
+          semanasFechadas: [Object.assign({}, semana38, { tem_pacote: true })]
+        }));
+      }
+      return respFake(404, {});
+    };
+    const dom5c = carregarPagina('https://x/?semana=2026-38', mockFetch5c);
+    await new Promise(r => setTimeout(r, 150));
+    T('todas as semanas com pacote: nenhum aviso aparece',
+      !dom5c.window.document.querySelector('.avisoPacote'));
+  }
+
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);
 })().catch(e => { console.error('ERRO:', e.message, e.stack); process.exit(1); });

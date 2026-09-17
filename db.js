@@ -2,6 +2,7 @@
 
 const { Pool } = require('pg');
 const crypto = require('crypto');
+const core = require('./src/core.js');
 
 const MASTER = (process.env.EMAIL_MASTER || 'rbglins@gmail.com').toLowerCase();
 
@@ -124,6 +125,17 @@ async function iniciar() {
     `CREATE INDEX IF NOT EXISTS ix_aloc_cenario ON alocacoes(semana_id, cenario)`
   );
 
+  // net_ter/cliente_ter (acima) continuam gravados como sempre: o melhor
+  // terceiro, so historico/informativo a partir de agora. Quem apura o
+  // ganho sobre o mercado e a MEDIA entre terceiros da mesma sigla
+  // (net_ter_med) — ver comparacaoTerceiros() em src/core.js. n_ter e
+  // quantas ofertas entraram nessa media, pra tela mostrar "media de N
+  // ofertas". Semana fechada antes destas colunas existirem fica com as
+  // duas NULL ate migrarNetTerMedio() (abaixo) recalcular a partir do
+  // pacote guardado — ou pra sempre NULL se a semana nao tem pacote.
+  await pool.query(`ALTER TABLE alocacoes ADD COLUMN IF NOT EXISTS net_ter_med NUMERIC(12,2)`);
+  await pool.query(`ALTER TABLE alocacoes ADD COLUMN IF NOT EXISTS n_ter INTEGER`);
+
   // Pacote completo da semana (mesma forma de rascunhos.dados: prod,
   // progb64, mapa, estado, arquivos), serializado como texto. Sem isto,
   // uma semana fechada so pode ser consultada (consolidado), nunca reaberta
@@ -192,8 +204,55 @@ async function iniciar() {
     [MASTER]
   );
 
+  // Semanas fechadas antes de net_ter_med existir: recalcula a partir do
+  // pacote guardado. Roda toda subida do servidor, mas so processa o que
+  // ainda falta (idempotente) — depois da primeira vez, so ha trabalho de
+  // novo se uma semana nova ficar sem pacote e for reaberta/fechada depois.
+  await migrarNetTerMedio();
+
   const n = await pool.query(`SELECT count(*)::int AS q FROM usuarios`);
   return n.rows[0].q;
+}
+
+// Recalcula net_ter_med/n_ter das cargas de semanas fechadas ANTES dessas
+// colunas existirem (ou fechadas depois, mas cuja migracao caiu no meio —
+// idempotente, sempre seguro rodar de novo). So mexe em semanas com pacote
+// completo guardado (dados NOT NULL): sem prod+mapa nao ha como recalcular,
+// e essas ficam para sempre sem media de terceiros — marcadas na tela via
+// "tem_pacote" (ver consolidado()). Nao toca net_ter/cliente_ter (o melhor
+// terceiro, historico, gravado certo desde sempre).
+// A pendencia so pode ser detectada por "net_ter IS NOT NULL E net_ter_med
+// IS NULL" — nunca so "net_ter_med IS NULL": uma carga sem NENHUM terceiro
+// pra comparar tem os dois sempre NULL, de proposito (regra de sempre), e
+// isso NAO e pendencia — usar so net_ter_med reprocessaria essa semana pra
+// sempre, toda subida do servidor, à toa.
+async function migrarNetTerMedio() {
+  const pendentes = await pool.query(`
+    SELECT s.id, s.dados FROM semanas s
+     WHERE s.atual AND s.dados IS NOT NULL
+       AND EXISTS (
+         SELECT 1 FROM alocacoes a
+          WHERE a.semana_id = s.id AND a.proprio
+            AND a.net_ter IS NOT NULL AND a.net_ter_med IS NULL
+       )
+  `);
+  let semanasMigradas = 0;
+  for (const s of pendentes.rows) {
+    let dados;
+    try { dados = JSON.parse(s.dados); } catch (e) { continue; }
+    const linhas = (await pool.query(
+      `SELECT id, sigla, cliente FROM alocacoes WHERE semana_id=$1 AND proprio`, [s.id]
+    )).rows;
+    const atualizacoes = core.recalcularTerceirosSemana(dados, linhas);
+    for (const a of atualizacoes) {
+      await pool.query(
+        `UPDATE alocacoes SET net_ter_med=$1, n_ter=$2 WHERE id=$3`,
+        [a.netTerMed, a.nTer, a.id]
+      );
+    }
+    semanasMigradas++;
+  }
+  return semanasMigradas;
 }
 
 // ---------- usuarios ----------
@@ -388,12 +447,13 @@ async function fecharSemana(cab, linhas, usuarioId, dados) {
           `INSERT INTO alocacoes
              (semana_id, cenario, data_embarque, sigla, origem_cidade, origem_uf,
               produto, cliente, proprio, destino, destino_uf, toneladas, oferta,
-              net, net2, cliente2, net_ter, cliente_ter, icms, modal)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+              net, net2, cliente2, net_ter, cliente_ter, net_ter_med, n_ter, icms, modal)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
           [id, cenario, L.dataEmbarque || null, txt(L.sigla), txt(L.origemCidade),
            txt(L.origemUf), txt(L.produto), txt(L.cliente), !!L.proprio,
            txt(L.destino), txt(L.destinoUf), ton, num(L.oferta), num(L.net),
            num(L.net2), txt(L.cliente2), num(L.netTer), txt(L.clienteTer),
+           num(L.netTerMed), Number.isInteger(L.nTer) ? L.nTer : null,
            num(L.icms), txt(L.modal)]
         );
       }
@@ -522,17 +582,28 @@ async function consolidado(criterio) {
   // lista de plantas fosse so a fixa.
   // Realizado e otimo lado a lado — a diferenca entre os dois e o custo das
   // trocas feitas na mao, que senao ficaria embutido no comparativo.
+  // net_ter (coluna historica, o melhor terceiro) so entra aqui como
+  // "net_ter_melhor", informativo — quem apura ganho/Diferenca e a MEDIA
+  // (net_ter_med), que vira "net_ter" no resultado, no lugar de onde o
+  // melhor terceiro entrava antes (ver comparacaoTerceiros() em
+  // src/core.js:montarSemana, mesma regra usada ao fechar a semana).
   const porPropria = await pool.query(
     `WITH dados AS (
        SELECT a.cliente, a.cenario,
               sum(a.toneladas) AS ton,
               sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
-              sum(a.net_ter * a.toneladas) FILTER (WHERE a.net_ter IS NOT NULL)
-                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter IS NOT NULL),0)
+              sum(a.net_ter_med * a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL),0)
                 AS net_ter,
-              sum(a.toneladas) FILTER (WHERE a.net_ter IS NOT NULL) AS ton_comp,
-              sum((a.net - a.net_ter) * a.toneladas)
-                FILTER (WHERE a.net_ter IS NOT NULL) AS saving
+              sum(a.net_ter * a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL),0)
+                AS net_ter_melhor,
+              sum(a.n_ter * a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL),0)
+                AS n_ter,
+              sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL) AS ton_comp,
+              sum((a.net - a.net_ter_med) * a.toneladas)
+                FILTER (WHERE a.net_ter_med IS NOT NULL) AS saving
          FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
         WHERE s.atual AND a.proprio AND ${f.sql}
         GROUP BY 1,2
@@ -549,11 +620,16 @@ async function consolidado(criterio) {
             coalesce(r.ton,0)  AS ton_realizado,
             r.net_medio        AS net_realizado,
             r.net_ter          AS net_ter_realizado,
+            r.net_ter_melhor   AS net_ter_melhor_realizado,
+            r.n_ter            AS n_ter_realizado,
             r.ton_comp         AS ton_comp_realizado,
             r.saving           AS saving_realizado,
             coalesce(o.ton,0)  AS ton_otimo,
             o.net_medio        AS net_otimo,
             o.net_ter          AS net_ter_otimo,
+            o.net_ter_melhor   AS net_ter_melhor_otimo,
+            o.n_ter            AS n_ter_otimo,
+            o.ton_comp         AS ton_comp_otimo,
             o.saving           AS saving_otimo
        FROM plantas p
        LEFT JOIN dados r ON r.cliente = p.cliente AND r.cenario = 'realizado'
@@ -562,8 +638,12 @@ async function consolidado(criterio) {
 
   // Semanas fechadas (versao atual) cujas cargas caem dentro do periodo em
   // tela — e a lista que a tela de consolidado usa pra gerenciar/excluir.
+  // tem_pacote: sem ele (dados NULL) a semana nunca ganha net_ter_med — a
+  // tela usa esta coluna pra avisar quantas semanas do periodo ficaram de
+  // fora da comparacao de ganho (ver migrarNetTerMedio()).
   const semanasFechadas = await pool.query(
     `SELECT s.ano, s.semana, s.periodo, s.versao, s.fechada_em, u.nome AS fechada_por,
+            (s.dados IS NOT NULL) AS tem_pacote,
             count(a.id)::int AS linhas, coalesce(sum(a.toneladas),0) AS toneladas
        FROM semanas s
        LEFT JOIN usuarios u ON u.id = s.usuario_id

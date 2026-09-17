@@ -85,6 +85,24 @@ Se uma bateria falhar, **nao suba**. Conserte ou reverta.
   As travas fiscais (monofasia do ICMS) valem nos dois modos — e lei, nao
   regra comercial. O botao virou "Acrescentar terceiro". Terceiro sem logo
   recebe um marcador redondo com a inicial.
+- **Fase 2.2** — apuracao do "Ganho sobre o mercado" (tela e Consolidado)
+  passou a comparar cada carga de fabrica propria com a MEDIA do NET entre
+  os terceiros que ofertaram para a mesma sigla de origem, nao mais so o
+  melhor terceiro. Universo: uma oferta por cliente terceiro (a de maior
+  NET dele, se tiver mais de uma), sem o corte top-8 que a tela de troca
+  usa pra nao afogar o seletor. Fabrica propria nunca entra nessa media.
+  Sem nenhuma oferta de terceiro pra aquela sigla, a carga continua de fora
+  da comparacao (regra de sempre). O melhor terceiro isolado (net_ter,
+  cliente_ter) continua gravado e aparece na tela como linha informativa
+  menor, fora da conta. Funcoes-chave em `src/core.js`: `comparacaoTerceiros()`
+  (a media, usada dentro de `montarSemana()`) e `recalcularTerceirosSemana()`
+  (mesma conta pra semana ja fechada, a partir do pacote guardado). Colunas
+  novas em `alocacoes`: `net_ter_med`, `n_ter`. Semana fechada antes delas
+  existirem so ganha os valores se tiver o pacote completo guardado
+  (Programacao + Mapa, coluna `semanas.dados`); sem pacote fica pra sempre
+  sem media e aparece marcada ("sem media de terceiros") no Consolidado, de
+  fora do total. A migracao (`db.js: migrarNetTerMedio()`) roda sozinha,
+  de forma idempotente, toda subida do servidor, dentro de `iniciar()`.
 - **Fase 3 (nao iniciada)** — gravar as semanas fechadas no banco, com
   versionamento, e tela de consolidado mensal. Nao adiante.
 

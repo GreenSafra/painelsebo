@@ -78,7 +78,11 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 .lin{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:2px 0}
 .lin span:first-child{color:var(--mute)}
 .lin.forte{font-weight:600;border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+.lin.sec{font-size:11.5px;color:var(--mute)}
+.lin.sec span:first-child{color:var(--mute)}
 .fab.sem{opacity:.62}
+.avisoPacote{background:var(--card);border-left:3px solid var(--sebo);padding:10px 15px;
+  font-size:12.5px;color:var(--mute);margin:0 0 14px;line-height:1.5}
 .resumo{background:var(--card);border:1px solid var(--line);padding:14px 16px;
   font-size:13.5px;line-height:1.6;margin-bottom:14px}
 @media(max-width:640px){.duo{grid-template-columns:1fr}}
@@ -146,12 +150,22 @@ function selo(cli) {
   if (/flora/i.test(cli)) return '<span class="selo s-flo"></span>';
   return '<span class="selo s-ter"></span>';
 }
-function bloco(cab, t, net, ter, sav) {
+// terMed/nTer: media entre terceiros da mesma sigla, base da Diferenca.
+// terMelhor: so informativo, fora da conta (o antigo "Melhor terceiro").
+// tonSemComp: volume sem nenhum terceiro pra comparar, mostrado so quando > 0.
+function bloco(cab, t, net, terMed, nTer, terMelhor, tonSemComp, sav) {
   const f = v => v == null ? '-' : rs(v);
   let o = '<div><div class="cab">' + cab + '</div>';
   o += '<div class="lin"><span>Volume</span><span>' + (t > 0 ? ton(t) : '-') + '</span></div>';
   o += '<div class="lin"><span>NET médio</span><span>' + f(net) + '</span></div>';
-  o += '<div class="lin"><span>Melhor terceiro</span><span>' + f(ter) + '</span></div>';
+  o += '<div class="lin"><span>Média terceiros</span><span>' + f(terMed) +
+    (terMed != null && nTer > 0
+      ? ' · média de ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' oferta' : ' ofertas')
+      : '') + '</span></div>';
+  o += '<div class="lin sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
+  if (tonSemComp > 0.01) {
+    o += '<div class="lin sec"><span>Sem comparação</span><span>' + ton(tonSemComp) + '</span></div>';
+  }
   o += '<div class="lin forte"><span>Diferença</span><span class="' +
     (sav == null ? '' : (sav < 0 ? 'neg' : 'pos')) + '">' +
     (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
@@ -297,12 +311,25 @@ function render(d) {
       '</div>';
   }
 
+  // Semana(s) fechada(s) antes de net_ter_med existir (sem o pacote com
+  // Programação e Mapa guardado) nunca entram na comparação de ganho: nao
+  // ha como recalcular sem migrarNetTerMedio() ter o que precisa.
+  const semPacote = semanas.filter(s => s.tem_pacote === false);
+  if (semPacote.length) {
+    h += '<div class="avisoPacote">' +
+      (d.modo === 'semana'
+        ? 'Esta semana está sem média de terceiros: reabra e feche com as planilhas para recalcular.'
+        : semPacote.length + ' de ' + semanas.length + ' semana(s) deste período estão sem média ' +
+          'de terceiros e ficaram fora do Ganho sobre o mercado. Reabra e feche cada uma com as ' +
+          'planilhas para recalcular.') +
+      '</div>';
+  }
+
   h += '<h2>Fábricas próprias</h2>';
-  h += '<p class="nota">Para cada carga que foi para uma fábrica própria, o painel ' +
-    'sabe qual era a melhor oferta de terceiro para <b>aquela mesma carga</b>: mesma ' +
-    'origem, mesmo frete, mesma semana. A diferença entre as duas é o que a decisão ' +
-    'valeu. Aqui isso aparece duas vezes: no que foi feito, e no que o modelo mandava ' +
-    'fazer antes de qualquer troca manual.</p>';
+  h += '<p class="nota">Para cada carga que foi para uma fábrica própria, o painel compara ' +
+    'com a média do NET entre os terceiros que ofertaram para <b>a mesma origem</b>, na mesma ' +
+    'semana. A diferença entre as duas é o que a decisão valeu. Aqui isso aparece duas vezes: ' +
+    'no que foi feito, e no que o modelo mandava fazer antes de qualquer troca manual.</p>';
 
   props.forEach(p => {
     const tr = Number(p.ton_realizado || 0), to = Number(p.ton_otimo || 0);
@@ -339,8 +366,10 @@ function render(d) {
       '</span><span class="veredito">' + veredito + '</span></div>';
     h += '<div class="frase">' + frase + '</div>';
     h += '<div class="duo">';
-    h += bloco('O que foi feito', tr, num(p.net_realizado), num(p.net_ter_realizado), sr);
-    h += bloco('O que o modelo mandava', to, num(p.net_otimo), num(p.net_ter_otimo), so);
+    h += bloco('O que foi feito', tr, num(p.net_realizado), num(p.net_ter_realizado),
+      num(p.n_ter_realizado), num(p.net_ter_melhor_realizado), tr - Number(p.ton_comp_realizado || 0), sr);
+    h += bloco('O que o modelo mandava', to, num(p.net_otimo), num(p.net_ter_otimo),
+      num(p.n_ter_otimo), num(p.net_ter_melhor_otimo), to - Number(p.ton_comp_otimo || 0), so);
     h += '</div></div>';
   });
 

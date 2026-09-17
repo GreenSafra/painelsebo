@@ -49,8 +49,8 @@ const parseRs = txt => {
   T('resumo existe no DOM', !!box());
   T('resumo nao quebra logo apos importar', box().innerHTML.trim() !== '' || box().classList.contains('hide'));
   const agVazio = w.agregarSemana(
-    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA).linhas,
-    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA).linhasOtimo,
+    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA, w.DS).linhas,
+    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA, w.DS).linhasOtimo,
     w.MAPA.rows);
   T('nenhuma propria recebeu nada antes de digitar necessidade',
     agVazio.porPropria.every(p => p.ton_realizado === 0),
@@ -80,7 +80,7 @@ const parseRs = txt => {
   T('resumo tem conteudo depois de rodar', box().innerHTML.trim() !== '');
 
   // --- 2a. consistencia: o que esta na tela bate com o que agregarSemana devolve ---
-  const pac = w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA);
+  const pac = w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA, w.DS);
   const ag = w.agregarSemana(pac.linhas, pac.linhasOtimo, w.MAPA.rows);
 
   const fabs = [...box().querySelectorAll('.rs-fab')];
@@ -105,12 +105,31 @@ const parseRs = txt => {
   });
   T('diferenca mostrada na tela bate com agregarSemana(), fabrica por fabrica', consistente, detalhe);
 
+  // --- 2a-bis: rotulo "Média terceiros" (com contagem de ofertas) e "Melhor
+  // terceiro" como linha informativa menor, os dois presentes e coerentes
+  // com agregarSemana(). ---
+  const comFabricaComparavel = ag.porPropria.find(p => p.n_ter_realizado > 0);
+  T('ha pelo menos uma fabrica com comparacao de terceiros nesta bateria', !!comFabricaComparavel);
+  if (comFabricaComparavel) {
+    const idx = ag.porPropria.indexOf(comFabricaComparavel);
+    const duoRealizado = fabs[idx].querySelectorAll('.rs-duo > div')[0];
+    const linhas = [...duoRealizado.querySelectorAll('.rs-lin')].map(l => l.textContent);
+    T('rotulo "Média terceiros" aparece (nao mais "Melhor terceiro" como linha principal)',
+      linhas.some(t => t.indexOf('Média terceiros') === 0), linhas);
+    T('"Melhor terceiro" continua, mas como linha informativa (rs-sec)',
+      !!duoRealizado.querySelector('.rs-lin.rs-sec') &&
+      duoRealizado.querySelector('.rs-lin.rs-sec').textContent.indexOf('Melhor terceiro') === 0);
+    const nOfertas = Math.round(comFabricaComparavel.n_ter_realizado);
+    T('a contagem de ofertas na tela bate com n_ter_realizado agregado',
+      linhas.some(t => t.indexOf('média de ' + nOfertas + ' oferta') >= 0), nOfertas);
+  }
+
   // --- 2b. a soma dos savings por fabrica bate com a soma linha a linha
   // de montarSemana() — e isso que garante que painel e consolidado nunca
   // divergem (a mesma conta da CTE "dados" de db.js). ---
   const somaLinhas = pac.linhas
-    .filter(l => l.proprio && l.netTer != null)
-    .reduce((s, l) => s + (l.net - l.netTer) * l.toneladas, 0);
+    .filter(l => l.proprio && l.netTerMed != null)
+    .reduce((s, l) => s + (l.net - l.netTerMed) * l.toneladas, 0);
   const somaAgregada = ag.porPropria.reduce((s, p) => s + (p.saving_realizado || 0), 0);
   T('soma dos savings por fabrica bate com a soma linha a linha de montarSemana',
     Math.abs(somaLinhas - somaAgregada) < 1,
@@ -149,7 +168,7 @@ const parseRs = txt => {
   T('ha opcao propria e terceiro pra trocar em MT', !!vProp && !!vTer);
 
   const agAntes = w.agregarSemana(
-    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA).linhas,
+    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA, w.DS).linhas,
     [], w.MAPA.rows
   );
 
@@ -165,7 +184,7 @@ const parseRs = txt => {
   }
 
   const agDepois = w.agregarSemana(
-    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA).linhas,
+    w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA, w.DS).linhas,
     [], w.MAPA.rows
   );
   const difere = JSON.stringify(agAntes.porPropria) !== JSON.stringify(agDepois.porPropria);

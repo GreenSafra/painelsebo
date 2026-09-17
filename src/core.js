@@ -821,17 +821,58 @@ function anoDaSemana(prod) {
   return d ? d.getFullYear() : new Date().getFullYear();
 }
 
+// Fabrica propria: mesmo criterio em todo lugar que precisa distinguir
+// propria de terceiro (montarSemana, agregarSemana, comparacaoTerceiros).
+// Um so lugar evita a lista divergir entre as tres contas.
+function ehPropriaFabrica(c) { return /biopower|flora/i.test(String(c || '')); }
+
+// Estatisticas de terceiro para UMA carga: media simples do NET entre os
+// clientes terceiros (nunca fabrica propria) que ofertaram para a MESMA
+// sigla de origem da carga — um valor por cliente (o de maior NET, quando
+// ele tem mais de uma oferta pra essa sigla no Mapa). "quotesDaSigla" tem
+// que vir SEM o corte top-N de opcoes(): aquele corte e para nao afogar a
+// tela de edicao de opcoes, aqui a conta e estatistica e quer o universo
+// inteiro. Sem nenhuma oferta elegivel (so a propria carga, ou ninguem),
+// tudo sai null/0 — a carga fica fora da comparacao, mesma regra de sempre.
+function comparacaoTerceiros(quotesDaSigla, clienteProprio, ehPropria) {
+  const porCliente = new Map();
+  let melhor = null;
+  (quotesDaSigla || []).forEach(o => {
+    if (o.cli === clienteProprio || ehPropria(o.cli)) return;
+    const atual = porCliente.get(o.cli);
+    if (atual == null || o.net > atual) porCliente.set(o.cli, o.net);
+    if (!melhor || o.net > melhor.net) melhor = o;
+  });
+  const nets = [...porCliente.values()];
+  if (!nets.length) {
+    return { netTer: null, clienteTer: null, netTerMed: null, nTer: 0, netTerMin: null, netTerMax: null };
+  }
+  const soma = nets.reduce((s, n) => s + n, 0);
+  return {
+    netTer: melhor.net, clienteTer: melhor.cli,
+    netTerMed: soma / nets.length, nTer: nets.length,
+    netTerMin: Math.min.apply(null, nets), netTerMax: Math.max.apply(null, nets)
+  };
+}
+
 // Monta o pacote que vai para o banco quando a semana e fechada.
 // Desce ao nivel da linha de embarque porque o consolidado apura o mes pela
 // data de cada carga — uma semana pode atravessar a virada do mes, e apurar
 // pela semana inteira jogaria volume no mes errado.
 // Vai o realizado e tambem o otimo do modelo: sem os dois, nao da para saber
 // se um resultado ruim veio da decisao ou das trocas feitas na mao.
-function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
+// "ds" e o conjunto (montar()) usado para rodar a alocacao — de la sai o
+// universo COMPLETO de ofertas por sigla (ds.quotes), sem o corte top-N de
+// opcoes(), pra media de terceiros. Sem "ds" (chamada antiga, defensivo),
+// a media sai nula em toda carga — nunca quebra.
+function montarSemana(prod, aloc, alocOtimo, ops, mapa, ds) {
   const ondeUn = {};
   prod.plants.forEach(p => ondeUn[p.sigla] = p);
   const rows = (mapa && mapa.rows) || [];
-  const ehPropria = c => /biopower|flora/i.test(String(c || ''));
+  const ehPropria = ehPropriaFabrica;
+  const porSiglaCompleta = {};
+  ((ds && ds.quotes) || []).forEach(x =>
+    (porSiglaCompleta[x.sigla] || (porSiglaCompleta[x.sigla] = [])).push(x));
   let ano = null;
 
   function montar(qual) {
@@ -847,16 +888,16 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
         if (!(p.ton > 0.01) || !p.dest) return;
         const src = rows[p.dest.src] || {};
         const lista = (ops && ops[p.dest.sigla]) || [];
-        // melhor alternativa qualquer (pode ser outra propria)
+        // melhor alternativa qualquer (pode ser outra propria) — usa o
+        // ranking ja cortado de opcoes(), sem relacao com a media abaixo
         let alt = null;
-        // melhor alternativa que seja de fato TERCEIRO — e essa que responde
-        // "quanto o mercado pagaria por esta mesma carga"
-        let altTer = null;
         lista.forEach(o => {
           if (o.cli === p.dest.cli) return;
           if (!alt || o.net > alt.net) alt = o;
-          if (!ehPropria(o.cli) && (!altTer || o.net > altTer.net)) altTer = o;
         });
+        // media (e melhor, so informativo) entre TERCEIROS de verdade para
+        // esta mesma sigla — "quanto o mercado pagaria por esta mesma carga"
+        const comp = comparacaoTerceiros(porSiglaCompleta[p.dest.sigla], p.dest.cli, ehPropria);
         out.push({
           dataEmbarque: iso,
           sigla: l.sigla,
@@ -872,8 +913,12 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
           net: p.dest.net,
           net2: alt ? alt.net : null,
           cliente2: alt ? alt.cli : null,
-          netTer: altTer ? altTer.net : null,
-          clienteTer: altTer ? altTer.cli : null,
+          netTer: comp.netTer,
+          clienteTer: comp.clienteTer,
+          netTerMed: comp.netTerMed,
+          nTer: comp.nTer,
+          netTerMin: comp.netTerMin,
+          netTerMax: comp.netTerMax,
           icms: src.icms != null ? src.icms : null,
           modal: p.dest.modal || src.modal || null
         });
@@ -898,6 +943,28 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
   };
 }
 
+// Recalcula netTerMed/nTer das cargas de uma semana JA FECHADA, a partir do
+// pacote completo que foi guardado no fechamento (dados.prod + dados.mapa —
+// ver montarPacoteDados() em ui.js). Usada pela migracao em db.js para
+// semanas fechadas antes de net_ter_med existir. "linhas" e o minimo que
+// uma linha de alocacoes precisa: {id, sigla, cliente}. Pura — sem banco,
+// sem rede — devolve so o que mudou, pra quem chama fazer o UPDATE.
+// Sem prod/mapa no pacote (semana fechada antes da coluna "dados" existir),
+// devolve lista vazia: nao ha como recalcular, e essa semana fica marcada
+// como "sem pacote" em outro lugar (db.js/consolidado.html), nao aqui.
+function recalcularTerceirosSemana(dadosPacote, linhas) {
+  const prod = dadosPacote && dadosPacote.prod;
+  const mapa = dadosPacote && dadosPacote.mapa;
+  if (!prod || !mapa || !Array.isArray(mapa.rows) || !Array.isArray(prod.plants)) return [];
+  const ds = montar(prod, [], mapa);
+  const porSigla = {};
+  ds.quotes.forEach(x => (porSigla[x.sigla] || (porSigla[x.sigla] = [])).push(x));
+  return (linhas || []).map(l => {
+    const comp = comparacaoTerceiros(porSigla[l.sigla], l.cliente, ehPropriaFabrica);
+    return { id: l.id, netTerMed: comp.netTerMed, nTer: comp.nTer };
+  });
+}
+
 // Agrega as linhas de montarSemana() por fabrica propria, no realizado e no
 // otimo, com a mesma conta (peso por tonelada) que db.js usa em
 // consolidado() -> CTE "dados". Pura: sem rede, sem banco — tem que
@@ -907,8 +974,17 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa) {
 // cravada (evita uma 3a definicao de "propria" divergente, tipo BioPower
 // Mafra ausente de uma lista fixa) e nao um casamento de nomes entre Mapa
 // e alocacao (nome abreviado no Mapa nao pode virar zero calado).
+// net_ter_realizado/net_ter_otimo continuam com esse nome (media ponderada
+// por tonelada), mas agora sao a MEDIA de terceiros (netTerMed), nao mais o
+// melhor terceiro — e essa media que define saving/Diferenca. O melhor
+// terceiro (netTer, historico) vira so informativo em
+// net_ter_melhor_realizado/otimo, fora da conta. n_ter_realizado/otimo e a
+// quantidade media de ofertas usada no calculo (ponderada por tonelada,
+// igual as demais medias), pro "media de N ofertas" da tela.
+// ton_comp_realizado/otimo e quanto do volume TEVE comparacao — o resto
+// (ton_realizado - ton_comp_realizado) e "sem comparacao", mostrado a parte.
 function agregarSemana(linhas, linhasOtimo, mapaRows) {
-  const ehPropria = c => /biopower|flora/i.test(String(c || ''));
+  const ehPropria = ehPropriaFabrica;
   const doMapa = (mapaRows || []).map(r => r.cli);
   const daAlocacao = [].concat(linhas || [], linhasOtimo || []).map(l => l.cliente);
   const PROPRIAS = Array.from(new Set(doMapa.concat(daAlocacao).filter(ehPropria))).sort();
@@ -917,13 +993,17 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
     const g = {};
     (lista || []).forEach(l => {
       if (!l.proprio) return;
-      const d = g[l.cliente] || (g[l.cliente] = { ton: 0, somaNet: 0, tonComp: 0, somaTer: 0, saving: 0 });
+      const d = g[l.cliente] || (g[l.cliente] = {
+        ton: 0, somaNet: 0, tonComp: 0, somaTerMed: 0, somaTerMelhor: 0, somaNTer: 0, saving: 0
+      });
       d.ton += l.toneladas;
       d.somaNet += l.net * l.toneladas;
-      if (l.netTer != null) {
+      if (l.netTerMed != null) {
         d.tonComp += l.toneladas;
-        d.somaTer += l.netTer * l.toneladas;
-        d.saving += (l.net - l.netTer) * l.toneladas;
+        d.somaTerMed += l.netTerMed * l.toneladas;
+        d.somaTerMelhor += l.netTer * l.toneladas;
+        d.somaNTer += (l.nTer || 0) * l.toneladas;
+        d.saving += (l.net - l.netTerMed) * l.toneladas;
       }
     });
     return g;
@@ -942,11 +1022,17 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
       cliente,
       ton_realizado: dr ? dr.ton : 0,
       net_realizado: dr && dr.ton > 0 ? dr.somaNet / dr.ton : null,
-      net_ter_realizado: dr && dr.tonComp > 0 ? dr.somaTer / dr.tonComp : null,
+      net_ter_realizado: dr && dr.tonComp > 0 ? dr.somaTerMed / dr.tonComp : null,
+      net_ter_melhor_realizado: dr && dr.tonComp > 0 ? dr.somaTerMelhor / dr.tonComp : null,
+      n_ter_realizado: dr && dr.tonComp > 0 ? dr.somaNTer / dr.tonComp : null,
+      ton_comp_realizado: dr ? dr.tonComp : 0,
       saving_realizado: dr && dr.tonComp > 0 ? dr.saving : null,
       ton_otimo: do_ ? do_.ton : 0,
       net_otimo: do_ && do_.ton > 0 ? do_.somaNet / do_.ton : null,
-      net_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaTer / do_.tonComp : null,
+      net_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMed / do_.tonComp : null,
+      net_ter_melhor_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMelhor / do_.tonComp : null,
+      n_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaNTer / do_.tonComp : null,
+      ton_comp_otimo: do_ ? do_.tonComp : 0,
       saving_otimo: do_ && do_.tonComp > 0 ? do_.saving : null
     };
   });
@@ -1587,4 +1673,13 @@ function opcoes(ds, travas, topN, manter, modo) {
     por[s] = corte;
   }
   return por;
+}
+
+// Isomorfico: no navegador este arquivo e colado dentro de um <script> por
+// build.js (typeof module e "undefined" la, o bloco abaixo nao roda). Em
+// Node (db.js, migracao de net_ter_med para semanas fechadas antigas)
+// "require('./src/core.js')" pega so o que interessa do lado do servidor —
+// nada de leitura de xlsx nem geracao de planilha, que sao coisa de navegador.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { montar, comparacaoTerceiros, ehPropriaFabrica, recalcularTerceirosSemana };
 }

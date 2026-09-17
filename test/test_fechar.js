@@ -28,7 +28,7 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
   set('Flora SP', 900); set('Flora GO', 900);
   w.rodar(); await new Promise(r => setTimeout(r, 120));
 
-  const pac = w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA);
+  const pac = w.montarSemana(w.PROD, w.RES.alocFinal, w.RES.otimoAloc, w.OPS, w.MAPA, w.DS);
 
   T('cabecalho.semana e 38', pac.cabecalho.semana === 38, 'veio ' + pac.cabecalho.semana);
   T('cabecalho.ano e um inteiro entre 2020 e 2100',
@@ -61,6 +61,22 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
   const somaOtimo = pac.linhasOtimo.reduce((s, l) => s + l.toneladas, 0);
   T('a soma das toneladas de linhasOtimo bate com a soma de linhas',
     Math.abs(somaOtimo - somaPac) <= 0.05, somaOtimo + ' vs ' + somaPac);
+
+  // --- net_ter_med/nTer: toda linha comparavel (netTer != null) tambem tem
+  // netTerMed/nTer, e a media cai entre o menor e o maior NET considerados.
+  const comparaveis = pac.linhas.filter(l => l.proprio && l.netTer != null);
+  T('ha pelo menos uma linha propria comparavel (com terceiro na mesma sigla)',
+    comparaveis.length > 0, comparaveis.length);
+  T('toda linha com netTer tambem tem netTerMed e nTer > 0',
+    comparaveis.every(l => l.netTerMed != null && l.nTer > 0),
+    comparaveis.filter(l => l.netTerMed == null).length + ' sem netTerMed');
+  T('netTerMed cai entre netTerMin e netTerMax (ou os tres iguais, com 1 oferta so)',
+    comparaveis.every(l => l.netTerMed >= l.netTerMin - 0.01 && l.netTerMed <= l.netTerMax + 0.01),
+    comparaveis.filter(l => l.netTerMed < l.netTerMin - 0.01 || l.netTerMed > l.netTerMax + 0.01).length);
+  T('com nTer === 1, a media bate exatamente com o melhor (netTer)',
+    comparaveis.filter(l => l.nTer === 1).every(l => Math.abs(l.netTerMed - l.netTer) < 0.01));
+  T('toda linha sem netTer (nenhum terceiro na sigla) tambem tem netTerMed nulo',
+    pac.linhas.filter(l => l.proprio && l.netTer == null).every(l => l.netTerMed == null && l.nTer === 0));
 
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);
