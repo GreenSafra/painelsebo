@@ -131,6 +131,10 @@ async function iniciar() {
   // Semana fechada antes desta coluna existir fica com dados NULL: continua
   // aparecendo no consolidado, so nao pode ser reaberta.
   await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS dados TEXT`);
+  // Replicado fora do JSON pro mesmo motivo do periodo (linha abaixo): a
+  // lista "Semanas salvas" mostra que a semana veio de Programação já
+  // preenchida sem precisar abrir o pacote inteiro.
+  await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS preenchida BOOLEAN NOT NULL DEFAULT false`);
 
   // Rascunho da semana em andamento: uma linha por ano+semana, salvar
   // sobrescreve — nao versionado como semanas/alocacoes, porque isto e
@@ -153,6 +157,7 @@ async function iniciar() {
   // base64) so para a lista "Semanas salvas" poder mostrar o periodo sem
   // parsear o pacote inteiro de cada rascunho.
   await pool.query(`ALTER TABLE rascunhos ADD COLUMN IF NOT EXISTS periodo TEXT`);
+  await pool.query(`ALTER TABLE rascunhos ADD COLUMN IF NOT EXISTS preenchida BOOLEAN NOT NULL DEFAULT false`);
 
   // Uma linha por cotacao: cliente, origem (texto cru da unidade no Mapa
   // — sempre presente, e a chave que evita duplicidade), sigla resolvida
@@ -364,11 +369,12 @@ async function fecharSemana(cab, linhas, usuarioId, dados) {
       `UPDATE semanas SET atual=false WHERE ano=$1 AND semana=$2 AND atual`,
       [ano, semana]
     );
+    const preenchida = !!(dados && dados.prod && dados.prod.destinosPreenchidos);
     const s = await c.query(
-      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id, dados)
-       VALUES ($1,$2,$3,$4,true,$5,$6,$7) RETURNING id, versao`,
+      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id, dados, preenchida)
+       VALUES ($1,$2,$3,$4,true,$5,$6,$7,$8) RETURNING id, versao`,
       [ano, semana, cab.periodo || null, v.rows[0].v, cab.mapaData || null, usuarioId || null,
-       dados ? JSON.stringify(dados) : null]
+       dados ? JSON.stringify(dados) : null, preenchida]
     );
     const id = s.rows[0].id;
 
@@ -633,13 +639,14 @@ async function salvarRascunho({ ano, semana, dados, usuarioId, baseSalvoEm, forc
 
   const texto = JSON.stringify(dados);
   const periodo = (dados && dados.prod && dados.prod.periodo) || null;
+  const preenchida = !!(dados && dados.prod && dados.prod.destinosPreenchidos);
   const r = await pool.query(
-    `INSERT INTO rascunhos (ano, semana, dados, usuario_id, periodo, salvo_em)
-       VALUES ($1,$2,$3,$4,$5,now())
+    `INSERT INTO rascunhos (ano, semana, dados, usuario_id, periodo, preenchida, salvo_em)
+       VALUES ($1,$2,$3,$4,$5,$6,now())
      ON CONFLICT (ano, semana) DO UPDATE
-       SET dados=$3, usuario_id=$4, periodo=$5, salvo_em=now()
+       SET dados=$3, usuario_id=$4, periodo=$5, preenchida=$6, salvo_em=now()
      RETURNING salvo_em`,
-    [ano, semana, texto, usuarioId || null, periodo]
+    [ano, semana, texto, usuarioId || null, periodo, preenchida]
   );
   return { conflito: false, salvoEm: r.rows[0].salvo_em };
 }
@@ -674,11 +681,11 @@ async function semanasSalvas(limite) {
   const lim = Number.isInteger(limite) && limite > 0 ? limite : 8;
   const r = await pool.query(
     `(SELECT r.ano, r.semana, r.periodo, 'rascunho' AS situacao, null::int AS versao,
-             r.salvo_em AS quando, u.nome AS quem, true AS tem_pacote
+             r.salvo_em AS quando, u.nome AS quem, true AS tem_pacote, r.preenchida
         FROM rascunhos r LEFT JOIN usuarios u ON u.id = r.usuario_id)
      UNION ALL
      (SELECT s.ano, s.semana, s.periodo, 'fechada' AS situacao, s.versao,
-             s.fechada_em AS quando, u.nome AS quem, (s.dados IS NOT NULL) AS tem_pacote
+             s.fechada_em AS quando, u.nome AS quem, (s.dados IS NOT NULL) AS tem_pacote, s.preenchida
         FROM semanas s LEFT JOIN usuarios u ON u.id = s.usuario_id
        WHERE s.atual)
      ORDER BY quando DESC

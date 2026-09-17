@@ -244,9 +244,23 @@ function readProducao(sheets) {
   const cm = colMap(rows[hi]);
   const cS = pick(cm, 'sigla'), cC = pick(cm, 'cidade'), cU = pick(cm, 'uf'), cT = pick(cm, 'ton');
   const cSem = pick(cm, 'semana'), cPer = pick(cm, 'periodo'), cEmb = pick(cm, 'data embarque');
+  let colDest = null;
+  try { colDest = colunasDestino(rows, hi); } catch (e) { colDest = null; }
+  // Le o bloco de destino (Clientes, Cidade/UF, Toneladas) linha a linha, no
+  // mesmo layout que "Exportar programação" grava. So conta como Programação
+  // ja preenchida quando ACHA cliente em alguma linha — planilha sem nenhum
+  // destino digitado segue exatamente como sempre foi. A tonelada do destino
+  // vem da coluna propria quando existe; no layout real da empresa nao existe
+  // (so ha "Toneladas" uma vez, antes de Clientes), entao cai na tonelada da
+  // propria linha de producao — que ja e a fatia certa quando a planilha vem
+  // do nosso proprio export, porque cada linha dividida carrega so a sua parte.
+  const iCliDest = colDest && colDest.cli ? colToIdx(colDest.cli) : -1;
+  const iDstDest = colDest && colDest.dst ? colToIdx(colDest.dst) : -1;
+  const iTonDest = colDest && colDest.ton ? colToIdx(colDest.ton) : -1;
   const agg = new Map();
   const linhas = [];
-  let semana = null, periodo = null;
+  const destinosPorSigla = {};
+  let semana = null, periodo = null, temDestino = false;
   for (let i = hi + 1; i < rows.length; i++) {
     const r = rows[i];
     const sg = String(r[cS] == null ? '' : r[cS]).trim().toUpperCase();
@@ -261,12 +275,29 @@ function readProducao(sheets) {
     agg.set(k, cur);
     const emb = cEmb >= 0 ? parseFloat(r[cEmb]) : NaN;
     linhas.push({ r: i + 1, sigla: sg, ton: ton, emb: isFinite(emb) ? emb : null });
+    if (iCliDest >= 0) {
+      const cliDest = String(r[iCliDest] == null ? '' : r[iCliDest]).trim();
+      if (cliDest) {
+        temDestino = true;
+        const dstTxt = iDstDest >= 0 ? String(r[iDstDest] || '').trim() : '';
+        const tonDestRaw = iTonDest >= 0 ? parseFloat(r[iTonDest]) : NaN;
+        const tonDest = isFinite(tonDestRaw) && tonDestRaw > 0 ? tonDestRaw : ton;
+        const lista = destinosPorSigla[sg] || (destinosPorSigla[sg] = []);
+        // mesmo destino em mais de uma linha (ex.: carga dividida em varias
+        // carretas) soma na mesma entrada, nao duplica — cada sigla+cliente
+        // vira uma linha so na tela, igual ao que o modelo sempre produziu.
+        const existente = lista.find(x => x.cliente === cliDest);
+        if (existente) { existente.ton += tonDest; if (!existente.destino && dstTxt) existente.destino = dstTxt; }
+        else lista.push({ cliente: cliDest, destino: dstTxt, ton: tonDest });
+      }
+    }
   }
   const plants = [...agg.values()].sort((a, b) => a.uf.localeCompare(b.uf) || a.sigla.localeCompare(b.sigla));
   if (!plants.length) throw new Error('Não encontrei nenhuma linha de produção na Programação.');
-  let colDest = null;
-  try { colDest = colunasDestino(rows, hi); } catch (e) { colDest = null; }
-  return { plants, semana, periodo, linhas, aba: nm, colDest: colDest };
+  return {
+    plants, semana, periodo, linhas, aba: nm, colDest: colDest,
+    destinosPreenchidos: temDestino ? destinosPorSigla : null
+  };
 }
 
 var PROPRIAS_CONHECIDAS = [
@@ -678,6 +709,80 @@ function resolver(ds, travas, fixos, modo) {
   const net = aloc.reduce((s, a) => s + a.ton * a.net, 0);
   return { aloc: aloc, faltas: faltas, semTerceiro: semTerceiro, sobra: sobra,
     foraDeCotacao: foraDeCotacao, net: net, bestTer: bestTer };
+}
+
+/* ====================== PROGRAMAÇÃO JÁ PREENCHIDA ====================== */
+// Quando a Programação chega com os destinos preenchidos, a alocacao "realizada"
+// e exatamente a da planilha — nao roda o modelo por cima. Cada destino vira
+// uma linha, ligado a melhor cotacao do Mapa pra sigla+cliente quando existe
+// (mesma fonte que resolver() usa pros fixos). manual (ST.manual) tem
+// prioridade sobre a planilha por unidade: e assim que a edicao na tela
+// depois de importar funciona — trocar uma unidade troca so ela, o resto
+// continua vindo da planilha.
+function alocarPreenchida(prod, ds, manual) {
+  const { plants, quotes } = ds;
+  const qIdx = new Map();
+  quotes.forEach(q => qIdx.set(q.sigla + '|' + q.cli, q));
+  const ehPropria = c => /biopower|flora/i.test(String(c || ''));
+  const ufDe = {}; plants.forEach(p => ufDe[p.sigla] = p.uf);
+
+  const porSigla = {};
+  const origem = prod.destinosPreenchidos || {};
+  Object.keys(origem).forEach(sg => { porSigla[sg] = origem[sg].map(d => Object.assign({}, d)); });
+  Object.keys(manual || {}).forEach(sg => {
+    porSigla[sg] = (manual[sg] || [])
+      .filter(m => m.ton > 0.001)
+      .map(m => ({ cliente: m.cli, destino: null, ton: m.ton }));
+  });
+
+  // linhas cujo sigla nao tem nenhum destino (nem planilha, nem edicao
+  // manual) precisam existir mesmo vazias, pra "sobra" pegar a unidade
+  // inteira e ela aparecer como "sem destino" pro usuario completar.
+  plants.forEach(p => { if (!(p.sigla in porSigla)) porSigla[p.sigla] = []; });
+
+  const aloc = [], semOferta = [];
+  Object.keys(porSigla).forEach(sg => {
+    porSigla[sg].forEach(d => {
+      if (!(d.ton > 0.001)) return;
+      const q = qIdx.get(sg + '|' + d.cliente);
+      if (q) {
+        aloc.push(Object.assign({}, q, { ton: d.ton, dst: d.destino || q.dst }));
+      } else {
+        semOferta.push({ sigla: sg, cliente: d.cliente });
+        aloc.push({
+          sigla: sg, uf: ufDe[sg] || '', cli: d.cliente, dst: d.destino || '',
+          net: null, modal: null, src: null, ton: d.ton, prop: ehPropria(d.cliente)
+        });
+      }
+    });
+  });
+
+  const bestTer = new Map();
+  quotes.forEach(x => {
+    if (x.prop) return;
+    const b = bestTer.get(x.sigla);
+    if (!b || x.net > b.net) bestTer.set(x.sigla, x);
+  });
+  const semTerceiro = plants.filter(p => !bestTer.has(p.sigla)).map(p => p.sigla);
+
+  const usadoPorSigla = {};
+  aloc.forEach(a => { usadoPorSigla[a.sigla] = (usadoPorSigla[a.sigla] || 0) + a.ton; });
+
+  const sobra = plants.filter(p => (usadoPorSigla[p.sigla] || 0) < p.ton - 0.01).map(p => p.sigla);
+
+  // diferenca > sobra: sobra so pega falta (planilha aloca de menos); aqui
+  // pega os dois lados, inclusive quando a planilha aloca a MAIS do que a
+  // unidade produz — a trava normal do modelo (capacidade no fluxo) nao
+  // existe aqui porque a planilha manda, entao isso precisa de aviso proprio.
+  const diferencas = plants
+    .map(p => ({ sigla: p.sigla, producao: p.ton, alocado: usadoPorSigla[p.sigla] || 0,
+      diferenca: (usadoPorSigla[p.sigla] || 0) - p.ton }))
+    .filter(d => Math.abs(d.diferenca) > 0.05);
+
+  aloc.sort((a, b) => a.uf.localeCompare(b.uf) || a.sigla.localeCompare(b.sigla) || (b.net || 0) - (a.net || 0));
+  const net = aloc.reduce((s, a) => s + a.ton * (a.net || 0), 0);
+  return { aloc: aloc, faltas: [], semTerceiro: semTerceiro, sobra: sobra,
+    foraDeCotacao: [], semOferta: semOferta, diferencas: diferencas, net: net, bestTer: bestTer };
 }
 
 /* ====================== DEVOLVER A PROGRAMAÇÃO PREENCHIDA ====================== */

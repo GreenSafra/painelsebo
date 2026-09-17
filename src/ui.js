@@ -281,8 +281,17 @@ function recalcular() {
   MAPA.rows.forEach(r => { r.ofEdit = (r.i in ST.ofEdits) ? ST.ofEdits[r.i] : null; });
   MAPA_ROWS = MAPA.rows;
   DS = montar(PROD, NEC, MAPA);
+  // "o que o modelo mandava" continua vindo do modelo (Prioridade/Mercado
+  // livre) mesmo quando a Programação já chegou preenchida — é o comparativo
+  // planilha x modelo que o resumo da semana mostra.
   const otimo = resolver(DS, ST.travas, null, ST.modo);
-  RES = resolver(DS, ST.travas, ST.manual, ST.modo);
+  // Programação preenchida: a alocação realizada é a da planilha, sem rodar
+  // o modelo por cima. A edição manual na tela continua funcionando — troca
+  // uma unidade, ela passa a valer o que foi editado em vez do que veio da
+  // planilha (alocarPreenchida() dá prioridade pra ST.manual por sigla).
+  RES = PROD.destinosPreenchidos
+    ? alocarPreenchida(PROD, DS, ST.manual)
+    : resolver(DS, ST.travas, ST.manual, ST.modo);
   RES.alocFinal = RES.aloc;
   RES.otimoNet = otimo.net;
   // a alocacao otima inteira, nao so o total: e ela que o consolidado compara
@@ -445,7 +454,8 @@ function carimbo() {
     if (o) $('#who').value = ST.usuario;
   }
   $('#foot').textContent = RAW && RAW.arquivos
-    ? 'Fontes: ' + Object.values(RAW.arquivos).join(' · ')
+    ? 'Fontes: ' + Object.values(RAW.arquivos).join(' · ') +
+      (PROD && PROD.destinosPreenchidos ? ' · Programação preenchida' : '')
     : '';
 }
 
@@ -472,6 +482,9 @@ function renderKpis() {
 
 function renderAvisos() {
   let h = '';
+  if (PROD.destinosPreenchidos) {
+    h += '<div class="warn">Programação preenchida: a distribuição será a da planilha.</div>';
+  }
   const semCotacao = c => !DS.quotes.some(q => q.cli === c);
   const faltasReais = RES.faltas.filter(f => !semCotacao(f.cliente));
   if (faltasReais.length) {
@@ -508,6 +521,16 @@ function renderAvisos() {
   if (RES.sobra.length) {
     h += '<div class="warn bad">Sobrou volume sem destino em <b>' +
       RES.sobra.map(esc).join('</b>, <b>') + '</b>. Abra a unidade e distribua o que falta.</div>';
+  }
+  if (RES.semOferta && RES.semOferta.length) {
+    h += '<div class="warn">Sem oferta no Mapa para <b>' +
+      RES.semOferta.map(s => esc(s.cliente) + '</b> (' + esc(s.sigla) + ')').join(', <b>') +
+      '. Essas cargas continuam alocadas, mas sem NET.</div>';
+  }
+  if (RES.diferencas && RES.diferencas.length) {
+    h += '<div class="warn">A planilha não bate com a produção em <b>' +
+      RES.diferencas.map(d => esc(d.sigla) + '</b> (' + (d.diferenca > 0 ? '+' : '') +
+        fmt0(d.diferenca) + ' t)').join(', <b>') + '.</div>';
   }
   const semCot = NEC.filter(d => d.ton > 0 && semCotacao(d.cliente)).map(d => d.cliente);
   if (semCot.length) {
@@ -1214,11 +1237,13 @@ function renderSemanasSalvas(lista) {
     // so uma semana FECHADA pode ficar sem pacote (fechada antes da coluna
     // existir) — rascunho sempre tem dados, a coluna nem admite null.
     const semPacote = r.situacao === 'fechada' && r.tem_pacote === false;
+    const badges = (semPacote ? ' · <span class="semplan">sem planilhas</span>' : '') +
+      (r.preenchida ? ' · <span class="semplan">planilha preenchida</span>' : '');
     return '<div class="rascunho">' +
       '<button class="rascunho-abrir" data-tipo="' + r.situacao + '" data-ano="' + r.ano +
         '" data-semana="' + r.semana + '">' +
         'Semana ' + r.semana + '/' + r.ano + (r.periodo ? ' (' + esc(r.periodo) + ')' : '') +
-        ', ' + situacao + (semPacote ? ' · <span class="semplan">sem planilhas</span>' : '') +
+        ', ' + situacao + badges +
         ' · ' + esc(r.quem || '-') + ' às ' + esc(fmtDataHora(r.quando)) +
       '</button>' +
       (r.situacao === 'rascunho'
