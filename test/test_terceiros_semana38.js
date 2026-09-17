@@ -57,6 +57,21 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
   const propriasOtimo = pac.linhasOtimo.filter(l => l.proprio);
   T('ha cargas proprias nos dois cenarios', propriasRealizado.length > 0 && propriasOtimo.length > 0);
 
+  // ---- flag "proprio" bate com o nome do cliente, nos dois cenarios ----
+  // (o bug real na producao: cenario "otimo" inteiro gravado com
+  // proprio=false, inclusive em cargas pra fabrica propria de verdade)
+  const ehPropriaNome = c => /biopower|flora/i.test(c || '');
+  const propriaPorNomeMasFlagFalsa = pac.linhas.concat(pac.linhasOtimo)
+    .filter(l => ehPropriaNome(l.cliente) && !l.proprio);
+  T('nenhuma carga com cliente propria (por nome) fica marcada proprio=false',
+    propriaPorNomeMasFlagFalsa.length === 0,
+    propriaPorNomeMasFlagFalsa.map(l => l.cliente + '@' + l.sigla));
+  const terceiroPorNomeMasFlagVerdadeira = pac.linhas.concat(pac.linhasOtimo)
+    .filter(l => !ehPropriaNome(l.cliente) && l.proprio);
+  T('nenhuma carga de terceiro (por nome) fica marcada proprio=true',
+    terceiroPorNomeMasFlagVerdadeira.length === 0,
+    terceiroPorNomeMasFlagVerdadeira.map(l => l.cliente + '@' + l.sigla));
+
   // ---- Problema 1: os dois cenarios tem que usar a MESMA referencia ----
   // Para cada combinacao (sigla, cliente) que aparece nos dois cenarios, a
   // media (netTerMed) e a quantidade de ofertas (nTer) tem que bater

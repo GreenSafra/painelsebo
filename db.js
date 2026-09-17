@@ -204,14 +204,40 @@ async function iniciar() {
     [MASTER]
   );
 
-  // Semanas fechadas antes de net_ter_med existir: recalcula a partir do
-  // pacote guardado. Roda toda subida do servidor, mas so processa o que
-  // ainda falta (idempotente) — depois da primeira vez, so ha trabalho de
-  // novo se uma semana nova ficar sem pacote e for reaberta/fechada depois.
+  // Corrige primeiro a flag "proprio" (nao depende de pacote, cobre
+  // qualquer semana/cenario) e so depois recalcula net_ter_med/n_ter — a
+  // ordem importa: e a flag certa que faz uma carga recem-corrigida
+  // aparecer como pendente de media. Roda toda subida do servidor, mas so
+  // processa o que ainda falta (idempotente).
+  await corrigirFlagPropria();
   await migrarNetTerMedio();
 
   const n = await pool.query(`SELECT count(*)::int AS q FROM usuarios`);
   return n.rows[0].q;
+}
+
+// Conserta a flag "proprio" onde ela nao bate com o nome do cliente da
+// carga — a regra e sempre a mesma (ehPropriaFabrica() em src/core.js, o
+// mesmo regex /biopower|flora/i espelhado aqui em SQL) e deriva so do nome
+// gravado na propria linha, entao da pra reconferir e corrigir sem precisar
+// do pacote nem reprocessar alocacao nenhuma. Cobre QUALQUER semana e
+// QUALQUER cenario (realizado e otimo) — foi encontrado exatamente assim:
+// a semana 38 (v8) tinha o cenario "otimo" inteiro gravado com proprio=false,
+// inclusive em cargas para fabrica propria de verdade (ex.: Flora GO 735 t),
+// enquanto "realizado" estava certo. Sem a flag certa a carga nunca entra em
+// agregarSemana()/porPropria (core.js e db.js:consolidado() so somam onde
+// a.proprio e verdadeiro), entao nem toneladas, nem media de terceiros, nem
+// ganho aparecem pra ela — dai "Media terceiros" vazia e ganho R$ 0 no
+// cenario afetado. Roda ANTES de migrarNetTerMedio(): so depois da flag
+// certa e que uma carga recem-corrigida passa a ser vista como pendente de
+// media (o filtro "AND a.proprio" de migrarNetTerMedio() so a pega dai por
+// diante). Idempotente: so grava (e so conta) onde realmente diverge.
+async function corrigirFlagPropria() {
+  const r = await pool.query(`
+    UPDATE alocacoes SET proprio = (cliente ~* 'biopower|flora')
+     WHERE proprio <> (cliente ~* 'biopower|flora')
+  `);
+  return r.rowCount;
 }
 
 // Recalcula net_ter_med/n_ter das cargas de semanas fechadas ANTES dessas
@@ -220,39 +246,59 @@ async function iniciar() {
 // completo guardado (dados NOT NULL): sem prod+mapa nao ha como recalcular,
 // e essas ficam para sempre sem media de terceiros — marcadas na tela via
 // "tem_pacote" (ver consolidado()). Nao toca net_ter/cliente_ter (o melhor
-// terceiro, historico, gravado certo desde sempre).
-// A pendencia so pode ser detectada por "net_ter IS NOT NULL E net_ter_med
-// IS NULL" — nunca so "net_ter_med IS NULL": uma carga sem NENHUM terceiro
-// pra comparar tem os dois sempre NULL, de proposito (regra de sempre), e
-// isso NAO e pendencia — usar so net_ter_med reprocessaria essa semana pra
-// sempre, toda subida do servidor, à toa.
+// terceiro, historico, gravado certo desde sempre) nem proprio (corrigido
+// antes, por corrigirFlagPropria()).
+// A pendencia e so "existe carga propria com net_ter_med NULL" — sem exigir
+// net_ter IS NOT NULL antes (como era ate aqui): esse sinal e fragil demais,
+// uma carga pode legitimamente nunca ter tido net_ter e ainda assim ser
+// candidata de verdade (foi o caso do cenario otimo da semana 38: antes de
+// corrigirFlagPropria() rodar, "AND a.proprio" nunca via essas linhas; com
+// a flag certa elas passam a aparecer aqui). Uma carga SEM NENHUM terceiro
+// pra comparar continua saindo com net_ter_med NULL do recalculo — por isso
+// so grava quando o valor recalculado realmente MUDA o que esta gravado
+// (compara antes de fazer UPDATE), senao toda subida do servidor reescreveria
+// à toa as cargas que legitimamente nunca tiveram comparacao.
 async function migrarNetTerMedio() {
   const pendentes = await pool.query(`
     SELECT s.id, s.dados FROM semanas s
      WHERE s.atual AND s.dados IS NOT NULL
        AND EXISTS (
          SELECT 1 FROM alocacoes a
-          WHERE a.semana_id = s.id AND a.proprio
-            AND a.net_ter IS NOT NULL AND a.net_ter_med IS NULL
+          WHERE a.semana_id = s.id AND a.proprio AND a.net_ter_med IS NULL
        )
   `);
-  let semanasMigradas = 0;
+  let linhasAtualizadas = 0;
   for (const s of pendentes.rows) {
-    let dados;
-    try { dados = JSON.parse(s.dados); } catch (e) { continue; }
-    const linhas = (await pool.query(
-      `SELECT id, sigla, cliente FROM alocacoes WHERE semana_id=$1 AND proprio`, [s.id]
-    )).rows;
-    const atualizacoes = core.recalcularTerceirosSemana(dados, linhas);
-    for (const a of atualizacoes) {
-      await pool.query(
-        `UPDATE alocacoes SET net_ter_med=$1, n_ter=$2 WHERE id=$3`,
-        [a.netTerMed, a.nTer, a.id]
-      );
+    try {
+      let dados;
+      try { dados = JSON.parse(s.dados); } catch (e) { continue; }
+      const linhas = (await pool.query(
+        `SELECT id, sigla, cliente, net_ter_med, n_ter FROM alocacoes WHERE semana_id=$1 AND proprio`,
+        [s.id]
+      )).rows;
+      const atualizacoes = core.recalcularTerceirosSemana(dados, linhas);
+      const porId = new Map(linhas.map(l => [l.id, l]));
+      for (const a of atualizacoes) {
+        const atual = porId.get(a.id);
+        if (!atual) continue;
+        const medBateu = atual.net_ter_med == null
+          ? a.netTerMed == null
+          : (a.netTerMed != null && Math.abs(Number(atual.net_ter_med) - a.netTerMed) < 0.005);
+        const nBateu = Number(atual.n_ter || 0) === (a.nTer || 0);
+        if (medBateu && nBateu) continue;
+        await pool.query(
+          `UPDATE alocacoes SET net_ter_med=$1, n_ter=$2 WHERE id=$3`,
+          [a.netTerMed, a.nTer, a.id]
+        );
+        linhasAtualizadas++;
+      }
+    } catch (e) {
+      // uma semana com dado ruim (pacote corrompido, etc.) nao pode travar
+      // a subida do servidor nem impedir as outras semanas de migrar.
+      console.error('migrarNetTerMedio: falha na semana ' + s.id + ': ' + e.message);
     }
-    semanasMigradas++;
   }
-  return semanasMigradas;
+  return linhasAtualizadas;
 }
 
 // ---------- usuarios ----------
@@ -948,5 +994,6 @@ module.exports = {
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
   rascunhoRecenteDoUsuario, semanasSalvas,
   gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana,
-  cotacoesDeSemanas, apagarCotacoes, siglaPorOrigem
+  cotacoesDeSemanas, apagarCotacoes, siglaPorOrigem,
+  corrigirFlagPropria, migrarNetTerMedio
 };
