@@ -3,6 +3,11 @@
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const core = require('./src/core.js');
+// mesma lib que o proprio 'pg' usa por baixo pra interpretar DATABASE_URL
+// (dependencia dele, sempre instalada junto — nao e uma dependencia nova
+// deste projeto) — reusar garante que o log descreve exatamente o que o
+// pg vai tentar, em vez de uma segunda leitura da URL que podia divergir.
+const { parse: parseConnectionString } = require('pg-connection-string');
 
 const MASTER = (process.env.EMAIL_MASTER || 'rbglins@gmail.com').toLowerCase();
 
@@ -12,6 +17,39 @@ const pool = new Pool({
     ? false
     : { rejectUnauthorized: false }
 });
+
+// Descreve de onde a conexao tentou vir, sem nunca imprimir a senha — so
+// pra log de erro no start, quando a autenticacao falha e nao da pra saber
+// de cara se o problema e a senha errada, a URL mal formada ou uma
+// variavel PG* do ambiente entrando no lugar do pedaco que faltou na URL.
+// O 'pg' (ver node_modules/pg/lib/connection-parameters.js) preenche cada
+// campo (user/password/host/porta/banco) a partir do que a connectionString
+// trouxer; SO quando um campo sai vazio dali e que ele cai pra PG<CAMPO> do
+// ambiente — nunca sobrepondo um campo que a URL ja trouxe preenchido.
+function descreverConexao() {
+  const bruta = process.env.DATABASE_URL;
+  if (!bruta) return 'DATABASE_URL nao esta definida no ambiente.';
+  let p;
+  try {
+    p = parseConnectionString(bruta);
+  } catch (e) {
+    return 'DATABASE_URL esta definida, mas nao da pra interpretar como URL (' + e.message + '). ' +
+      'Costuma ser caractere especial na senha sem codificar (# ? / entre outros quebram a URL; ' +
+      'use %23 %3F %2F etc., ou codifique a senha inteira com encodeURIComponent).';
+  }
+  const pgVarsPresentes = ['PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE']
+    .filter(v => process.env[v] !== undefined);
+  return 'origem da conexao: variavel DATABASE_URL' +
+    ' | host=' + (p.host || '(vazio)') +
+    ' | porta=' + (p.port || '(vazio)') +
+    ' | usuario=' + (p.user || '(vazio)') +
+    ' | banco=' + (p.database || '(vazio)') +
+    ' | senha veio da URL: ' + (p.password ? 'sim' : 'NAO (campo vazio ou ausente na URL)') +
+    (pgVarsPresentes.length
+      ? ' | atencao: tambem existem no ambiente ' + pgVarsPresentes.join(', ') + ' — se algum campo ' +
+        'acima saiu vazio (ex.: senha), o pg usa a variavel PG* correspondente no lugar, silenciosamente'
+      : ' | nenhuma variavel PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE definida no ambiente');
+}
 
 // ---------- senhas ----------
 // scrypt do proprio Node. Sem dependencia nativa, sem problema de build.
@@ -995,5 +1033,5 @@ module.exports = {
   rascunhoRecenteDoUsuario, semanasSalvas,
   gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana,
   cotacoesDeSemanas, apagarCotacoes, siglaPorOrigem,
-  corrigirFlagPropria, migrarNetTerMedio
+  corrigirFlagPropria, migrarNetTerMedio, descreverConexao
 };

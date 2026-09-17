@@ -449,5 +449,10 @@ db.iniciar()
   })
   .catch(e => {
     console.error('Falha ao preparar o banco:', e.message);
+    // sem expor a senha: so de onde ela deveria ter vindo (host/porta/
+    // usuario/banco da URL, e se ha variavel PG* que possa ter entrado no
+    // lugar de um campo que faltou na URL) — ajuda a diagnosticar auth
+    // failure sem precisar adivinhar.
+    console.error(db.descreverConexao());
     process.exit(1);
   });
