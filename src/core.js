@@ -465,6 +465,17 @@ function resolverSemanaDoMapa(dataSerial, semanasFechadas) {
 // Devolve um array: 0 sighs (nao achou), 1 (resolveu), ou mais de 1
 // quando o texto casa com mais de uma planta na mesma cidade (ambiguo —
 // quem usa decide o que fazer com mais de um resultado).
+// UF por extenso nunca aparece sozinho num nome de cidade nosso (conferido
+// contra CIDADES) — sigla de estado colada ao nome da unidade no Mapa
+// ("Diamantino MT", "Diamantino/MT", "Diamantino - MT") e ruido de digitação,
+// nao parte do nome. Sem tirar isso, "diamantino mt" nao bate com
+// "diamantino" nem no match exato nem na abreviatura (que exige TODA palavra
+// da consulta casar), e sobra so a similaridade por bigrama — sujeita a cair
+// abaixo do corte conforme o texto.
+var UFS_BR = new Set(['ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma',
+  'mt', 'ms', 'mg', 'pa', 'pb', 'pr', 'pe', 'pi', 'rj', 'rn', 'rs', 'ro', 'rr',
+  'sc', 'sp', 'se', 'to']);
+
 function criarResolvedor(plants) {
   const siglas = new Set(plants.map(p => p.sigla));
   const cidadeIdx = new Map();
@@ -480,6 +491,7 @@ function criarResolvedor(plants) {
     const hit = toks.filter(t => siglas.has(t));
     if (hit.length) return hit;
     let n = norm(nome).replace(/\bcpg\b|\bcgr\b/g, 'campo grande').trim();
+    n = n.split(' ').filter(w => !UFS_BR.has(w)).join(' ');
     if (cidadeIdx.has(n)) return cidadeIdx.get(n);
     // abreviaturas: "sao m guapore" casa com "sao miguel do guapore"
     const stop = { de: 1, do: 1, da: 1, dos: 1, das: 1, d: 1 };

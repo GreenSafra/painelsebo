@@ -71,6 +71,9 @@ function setupImport() {
       msg.textContent = 'Nenhuma linha com destino para gravar.';
       return;
     }
+    // O mesmo pacote do rascunho (Programação, Mapa, estado) vai junto —
+    // sem ele, uma semana fechada so poderia ser consultada, nunca reaberta.
+    pac.dados = montarPacoteDados();
     // Fechar de novo nao sobrescreve: o banco cria uma versao nova e so ela
     // passa a valer no consolidado.
     if (!confirm('Fechar a semana ' + pac.cabecalho.semana + ' com ' +
@@ -90,6 +93,7 @@ function setupImport() {
       msg.className = 'fechamsg ok';
       msg.textContent = 'Semana ' + j.semana + ' gravada (versão ' + j.versao +
         ', ' + j.linhas + ' linhas + ótimo).';
+      ORIGEM_FECHADA = { versao: j.versao };
     } catch (e) {
       msg.className = 'fechamsg ruim';
       msg.textContent = e.message || 'Não consegui gravar.';
@@ -210,7 +214,7 @@ function iniciar(restaurando) {
   if (!restaurando) persistirDados();
   // iniciar() sempre termina "limpo": nada foi mudado pelo usuario ainda,
   // seja import novo, arquivo #bd, restauracao local ou rascunho carregado.
-  RASCUNHO_SUJO = false;
+  marcarRascunhoSujo(false);
   atualizarCarimboRascunho();
 }
 
@@ -291,7 +295,7 @@ function recalcular() {
 
 /* ====================== RENDER ====================== */
 function render() {
-  RASCUNHO_SUJO = true;
+  marcarRascunhoSujo(true);
   carimbo();
   renderNecessidade();
   aplicarModo();  // depois da lista: o resumo conta as linhas ja renderizadas
@@ -1069,6 +1073,18 @@ function persistirDados() {
 
 /* ====================== RASCUNHO NO SERVIDOR ====================== */
 var RASCUNHO_SALVO_EM = null, RASCUNHO_SALVO_POR = null, RASCUNHO_SUJO = false;
+// Preenchido quando a semana em tela veio de um fechamento anterior (link
+// "abrir" do consolidado/lista, ou o fallback do boot) e ainda nao foi
+// salva como rascunho por cima — so muda o texto do carimbo. Some assim que
+// salvarRascunho() roda uma vez: a partir dali e rascunho normal.
+var ORIGEM_FECHADA = null;
+
+// Nome distinto de marcarSujo() (acima, em outro sentido: SUJO/#pend sao a
+// necessidade digitada ainda nao rodada) — sao dois "sujo" independentes.
+function marcarRascunhoSujo(v) {
+  RASCUNHO_SUJO = v;
+  try { localStorage.setItem('sebo_sujo', v ? '1' : ''); } catch (e) { }
+}
 
 const fmtHora = iso => new Date(iso).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const fmtDataHora = iso => new Date(iso).toLocaleString('pt-BR',
@@ -1082,7 +1098,10 @@ function atualizarCarimboRascunho() {
     el.textContent = 'há alterações não salvas';
   } else if (RASCUNHO_SALVO_EM) {
     el.className = 'fechamsg';
-    el.textContent = 'salvo por ' + (RASCUNHO_SALVO_POR || '—') + ' às ' + fmtHora(RASCUNHO_SALVO_EM);
+    el.textContent = ORIGEM_FECHADA
+      ? 'reaberto da semana fechada v' + ORIGEM_FECHADA.versao + ', por ' +
+        (RASCUNHO_SALVO_POR || '—') + ' às ' + fmtHora(RASCUNHO_SALVO_EM)
+      : 'salvo por ' + (RASCUNHO_SALVO_POR || '—') + ' às ' + fmtHora(RASCUNHO_SALVO_EM);
   } else {
     el.className = 'fechamsg';
     el.textContent = '';
@@ -1113,8 +1132,10 @@ async function salvarRascunho() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.erro || 'Não consegui salvar.');
     if (!ST) return;  // a sessao foi zerada (Nova semana) enquanto isto estava no ar
-    RASCUNHO_SALVO_EM = j.salvoEm; RASCUNHO_SALVO_POR = j.salvoPor; RASCUNHO_SUJO = false;
-    ST.usuario = $('#who').value; ST.salvoEm = agora();
+    RASCUNHO_SALVO_EM = j.salvoEm; RASCUNHO_SALVO_POR = j.salvoPor;
+    ORIGEM_FECHADA = null;  // a partir daqui e rascunho normal, mesmo que tenha vindo de uma semana fechada
+    marcarRascunhoSujo(false);
+    ST.usuario = $('#who').value; ST.salvoEm = agora(); ST._syncIso = j.salvoEm;
     persistir(); carimbo(); atualizarCarimboRascunho();
   } catch (e) {
     erro('Não consegui salvar no servidor: ' + e.message);
@@ -1123,34 +1144,52 @@ async function salvarRascunho() {
   }
 }
 
-async function carregarListaRascunhos() {
+// Lista combinada: rascunhos em andamento e semanas fechadas (versao atual),
+// as ultimas 8 por recencia — mostrada na tela de importacao para retomar
+// ou reabrir qualquer uma das duas sem precisar das planilhas de novo.
+async function carregarSemanasSalvas() {
   try {
-    const r = await fetch('/api/rascunhos');
+    const r = await fetch('/api/semanas-salvas');
     if (!r.ok) return null;
     const lista = await r.json();
-    renderRascunhos(lista);
+    renderSemanasSalvas(lista);
     return lista;
   } catch (e) { return null; }
 }
 
-function renderRascunhos(lista) {
-  const box = document.getElementById('rascunhosBox');
-  const ul = document.getElementById('rascunhosList');
+function podeTrocarSemana() {
+  return !RASCUNHO_SUJO || confirm(
+    'Você tem alterações não salvas nesta semana — elas serão perdidas. Abrir outra semana mesmo assim?'
+  );
+}
+
+function renderSemanasSalvas(lista) {
+  const box = document.getElementById('salvasBox');
+  const ul = document.getElementById('salvasList');
   if (!box || !ul) return;
   if (!lista || !lista.length) { box.classList.add('hide'); ul.innerHTML = ''; return; }
   box.classList.remove('hide');
-  ul.innerHTML = lista.map(r =>
-    '<div class="rascunho">' +
-      '<button class="rascunho-abrir" data-ano="' + r.ano + '" data-semana="' + r.semana + '">' +
-        'Semana ' + r.semana + '/' + r.ano + ' — salvo por ' + esc(r.salvo_por || '—') +
-        ' às ' + esc(fmtDataHora(r.salvo_em)) +
+  ul.innerHTML = lista.map(r => {
+    const situacao = r.situacao === 'fechada' ? ('fechada v' + r.versao) : 'rascunho';
+    return '<div class="rascunho">' +
+      '<button class="rascunho-abrir" data-tipo="' + r.situacao + '" data-ano="' + r.ano +
+        '" data-semana="' + r.semana + '">' +
+        'Semana ' + r.semana + '/' + r.ano + (r.periodo ? ' (' + esc(r.periodo) + ')' : '') +
+        ' — ' + situacao + ' · ' + esc(r.quem || '—') + ' às ' + esc(fmtDataHora(r.quando)) +
       '</button>' +
-      '<button class="rascunho-descartar" data-ano="' + r.ano + '" data-semana="' + r.semana + '" ' +
-        'title="Apagar este rascunho do servidor">descartar</button>' +
-    '</div>'
-  ).join('');
+      (r.situacao === 'rascunho'
+        ? '<button class="rascunho-descartar" data-ano="' + r.ano + '" data-semana="' + r.semana +
+          '" title="Apagar este rascunho do servidor">descartar</button>'
+        : '') +
+    '</div>';
+  }).join('');
   [].forEach.call(ul.querySelectorAll('.rascunho-abrir'), b => {
-    b.onclick = () => carregarRascunho(Number(b.dataset.ano), Number(b.dataset.semana));
+    b.onclick = () => {
+      if (!podeTrocarSemana()) return;
+      const ano = Number(b.dataset.ano), semana = Number(b.dataset.semana);
+      if (b.dataset.tipo === 'fechada') carregarSemanaFechada(ano, semana);
+      else carregarRascunho(ano, semana);
+    };
   });
   [].forEach.call(ul.querySelectorAll('.rascunho-descartar'), b => {
     b.onclick = () => descartarRascunho(Number(b.dataset.ano), Number(b.dataset.semana));
@@ -1164,7 +1203,7 @@ async function descartarRascunho(ano, semana) {
     const r = await fetch('/api/rascunho?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
     if (!r.ok) { erro('Não consegui apagar esse rascunho.'); return; }
   } catch (e) { erro('Não consegui apagar esse rascunho: ' + e.message); return; }
-  carregarListaRascunhos();
+  carregarSemanasSalvas();
 }
 
 // Volta pra tela de importacao sem mexer no rascunho do servidor — esse
@@ -1184,12 +1223,13 @@ function novaSemana() {
   PROD = null; MAPA = null; PROGBUF = null; ST = null;
   RES = null; DS = null; OPS = null; NEC = null; RAW = null;
   arquivos = {};
-  RASCUNHO_SALVO_EM = null; RASCUNHO_SALVO_POR = null; RASCUNHO_SUJO = false;
+  RASCUNHO_SALVO_EM = null; RASCUNHO_SALVO_POR = null; ORIGEM_FECHADA = null;
+  marcarRascunhoSujo(false);
   $('#bSave').disabled = true; $('#bProg').disabled = true; $('#bNovaSemana').disabled = true;
   $('#sub').textContent = ''; $('#stamp').innerHTML = ''; $('#foot').textContent = '';
   $('#app').classList.add('hide');
   $('#importBox').classList.remove('hide');
-  carregarListaRascunhos();  // atualiza a lista (pode ter mudado nesta sessao)
+  carregarSemanasSalvas();  // atualiza a lista (pode ter mudado nesta sessao)
 }
 
 async function carregarRascunho(ano, semana) {
@@ -1202,8 +1242,64 @@ async function carregarRascunho(ano, semana) {
     if (b.progb64) PROGBUF = deB64(b.progb64);
     MAPA.rows.forEach((r2, i) => r2.i = i);
     RASCUNHO_SALVO_EM = j.salvoEm; RASCUNHO_SALVO_POR = j.salvoPor;
+    ORIGEM_FECHADA = null;
+    ST._syncIso = j.salvoEm;
     iniciar(true);
   } catch (e) { erro('Não consegui abrir esse rascunho: ' + e.message); }
+}
+
+// Mesma ideia de carregarRascunho(), mas para a versao atual de uma semana
+// JA FECHADA — usada pelo link "abrir" do consolidado/lista "Semanas
+// salvas" e pelo fallback do boot quando o usuario nao tem rascunho algum.
+// dados null significa semana fechada antes desta coluna existir: so da
+// para consultar no consolidado, nao reabrir aqui.
+async function carregarSemanaFechada(ano, semana) {
+  try {
+    const r = await fetch('/api/semana?ano=' + ano + '&semana=' + semana);
+    if (!r.ok) { erro('Não consegui abrir essa semana.'); return; }
+    const j = await r.json();
+    if (!j.dados) {
+      erro('Essa semana foi fechada antes desta função existir e não pode ser reaberta aqui — consulte o consolidado.');
+      return;
+    }
+    const b = j.dados;
+    PROD = b.prod; MAPA = b.mapa; ST = b.estado; arquivos = b.arquivos || {};
+    if (b.progb64) PROGBUF = deB64(b.progb64);
+    MAPA.rows.forEach((r2, i) => r2.i = i);
+    RASCUNHO_SALVO_EM = j.fechadaEm; RASCUNHO_SALVO_POR = j.fechadaPor;
+    ORIGEM_FECHADA = { versao: j.versao };
+    ST._syncIso = j.fechadaEm;
+    iniciar(true);
+  } catch (e) { erro('Não consegui abrir essa semana: ' + e.message); }
+}
+
+function mostrarAvisoOrigem(msg) {
+  const el = document.getElementById('avisoOrigem');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hide');
+}
+
+// Candidato do servidor pra abrir direto na alocacao: o rascunho mais
+// recente do PROPRIO usuario; sem rascunho nenhum, a semana fechada mais
+// recente que pode ser reaberta. null quando o servidor nao tem nada —
+// nesse caso o boot cai no que houver local, ou na tela de importacao.
+async function buscarCandidatoServidor() {
+  try {
+    const r1 = await fetch('/api/rascunho-recente');
+    if (r1.ok) {
+      const j1 = await r1.json();
+      if (j1 && j1.ano) return { tipo: 'rascunho', ano: j1.ano, semana: j1.semana, quando: j1.salvo_em };
+    }
+  } catch (e) { }
+  try {
+    const r2 = await fetch('/api/semana-recente');
+    if (r2.ok) {
+      const j2 = await r2.json();
+      if (j2 && j2.ano) return { tipo: 'fechada', ano: j2.ano, semana: j2.semana, quando: j2.fechada_em };
+    }
+  } catch (e) { }
+  return null;
 }
 
 /* ====================== BOOT ====================== */
@@ -1223,6 +1319,16 @@ async function boot() {
     iniciar(true);  // arquivo ja distribuido: nao regravar sebo_dados
     return;
   }
+  // Link "abrir" do consolidado ou de outra pagina: intencao explicita,
+  // ganha de qualquer coisa local ou do rascunho recomendado pelo servidor.
+  const abrirParam = new URLSearchParams(location.search).get('abrirSemana');
+  const mAbrir = abrirParam && /^(\d{4})-(\d{1,2})$/.exec(abrirParam);
+  if (mAbrir) {
+    history.replaceState(null, '', location.pathname);
+    await carregarSemanaFechada(Number(mAbrir[1]), Number(mAbrir[2]));
+    await carregarSemanasSalvas();
+    return;
+  }
   try {
     const s = localStorage.getItem('sebo_estado');
     if (s) ST = JSON.parse(s);
@@ -1231,29 +1337,64 @@ async function boot() {
   // salvo no ultimo import. Qualquer erro aqui (cota do localStorage, dado
   // corrompido) so faz cair na tela de importacao normalmente — nunca
   // deixa o painel quebrado por causa disso.
-  let restaurouLocal = false;
+  let local = null;
   try {
     const d = localStorage.getItem('sebo_dados');
-    if (d) {
-      const b = JSON.parse(d);
-      PROD = b.prod; MAPA = b.mapa; arquivos = b.arquivos || {};
-      if (b.progb64) PROGBUF = deB64(b.progb64);
-      MAPA.rows.forEach((r, i) => r.i = i);
-      iniciar(true);  // restauracao: nao regravar sebo_dados
-      restaurouLocal = true;
-    }
+    if (d) local = JSON.parse(d);
   } catch (e) {
     try { localStorage.removeItem('sebo_estado'); } catch (e2) { }
     try { localStorage.removeItem('sebo_dados'); } catch (e2) { }
   }
-  // localStorage e rede de seguranca da maquina local; o servidor e a
-  // fonte que a equipe compartilha. A lista sempre popula a tela de
-  // importacao; se nao tinha nada local, carrega o rascunho mais recente
-  // do servidor sozinho.
-  const lista = await carregarListaRascunhos();
-  if (!restaurouLocal && lista && lista.length) {
-    await carregarRascunho(lista[0].ano, lista[0].semana);
+
+  // localStorage e rede de seguranca da maquina local; o servidor e a fonte
+  // que a equipe compartilha. Sem nada local, abre direto o que o servidor
+  // recomendar (rascunho do proprio usuario, senao a ultima semana fechada)
+  // — e o caso de logar numa maquina nova, ou desta mesma maquina depois que
+  // a semana foi fechada em outro computador (o que apaga o rascunho daqui).
+  // Com algo local de uma semana DIFERENTE da que o servidor recomenda,
+  // decide pela mais recente entre as duas; da mesma semana, o local sempre
+  // fica — pode ter edicao ainda nao salva que o servidor nao tem como saber.
+  const candidato = await buscarCandidatoServidor();
+  let localAlvo = null;
+  if (local && local.prod) {
+    try { localAlvo = { ano: anoDaSemana(local.prod), semana: local.prod.semana }; } catch (e) { }
   }
+
+  let usarServidor = false, avisoTroca = null;
+  if (candidato) {
+    const mesmaSemana = localAlvo && localAlvo.ano === candidato.ano && localAlvo.semana === candidato.semana;
+    if (!localAlvo) {
+      usarServidor = true;
+    } else if (!mesmaSemana) {
+      // sem _syncIso, o local nunca foi sincronizado com o servidor —
+      // pode ser edicao em andamento nunca salva, e descartar isso calado
+      // seria pior que abrir a semana "errada". So troca quando da pra
+      // provar que o servidor e mais novo que a ultima sincronizacao daqui.
+      const syncLocal = (ST && ST._syncIso) ? new Date(ST._syncIso).getTime() : null;
+      const syncServidor = new Date(candidato.quando).getTime();
+      if (syncLocal != null && isFinite(syncLocal) && syncServidor > syncLocal) {
+        usarServidor = true;
+        avisoTroca = { candidato, localAlvo };
+      }
+    }
+  }
+
+  if (usarServidor) {
+    if (candidato.tipo === 'fechada') await carregarSemanaFechada(candidato.ano, candidato.semana);
+    else await carregarRascunho(candidato.ano, candidato.semana);
+    if (avisoTroca) {
+      mostrarAvisoOrigem('Abriu a semana ' + candidato.semana + '/' + candidato.ano +
+        ' porque foi salva mais recentemente do que a semana ' + avisoTroca.localAlvo.semana +
+        '/' + avisoTroca.localAlvo.ano + ' que estava neste navegador.');
+    }
+  } else if (local) {
+    PROD = local.prod; MAPA = local.mapa; arquivos = local.arquivos || {};
+    if (local.progb64) PROGBUF = deB64(local.progb64);
+    MAPA.rows.forEach((r, i) => r.i = i);
+    iniciar(true);  // restauracao: nao regravar sebo_dados
+  }
+
+  await carregarSemanasSalvas();
 }
 
 function arrancar() {

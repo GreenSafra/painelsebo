@@ -451,10 +451,6 @@ footer img{height:17px;width:auto;opacity:.75}
   <p>Solte os dois arquivos abaixo, ou clique para escolher. A necessidade das fábricas
      próprias você digita depois, aqui mesmo no painel. Tudo é lido dentro do seu
      navegador — nada é enviado para fora.</p>
-  <div id="rascunhosBox" class="hide">
-    <h3>Retomar um rascunho salvo</h3>
-    <div id="rascunhosList" class="rascunhos"></div>
-  </div>
   <div class="drops">
     <div class="drop" data-k="prog">
       <h3>Programação</h3>
@@ -472,11 +468,16 @@ footer img{height:17px;width:auto;opacity:.75}
     </div>
   </div>
   <div class="err hide" id="impErr"></div>
+  <div id="salvasBox" class="hide">
+    <h3>Semanas salvas</h3>
+    <div id="salvasList" class="rascunhos"></div>
+  </div>
   <div class="note">O painel procura o cabeçalho pelo nome das colunas, então linhas em branco
      no topo não atrapalham. Cliente novo deve ser incluído como linha nova no Mapa de ofertas.</div>
 </section>
 
 <main id="app" class="hide">
+  <div class="warn hide" id="avisoOrigem"></div>
   <div class="kpis" id="kpis"></div>
   <div id="avisos"></div>
 

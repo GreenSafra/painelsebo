@@ -85,6 +85,9 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 .excluir{background:none;border:0;color:var(--mute);font-size:12px;
   text-decoration:underline;cursor:pointer;padding:0}
 .excluir:hover{color:var(--neg)}
+.abrir{background:none;border:0;color:var(--azul);font-size:12px;
+  text-decoration:underline;cursor:pointer;padding:0;margin-right:12px}
+.abrir:hover{color:#16165C}
 @media(max-width:700px){
   .wrap{padding:16px 12px 50px}
   table{font-size:12.5px} th,td{padding:8px 9px}
@@ -123,6 +126,11 @@ const rs  = v => v == null ? '—'
   : (v < 0 ? '−R$ ' : 'R$ ') + nf.format(Math.abs(v));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
   c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+// sebo_sujo e escrito pelo painel (ui.js) a cada mudanca de RASCUNHO_SUJO —
+// mesma origem (localStorage), da pra saber daqui se ha edicao pendente la.
+function estaSujo() {
+  try { return localStorage.getItem('sebo_sujo') === '1'; } catch (e) { return false; }
+}
 
 function selo(cli) {
   if (/biopower/i.test(cli)) return '<span class="selo s-bio"></span>';
@@ -359,7 +367,8 @@ function render(d) {
       h += '<tr><td>' + s.semana + '/' + s.ano + '</td><td>' + esc(s.periodo || '—') + '</td>' +
         '<td>v' + s.versao + '</td><td>' + nf.format(s.linhas) + '</td>' +
         '<td>' + esc(s.fechada_por || '—') + '</td><td>' + fmtDataHora(s.fechada_em) + '</td>' +
-        '<td><button class="excluir" data-ano="' + s.ano + '" data-semana="' + s.semana +
+        '<td><button class="abrir" data-ano="' + s.ano + '" data-semana="' + s.semana +
+        '">abrir</button><button class="excluir" data-ano="' + s.ano + '" data-semana="' + s.semana +
         '" data-linhas="' + s.linhas + '" data-toneladas="' + Math.round(s.toneladas) +
         '">excluir</button></td></tr>';
     });
@@ -367,6 +376,15 @@ function render(d) {
   }
 
   cont.innerHTML = h;
+
+  [].forEach.call(cont.querySelectorAll('.abrir'), b => {
+    b.onclick = () => {
+      if (estaSujo() && !confirm(
+        'Há alterações não salvas na semana em andamento no painel. Abrir esta semana mesmo assim?'
+      )) return;
+      location.href = '/?abrirSemana=' + b.dataset.ano + '-' + b.dataset.semana;
+    };
+  });
 
   [].forEach.call(cont.querySelectorAll('.excluir'), b => {
     b.onclick = async () => {

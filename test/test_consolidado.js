@@ -171,6 +171,45 @@ function carregarPagina(url, mockFetch) {
       !chamadas.some(c => c.url.indexOf('lixo') !== -1));
   }
 
+  // ---------- bateria 3: link "abrir" de uma semana fechada ----------
+  {
+    const chamadas3 = [];
+    const mockFetch3 = async (url, opts) => {
+      chamadas3.push({ url, method: (opts && opts.method) || 'GET' });
+      if (url === '/api/semanas') return respFake(200, [semana38]);
+      if (url === '/api/consolidado?semana=2026-38') {
+        return respFake(200, consolFake('semana', { ano: 2026, semana: 38, semanasFechadas: [semana38] }));
+      }
+      return respFake(404, {});
+    };
+    const dom3 = carregarPagina('https://x/?semana=2026-38', mockFetch3);
+    const w3 = dom3.window;
+    await new Promise(r => setTimeout(r, 150));
+    const d3 = w3.document;
+
+    const btnAbrir3 = d3.querySelector('.abrir');
+    T('botao abrir renderizado ao lado do excluir', !!btnAbrir3 && !!d3.querySelector('.excluir'));
+    T('botao abrir carrega ano/semana certos',
+      !!btnAbrir3 && btnAbrir3.dataset.ano === '2026' && btnAbrir3.dataset.semana === '38');
+
+    w3.localStorage.setItem('sebo_sujo', '1');
+    let confirmMsg3 = null;
+    w3.confirm = m => { confirmMsg3 = m; return false; };
+    const hrefAntes = w3.location.href;
+    btnAbrir3.dispatchEvent(new w3.Event('click'));
+    T('com edição pendente no painel: avisa antes de navegar', !!confirmMsg3);
+    T('cancelando o aviso: não navega', w3.location.href === hrefAntes);
+
+    // jsdom nao implementa navegacao de verdade (location.href fica parado) —
+    // o que da pra verificar aqui e que o gate NAO pergunta nada quando nao
+    // ha edicao pendente, que e a parte que este teste existe para cobrir.
+    w3.localStorage.setItem('sebo_sujo', '');
+    confirmMsg3 = null;
+    w3.confirm = () => { confirmMsg3 = 'nao deveria ter sido chamado'; return true; };
+    btnAbrir3.dispatchEvent(new w3.Event('click'));
+    T('sem edição pendente: não pergunta nada antes de navegar', !confirmMsg3);
+  }
+
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);
 })().catch(e => { console.error('ERRO:', e.message, e.stack); process.exit(1); });

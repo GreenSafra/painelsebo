@@ -227,11 +227,11 @@ app.post('/api/usuarios/:id/redefinir-senha', exigeAdmin, async (req, res) => {
 // ---------- semanas fechadas ----------
 
 app.post('/api/semanas', exigeLoginPronto, async (req, res) => {
-  const { cabecalho, linhas, cotacoes } = req.body || {};
+  const { cabecalho, linhas, cotacoes, dados } = req.body || {};
   if (!cabecalho) return res.status(400).json({ erro: 'Cabeçalho da semana ausente.' });
   try {
     const cab = Object.assign({}, cabecalho, { linhasOtimo: req.body.linhasOtimo, cotacoes });
-    const r = await db.fecharSemana(cab, linhas, req.usuario.id);
+    const r = await db.fecharSemana(cab, linhas, req.usuario.id, dados);
     res.json({ ok: true, ...r });
   } catch (e) {
     res.status(400).json({ erro: e.message || 'Não consegui gravar a semana.' });
@@ -240,6 +240,36 @@ app.post('/api/semanas', exigeLoginPronto, async (req, res) => {
 
 app.get('/api/semanas', exigeLoginPronto, async (req, res) => {
   res.json(await db.listarSemanas());
+});
+
+// Pacote completo (Programação, Mapa, estado) da versão atual de uma
+// semana fechada — para reabrir no painel a partir do link "abrir" do
+// consolidado ou da lista "Semanas salvas".
+app.get('/api/semana', exigeLoginPronto, async (req, res) => {
+  try {
+    const r = await db.lerSemanaAtual(Number(req.query.ano), Number(req.query.semana));
+    if (!r) return res.status(404).json({ erro: 'Semana não encontrada.' });
+    res.json(r);
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Melhor candidato do servidor para abrir o painel direto na alocação: o
+// rascunho mais recente do próprio usuário, e a semana fechada mais recente
+// que pode ser reaberta (fallback quando não há rascunho nenhum).
+app.get('/api/rascunho-recente', exigeLoginPronto, async (req, res) => {
+  res.json(await db.rascunhoRecenteDoUsuario(req.usuario.id));
+});
+
+app.get('/api/semana-recente', exigeLoginPronto, async (req, res) => {
+  res.json(await db.semanaMaisRecente());
+});
+
+// Rascunhos e semanas fechadas misturados por recência — lista "Semanas
+// salvas" da tela de importação.
+app.get('/api/semanas-salvas', exigeLoginPronto, async (req, res) => {
+  res.json(await db.semanasSalvas());
 });
 
 app.delete('/api/semanas', exigeLoginPronto, async (req, res) => {

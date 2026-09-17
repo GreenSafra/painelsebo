@@ -124,6 +124,14 @@ async function iniciar() {
     `CREATE INDEX IF NOT EXISTS ix_aloc_cenario ON alocacoes(semana_id, cenario)`
   );
 
+  // Pacote completo da semana (mesma forma de rascunhos.dados: prod,
+  // progb64, mapa, estado, arquivos), serializado como texto. Sem isto,
+  // uma semana fechada so pode ser consultada (consolidado), nunca reaberta
+  // no painel — faltariam a Programacao e o Mapa originais para recalcular.
+  // Semana fechada antes desta coluna existir fica com dados NULL: continua
+  // aparecendo no consolidado, so nao pode ser reaberta.
+  await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS dados TEXT`);
+
   // Rascunho da semana em andamento: uma linha por ano+semana, salvar
   // sobrescreve — nao versionado como semanas/alocacoes, porque isto e
   // trabalho em progresso; so a versao fechada entra no historico. Guarda o
@@ -141,6 +149,10 @@ async function iniciar() {
       UNIQUE (ano, semana)
     )
   `);
+  // periodo replicado fora do JSON de "dados" (que tambem tem xlsx em
+  // base64) so para a lista "Semanas salvas" poder mostrar o periodo sem
+  // parsear o pacote inteiro de cada rascunho.
+  await pool.query(`ALTER TABLE rascunhos ADD COLUMN IF NOT EXISTS periodo TEXT`);
 
   // Uma linha por cotacao: cliente, origem (texto cru da unidade no Mapa
   // — sempre presente, e a chave que evita duplicidade), sigla resolvida
@@ -333,7 +345,7 @@ async function limparSessoes() {
 
 const LIM_LINHAS = 5000;
 
-async function fecharSemana(cab, linhas, usuarioId) {
+async function fecharSemana(cab, linhas, usuarioId, dados) {
   const ano = Number(cab.ano), semana = Number(cab.semana);
   if (!Number.isInteger(ano) || ano < 2000 || ano > 2100) throw new Error('Ano invalido.');
   if (!Number.isInteger(semana) || semana < 1 || semana > 53) throw new Error('Semana invalida.');
@@ -353,9 +365,10 @@ async function fecharSemana(cab, linhas, usuarioId) {
       [ano, semana]
     );
     const s = await c.query(
-      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id)
-       VALUES ($1,$2,$3,$4,true,$5,$6) RETURNING id, versao`,
-      [ano, semana, cab.periodo || null, v.rows[0].v, cab.mapaData || null, usuarioId || null]
+      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id, dados)
+       VALUES ($1,$2,$3,$4,true,$5,$6,$7) RETURNING id, versao`,
+      [ano, semana, cab.periodo || null, v.rows[0].v, cab.mapaData || null, usuarioId || null,
+       dados ? JSON.stringify(dados) : null]
     );
     const id = s.rows[0].id;
 
@@ -408,6 +421,39 @@ async function listarSemanas() {
       ORDER BY s.ano DESC, s.semana DESC`
   );
   return r.rows;
+}
+
+// Pacote completo (mesma forma de lerRascunho) da versao atual de uma
+// semana fechada — usado para reabrir no painel. dados null quando a
+// semana foi fechada antes da coluna existir: so da para consultar, nao
+// reabrir.
+async function lerSemanaAtual(ano, semana) {
+  if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
+  const r = await pool.query(
+    `SELECT s.dados, s.versao, s.periodo, s.fechada_em, u.nome AS fechada_por
+       FROM semanas s LEFT JOIN usuarios u ON u.id = s.usuario_id
+      WHERE s.ano=$1 AND s.semana=$2 AND s.atual`,
+    [ano, semana]
+  );
+  if (!r.rows.length) return null;
+  const row = r.rows[0];
+  return {
+    dados: row.dados ? JSON.parse(row.dados) : null,
+    versao: row.versao, periodo: row.periodo,
+    fechadaEm: row.fechada_em, fechadaPor: row.fechada_por
+  };
+}
+
+// A semana fechada mais recente que pode de fato ser reaberta (dados nao
+// nulo) — fallback do boot quando o usuario nao tem rascunho nenhum.
+async function semanaMaisRecente() {
+  const r = await pool.query(
+    `SELECT s.ano, s.semana, s.versao, s.fechada_em, u.nome AS fechada_por
+       FROM semanas s LEFT JOIN usuarios u ON u.id = s.usuario_id
+      WHERE s.atual AND s.dados IS NOT NULL
+      ORDER BY s.fechada_em DESC LIMIT 1`
+  );
+  return r.rows[0] || null;
 }
 
 // Monta o filtro do periodo do consolidado. Por mes: janela de
@@ -586,22 +632,58 @@ async function salvarRascunho({ ano, semana, dados, usuarioId, baseSalvoEm, forc
   }
 
   const texto = JSON.stringify(dados);
+  const periodo = (dados && dados.prod && dados.prod.periodo) || null;
   const r = await pool.query(
-    `INSERT INTO rascunhos (ano, semana, dados, usuario_id, salvo_em)
-       VALUES ($1,$2,$3,$4,now())
+    `INSERT INTO rascunhos (ano, semana, dados, usuario_id, periodo, salvo_em)
+       VALUES ($1,$2,$3,$4,$5,now())
      ON CONFLICT (ano, semana) DO UPDATE
-       SET dados=$3, usuario_id=$4, salvo_em=now()
+       SET dados=$3, usuario_id=$4, periodo=$5, salvo_em=now()
      RETURNING salvo_em`,
-    [ano, semana, texto, usuarioId || null]
+    [ano, semana, texto, usuarioId || null, periodo]
   );
   return { conflito: false, salvoEm: r.rows[0].salvo_em };
 }
 
 async function listarRascunhos() {
   const r = await pool.query(
-    `SELECT r.ano, r.semana, r.salvo_em, u.nome AS salvo_por
+    `SELECT r.ano, r.semana, r.periodo, r.salvo_em, u.nome AS salvo_por
        FROM rascunhos r LEFT JOIN usuarios u ON u.id = r.usuario_id
       ORDER BY r.salvo_em DESC`
+  );
+  return r.rows;
+}
+
+// Rascunho mais recente de UM usuario especifico — usado no boot para
+// retomar de onde a propria pessoa parou, mesmo que outro usuario tenha
+// salvo um rascunho de outra semana depois.
+async function rascunhoRecenteDoUsuario(usuarioId) {
+  if (!usuarioId) return null;
+  const r = await pool.query(
+    `SELECT ano, semana, salvo_em
+       FROM rascunhos WHERE usuario_id=$1
+      ORDER BY salvo_em DESC LIMIT 1`,
+    [usuarioId]
+  );
+  return r.rows[0] || null;
+}
+
+// Rascunhos (em andamento) e semanas fechadas (versao atual) misturados
+// numa unica lista por recencia — e a lista "Semanas salvas" da tela de
+// importacao. situacao diferencia os dois tipos na UI.
+async function semanasSalvas(limite) {
+  const lim = Number.isInteger(limite) && limite > 0 ? limite : 8;
+  const r = await pool.query(
+    `(SELECT r.ano, r.semana, r.periodo, 'rascunho' AS situacao, null::int AS versao,
+             r.salvo_em AS quando, u.nome AS quem
+        FROM rascunhos r LEFT JOIN usuarios u ON u.id = r.usuario_id)
+     UNION ALL
+     (SELECT s.ano, s.semana, s.periodo, 'fechada' AS situacao, s.versao,
+             s.fechada_em AS quando, u.nome AS quem
+        FROM semanas s LEFT JOIN usuarios u ON u.id = s.usuario_id
+       WHERE s.atual)
+     ORDER BY quando DESC
+     LIMIT $1`,
+    [lim]
   );
   return r.rows;
 }
@@ -753,7 +835,9 @@ module.exports = {
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
   fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,
+  lerSemanaAtual, semanaMaisRecente,
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
+  rascunhoRecenteDoUsuario, semanasSalvas,
   gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana,
   apagarCotacoes, siglaPorOrigem
 };
