@@ -1200,6 +1200,14 @@ function colunasDestino(rows, hi) {
     net: achaEm(iCli, fim, ['net', 'valor net']),
     net2: achaEm(iCli, fim, ['valor net melhor', 'valor net', 'net melhor']),
     cli2: achaEm(iCli, fim, ['nome melhor', 'melhor cliente', 'nome']),
+    // segunda melhor oferta (a proxima depois da de CD.net2/cli2 acima).
+    // "segunda"/"segundo" por extenso de proposito: norm() (acima) tira
+    // digitos e ordinais como "2º"/"3º" do texto, entao um cabecalho tipo
+    // "Valor NET 3º melhor oferta" normalizaria pro MESMO texto que "Valor
+    // NET melhor oferta" (CD.net2) e um roubaria a coluna do outro. Por
+    // extenso ("segunda") sobra distinto depois de normalizado.
+    net3: achaEm(iCli, fim, ['valor net segunda melhor', 'net segunda melhor', 'segunda melhor oferta']),
+    cli3: achaEm(iCli, fim, ['nome segunda melhor', 'segunda melhor cliente', 'segundo melhor cliente']),
     icms: achaEm(iCli, fim, ['icms']),
     pis: achaEm(iCli, fim, ['pis']),
     modal: achaEm(iCli, fim, ['modal cif', 'frete cif', 'modal', 'frete c']),
@@ -1484,7 +1492,7 @@ async function programacaoPreenchida(buf, prod, aloc, ops, dataMapa, serialMapa)
       COLS.forEach(col => celula(el, col, n, null));
       // nas linhas de embarque o bloco de destino é reescrito do zero
       if (porLinha[rOld]) {
-        ['cli', 'dst', 'ton', 'of', 'net', 'net2', 'cli2', 'icms', 'pis', 'modal',
+        ['cli', 'dst', 'ton', 'of', 'net', 'net2', 'cli2', 'net3', 'cli3', 'icms', 'pis', 'modal',
           'vfrete', 'entrega']
           .forEach(k2 => { if (CD[k2]) celula(el, CD[k2], n, { limpar: true }); });
       }
@@ -1522,16 +1530,19 @@ async function programacaoPreenchida(buf, prod, aloc, ops, dataMapa, serialMapa)
           if (src) {
             put(CD.of, { v: src.ofEdit != null ? src.ofEdit : src.of });
             put(CD.net, { v: p.dest.net });
-            if (CD.net2 || CD.cli2) {
-              const lista = (ops && ops[p.dest.sigla]) || [];
-              let alt = null;
-              lista.forEach(o => {
-                if (o.cli === p.dest.cli) return;
-                if (!alt || o.net > alt.net) alt = o;
-              });
+            if (CD.net2 || CD.cli2 || CD.net3 || CD.cli3) {
+              // [0] e a melhor alternativa (CD.net2/cli2, o que a tela ja
+              // chama de "2º melhor" — a propria carga conta como a 1a),
+              // [1] e a segunda melhor alternativa (CD.net3/cli3, a nova
+              // coluna pedida). Filtros em melhoresAlternativas() acima.
+              const [alt, alt2] = melhoresAlternativas((ops && ops[p.dest.sigla]) || [], p.dest.cli);
               if (alt) {
                 put(CD.net2, { v: alt.net });
                 put(CD.cli2, texto(alt.cli));
+              }
+              if (alt2) {
+                put(CD.net3, { v: alt2.net });
+                put(CD.cli3, texto(alt2.cli));
               }
             }
             put(CD.icms, { v: src.icms });
@@ -1599,6 +1610,7 @@ async function programacaoPreenchida(buf, prod, aloc, ops, dataMapa, serialMapa)
   fmt(CD.of, MOEDA);
   fmt(CD.net, MOEDA);
   fmt(CD.net2, MOEDA);
+  fmt(CD.net3, MOEDA);
   fmt(CD.vfrete, MOEDA);
   fmt(CD.icms, '0%');
   fmt(CD.pis, '0.000%');
@@ -1760,6 +1772,31 @@ function opcoes(ds, travas, topN, manter, modo) {
     por[s] = corte;
   }
   return por;
+}
+
+// A melhor e a segunda melhor oferta de terceiro pra uma carga de fabrica
+// propria, entre as opcoes da MESMA sigla (o pool ja vem filtrado por
+// sigla — ver opcoes(), que tambem so cita quem passou pela trava fiscal).
+// Mesmos filtros de sempre: fora o cliente desta propria carga (nao faz
+// sentido comparar com ela mesma), e so terceiro de verdade — fabrica
+// propria nunca conta como "oferta de terceiro" aqui, mesmo que tenha NET
+// maior. "lista" ja tem no maximo uma linha por cliente (a de maior NET
+// dele, ver montar()), entao nao precisa dedupli-la de novo. Devolve
+// [melhor, segunda] — qualquer um vem null quando nao ha candidato
+// suficiente (nunca inventa valor). Usado pela exportacao (ver
+// programacaoPreenchida(), colunas "2º/segunda melhor").
+function melhoresAlternativas(lista, clienteDestino) {
+  // dedup por cliente (a melhor oferta dele) — defensivo: ops[sigla] ja
+  // vem de ds.quotes, que so tem uma linha por cliente (ver montar()), mas
+  // a funcao nao depende disso pra estar correta sozinha.
+  const porCliente = new Map();
+  (lista || []).forEach(o => {
+    if (o.cli === clienteDestino || o.prop) return;
+    const atual = porCliente.get(o.cli);
+    if (!atual || o.net > atual.net) porCliente.set(o.cli, o);
+  });
+  const candidatos = [...porCliente.values()].sort((a, b) => b.net - a.net);
+  return [candidatos[0] || null, candidatos[1] || null];
 }
 
 // Isomorfico: no navegador este arquivo e colado dentro de um <script> por

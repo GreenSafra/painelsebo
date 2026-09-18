@@ -109,6 +109,25 @@ async function importar(progArq, mapaArq) {
     .sort((a, b) => a.sigla.localeCompare(b.sigla) || a.cli.localeCompare(b.cli));
   const exportado = await w.programacaoPreenchida(w.PROGBUF, w.PROD, w.RES.alocFinal, w.OPS, w.MAPA.data, w.MAPA.dataSerial);
   const bufExportado = await exportado.arquivo.arrayBuffer();
+  T('exportar a partir de Programação preenchida não quebra', !!exportado && bufExportado.byteLength > 1000);
+
+  // item 8/10 do pedido de "segunda melhor oferta": tem que valer tambem
+  // quando a semana veio de Programação preenchida. Este arquivo de teste
+  // nao tem as colunas "2º melhor"/"segunda melhor" no template (por isso
+  // CD.net2/net3 ficam null aqui — a exportacao so preenche coluna que ja
+  // existe, nunca cria uma nova, ver colunasDestino()), mas a LOGICA de
+  // selecao (melhoresAlternativas) e a mesma pra qualquer origem de
+  // planilha e continua correta com os dados reais desta importacao.
+  T('esta planilha nao tem colunas de melhor oferta (fixture sem elas)',
+    !w.PROD.colDest.net2 && !w.PROD.colDest.net3);
+  const algumaSigla = Object.keys(w.OPS || {}).find(sg => (w.OPS[sg] || []).length >= 2);
+  if (algumaSigla) {
+    const algumaCarga = w.RES.alocFinal.find(a => a.sigla === algumaSigla);
+    const [melhor, segunda] = w.melhoresAlternativas(w.OPS[algumaSigla], algumaCarga ? algumaCarga.cli : null);
+    T('melhoresAlternativas() funciona com os dados reais desta Programação preenchida',
+      melhor === null || (typeof melhor.net === 'number' && !melhor.prop),
+      { sigla: algumaSigla, melhor, segunda });
+  }
 
   await importar('prog38_preenchida.xlsx', 'mapa2.xlsx');  // zera estado global antes de reimportar
   const sheetsReimport = await w.readXlsx({ arrayBuffer: async () => bufExportado });

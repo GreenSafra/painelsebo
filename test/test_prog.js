@@ -153,7 +153,15 @@ const E=s=>s.replace(/[^a-zA-Z0-9_-]/g,c=>'\\'+c);
  T('achou as colunas da 2ª melhor oferta', !!(CD.net2&&CD.cli2), CD.net2+'/'+CD.cli2);
  T('NET do escolhido preenchido', dados.every(r=>+r[ix(CD.net)]>0));
  const com2=dados.filter(r=>r[r2]);
- T('2ª melhor preenchida', com2.length>=dados.length-2, com2.length+' de '+dados.length);
+ // pool de alternativas agora exclui fabrica propria (mesmo filtro pedido
+ // pra "melhor"/"segunda melhor" — uma propria nunca conta como oferta de
+ // terceiro), entao algumas cargas ficam sem alternativa elegivel quando so
+ // havia propria disputando aquela sigla. A cobertura cai (era quase 100%
+ // antes do filtro), mas a maioria ainda tem alternativa de verdade.
+ T('2ª melhor preenchida na maioria das cargas', com2.length>=dados.length*0.75,
+   com2.length+' de '+dados.length);
+ T('nenhuma 2ª melhor e uma fabrica propria (BioPower/Flora)',
+   com2.every(r=>!/biopower|flora/i.test(String(r[r2]))), com2.map(r=>r[r2]).filter(c=>/biopower|flora/i.test(String(c))));
  T('2º cliente é sempre diferente do escolhido',
    com2.every(r=>r[r2]!==r[ix(CD.cli)]));
  T('2ª melhor tem nome e valor juntos',

@@ -88,6 +88,15 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
   .card .col.atual .pr{font-size:14.5px}
   .card .col .dif{font-size:9px}
 }
+@media(min-width:901px){
+  /* espaco de sobra entre o nome e o selo: a area das semanas cresce pra
+     usar ele, em vez de ficar espremida em 60px enquanto o nome (flex:1)
+     absorve tudo. nowrap garante que "R$ 6.600" fica numa linha so mesmo
+     que uma cotacao futura tenha mais digitos. */
+  .card .semanas{gap:22px}
+  .card .col{width:90px}
+  .card .col .pr{white-space:nowrap}
+}
 </style>
 </head>
 <body>
