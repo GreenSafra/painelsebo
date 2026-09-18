@@ -42,6 +42,12 @@ header{border-bottom:1px solid var(--line);margin-bottom:26px;
 .stamp b{color:var(--ink);font-weight:600}
 .hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .hlinks{display:flex;gap:10px}
+/* botao de conta compacto (celular): fica escondido no desktop, onde o
+   bloco de usuario continua sempre visivel como hoje. O checkbox e so um
+   jeito de abrir/fechar sem JS — o :checked controla .hlinks la embaixo,
+   no media query do celular, e no desktop essa regra nem existe. */
+.userToggle{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.userIcon{display:none}
 
 /* menu: grupos com um respiro maior entre eles, botoes coladinhos dentro
    de cada grupo — cabe numa linha so ate em notebook (wrap trava em
@@ -324,21 +330,42 @@ footer img{height:17px;width:auto;opacity:.75}
 @media(max-width:640px){
   html{-webkit-text-size-adjust:100%}
   .wrap{padding:0 12px 48px}
-  .hbar{padding:16px 0 12px;gap:12px}
-  .hbar img.brand{height:28px}
-  .htitle{flex:1 1 100%;order:2}
-  .htitle h1{font-size:21px}
-  .htitle p{font-size:12.5px}
-  .hright{order:3;flex:1 1 100%;align-items:flex-start}
-  .stamp{text-align:left;font-size:12px}
+  header{margin-bottom:10px}
+  .hbar{padding:10px 0 8px;gap:8px;flex-wrap:nowrap;align-items:center}
+  .hbar img.brand{height:20px}
+  .htitle{flex:1 1 auto;min-width:0}
+  .htitle h1{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* subtitulo do topo (semana, periodo, cotacoes, status) some no celular:
+     essa mesma informacao ja aparece no cabecalho da semana (#semanaHome),
+     logo acima dos cards — manter os dois so ocupava tela a toa. */
+  .htitle p{display:none}
+  .hright{flex:0 0 auto;flex-direction:row;align-items:center;gap:0;position:relative}
+  .hright .stamp{display:none}
+  /* botao de conta compacto: um circulo discreto no canto, sem ocupar
+     linha propria — abre Trocar senha/Sair num popover ancorado nele. */
+  .userIcon{display:flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:50%;border:1px solid var(--line);
+    color:var(--mute);font-size:16px;line-height:1;cursor:pointer;background:var(--card)}
+  .hlinks{display:none;position:absolute;top:36px;right:0;z-index:5;
+    flex-direction:column;align-items:flex-end;gap:8px;
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;box-shadow:0 6px 18px rgba(0,0,0,.12);white-space:nowrap}
+  .userToggle:checked ~ .hlinks{display:flex}
   /* linha rolavel horizontal: nunca ocupa metade da tela, so uma faixa fina
      no topo — em vez da grade de botoes que tomava varias linhas antes. */
   .menu{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
-    padding-bottom:10px;gap:10px}
+    padding-bottom:6px;gap:8px;margin-bottom:4px}
   .mgrp{flex:none;gap:6px}
-  .menu .btn{flex:none;white-space:nowrap;padding:8px 12px;font-size:13px;min-height:40px}
+  .menu .btn{flex:none;white-space:nowrap;padding:6px 12px;font-size:13px;min-height:34px}
   .menu .spacer{flex:none;width:8px}
-  select.who{flex:none;min-width:130px;font-size:14px;min-height:40px}
+  select.who{flex:none;min-width:130px;font-size:14px;min-height:34px}
+
+  .semanaHome{margin:0 0 10px;gap:6px 10px}
+  .semanaHome .titulo{font-size:14.5px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;max-width:100%}
+  .semanaHome .situacao{font-size:11.5px;flex-basis:100%}
+
+  #salvasBox{margin:0 0 12px;padding-bottom:10px}
 
   .kpis{grid-template-columns:1fr}
   .kpi{padding:12px 14px}
@@ -489,6 +516,8 @@ footer img{height:17px;width:auto;opacity:.75}
       <p id="sub">Importe as planilhas da semana para começar</p>
     </div>
     <div class="hright">
+      <input type="checkbox" id="userToggle" class="userToggle" aria-hidden="true">
+      <label for="userToggle" class="userIcon" aria-label="Conta">&#8943;</label>
       <div class="stamp" id="stamp"></div>
       <div class="hlinks">
         <a class="lnkSair" href="#" id="lnkTrocarSenha">Trocar senha</a>

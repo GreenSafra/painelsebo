@@ -26,12 +26,17 @@ d.querySelector('[data-ed]').click(); await new Promise(r=>setTimeout(r,40));
 const css=html.match(/@media\(max-width:640px\)\{[\s\S]*?\n\}/)[0];
 const seletores=[...css.matchAll(/\n\s{2}(\.[a-zA-Z][^{]*)\{/g)].map(m=>m[1].trim());
 const faltando=[];
+// o popover do usuario so existe no DOM quando o checkbox esta marcado
+// (:checked ~ .hlinks) — marca antes de checar, senao o seletor bate certo
+// mas nao acha nada porque o estado natural e desmarcado
+const toggle=d.getElementById('userToggle'); if(toggle) toggle.checked=true;
 seletores.forEach(sel=>{
   sel.split(',').map(s=>s.trim()).forEach(s=>{
     if(/#/.test(s)) return;
     try{ if(!d.querySelector(s)) faltando.push(s); }catch(e){ faltando.push('inválido: '+s); }
   });
 });
+if(toggle) toggle.checked=false;
 T('todos os seletores do CSS móvel existem na página', faltando.length===0, faltando.join(' | '));
 const areasNrow=['.nrow img.lg','.nrow .nm','.nrow .x','.nrow .cd','.nrow label.tv','.nrow input.v','.nrow .un','.nrow .cr'];
 T('linha da necessidade com todas as áreas', areasNrow.every(s=>!!d.querySelector(s)),
@@ -54,7 +59,10 @@ T('regra móvel: .menu (linha rolável, não grade)', /\.menu\{[^}]*overflow-x:a
  T('menu vira uma faixa rolável, não grade de botões (não ocupa metade da tela)',
    /\.menu\{flex-wrap:nowrap;overflow-x:auto/.test(css));
  T('botões do menu não quebram linha (rolagem horizontal)', /\.menu \.btn\{flex:none;white-space:nowrap/.test(css));
- T('alvo de toque de pelo menos 40px', (css.match(/min-height:40px/g)||[]).length>=2);
+ // pedido explicito da tarefa de cabecalho compacto: menu mais baixo que
+ // antes (era 40px). Mantem um piso ainda tocavel, so nao trava mais em 40.
+ const alturasMenu=[...css.matchAll(/min-height:(\d+)px/g)].map(m=>+m[1]);
+ T('alvo de toque com altura minima ainda razoavel (>=32px)', alturasMenu.length>=2 && alturasMenu.every(v=>v>=32), alturasMenu.join(','));
  T('wrap com fundo proprio contra inversao',
    /\.wrap\{[^}]*background:var\(--paper\)/.test(html));
  T('wrap cobre a tela toda', /\.wrap\{[^}]*min-height:100vh/.test(html));
