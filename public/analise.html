@@ -55,17 +55,38 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 .vazio{background:var(--card);border:1px solid var(--line);padding:34px;
   text-align:center;color:var(--mute);font-size:14px}
 .carregando{color:var(--mute);font-size:14px;padding:30px 0}
-@media(max-width:560px){
-  .wrap{padding:16px 12px 50px}
-  .card{gap:10px}
-  .card .nome{font-size:13.5px;min-width:0}
-  .card .semanas{max-width:150px;gap:7px}
-  .card .col{width:52px}
-  .card .col .rot{font-size:9.5px}
-  .card .col .pr{font-size:11.5px}
-  .card .col.atual .pr{font-size:13.5px}
+@media(max-width:640px){
+  .wrap{padding:14px 12px 40px}
+  /* titulo e seletor de semana na mesma linha, subtitulo logo abaixo,
+     sem o vao que o layout de desktop (coluna + spacer + input) deixava
+     antes do primeiro card. display:contents tira a div do fluxo do grid
+     e deixa h1/.sub virarem itens do proprio header. */
+  header{display:grid;grid-template-columns:1fr auto;
+    grid-template-areas:"tit inp" "sub sub";column-gap:10px;row-gap:2px;
+    align-items:center;margin-bottom:4px}
+  header>div:first-child{display:contents}
+  h1{grid-area:tit;font-size:18px}
+  .sub{grid-area:sub;font-size:12px}
+  .spacer{display:none}
+  input[type=week]{grid-area:inp;justify-self:end;font-size:13px;padding:6px 8px}
+  hr{margin:10px 0 14px}
+
+  /* card em duas linhas: 1a com posicao, nome completo (pode quebrar) e o
+     selo de variacao; 2a com as tres semanas dividindo a largura toda do
+     card, sem cortar nenhuma coluna. order muda a ordem visual sem mexer
+     no markup (.semanas continua depois de .var no DOM). */
+  .card{flex-wrap:wrap;gap:6px 10px;padding:10px 12px}
+  .card .pos{order:1;width:22px;font-size:12px}
+  .card .nome{order:2;flex:1 1 auto;min-width:0;font-size:13.5px;
+    line-height:1.25;white-space:normal;overflow:visible;text-overflow:clip}
+  .card .var{order:3;flex:none;width:60px;font-size:11px;padding:3px 0}
+  .card .semanas{order:4;flex:1 1 100%;width:100%;max-width:none;
+    overflow-x:visible;gap:4px}
+  .card .col{flex:1 1 0;width:auto;min-width:0}
+  .card .col .rot{font-size:10px}
+  .card .col .pr{font-size:12px}
+  .card .col.atual .pr{font-size:14.5px}
   .card .col .dif{font-size:9px}
-  .card .var{width:64px;font-size:11.5px}
 }
 </style>
 </head>
