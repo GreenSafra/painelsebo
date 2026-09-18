@@ -103,6 +103,49 @@ Se uma bateria falhar, **nao suba**. Conserte ou reverta.
   sem media e aparece marcada ("sem media de terceiros") no Consolidado, de
   fora do total. A migracao (`db.js: migrarNetTerMedio()`) roda sozinha,
   de forma idempotente, toda subida do servidor, dentro de `iniciar()`.
+- **Fase 2.3** — motivo correto quando o modelo manda ZERO pra uma fabrica
+  propria (tela da semana e Consolidado), e destaque ao que foi feito de
+  verdade:
+  - Antes, a frase sempre dizia "porque havia terceiro pagando mais", mesmo
+    quando o motivo real era outro (ex.: semana 39, BioPower Lins e Flora SP
+    empatadas em NET nas origens ANF/BTG/LIF, as duas acima do melhor
+    terceiro — o modelo mandou tudo pra Flora SP por causa do desempate, nao
+    por preco). Agora `src/core.js:motivoModeloZero()` olha de fato quem
+    levou cada origem que a fabrica cotou no cenario do modelo: terceiro com
+    NET maior, outra propria com NET maior (sem empate), empate perdido pra
+    outra oferta (nomeia quem ficou com as cargas), sem oferta nenhuma
+    cadastrada pra ela no Mapa, sem demanda que disputasse aquela origem
+    (sobra), ou — modo Prioridade de volume, onde a propria nunca disputa
+    NET pela propria necessidade — sem necessidade digitada ou necessidade
+    digitada sem oferta suficiente. `textoMotivoZero()` traduz pra frase.
+    Na tela ao vivo entra direto (`ST.modo`/`ST.nec`/`DS.quotes`/
+    `RES.otimoAloc`, tudo em memoria). No Consolidado, `db.js:
+    preencherMotivosZeroOtimo()` reconstroi a mesma conta a partir do
+    pacote guardado (`semanas.dados`) e das linhas cruas do cenario `otimo`
+    — so funciona no modo Semana (uma semana so) e quando a semana tem
+    pacote; sem isso (semana fechada antes da migracao, ou modo Mes) a
+    frase fica so no fato, sem arriscar o motivo.
+  - **Desempate de NET igual e deterministico, por ordem alfabetica do
+    cliente** — nao pela ordem das linhas no Mapa (isso era o defeito:
+    arbitrario e sem relacao com o merito da oferta). `src/core.js:montar()`
+    ordena `ds.quotes` por `(sigla, NET decrescente, cliente A-Z)` antes de
+    devolver; como `resolver()` (a disputa em si) e `bestTer` (melhor
+    terceiro por sigla) percorrem `quotes` nessa ordem, e o algoritmo de
+    fluxo (SPFA) so troca um caminho ja achado por um estritamente melhor,
+    quem vem primeiro no alfabeto fica com o empate. Testado (com o Mapa em
+    ordens diferentes, mesmo resultado sempre) em `test/test_motivo_modelo.js`.
+  - `semanas` ganhou as colunas `modo` (prioridade/mercado, gravado no
+    fechamento) e `necessidades` (JSONB, `{cliente: toneladas digitadas}`),
+    usadas so pra reconstruir o motivo acima — Consolidado mostra o modo de
+    cada semana na tabela de gerenciamento, ao lado do Periodo. Semana
+    fechada antes destas colunas existirem fica com as duas NULL.
+  - Na tela da semana e no Consolidado, o card de cada fabrica propria
+    mudou de layout: "O que foi feito" ocupa a largura toda do card, em
+    destaque (numeros maiores) — e o que realmente aconteceu, importa
+    primeiro. "O que o modelo mandava" fica recolhido, atras de um link
+    ("ver o que o modelo mandava"); quando o modelo nao indicou a fabrica,
+    o motivo (acima) aparece dentro do proprio link, sem precisar abrir. O
+    selo de comparacao continua no cabecalho do card, sem mudanca.
 - **Fase 3 (nao iniciada)** — gravar as semanas fechadas no banco, com
   versionamento, e tela de consolidado mensal. Nao adiante.
 

@@ -159,7 +159,7 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
     const dom = montarTela(base);
     await new Promise(r => setTimeout(r, 150));
     const d = dom.window.document;
-    const blocoRealizado = d.querySelector('.duo > div');
+    const blocoRealizado = d.querySelector('.feito > div');
     T('bloco da fabrica renderizado', !!blocoRealizado);
     const nota = blocoRealizado && blocoRealizado.querySelector('.semcomp');
     T('aviso "sem oferta de terceiro" aparece no bloco "O que foi feito"', !!nota, nota && nota.textContent);
@@ -183,7 +183,7 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
 
     // segundo bloco (otimo) nao tem origens sem comparacao nesta massa —
     // nao deve mostrar o aviso.
-    const blocoOtimo = d.querySelectorAll('.duo > div')[1];
+    const blocoOtimo = d.querySelector('.modelo > div');
     T('bloco "O que o modelo mandava" (sem origens faltando nesta massa) nao mostra o aviso',
       !!blocoOtimo && !blocoOtimo.querySelector('.semcomp'));
   }
@@ -196,7 +196,7 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
     const dom = montarTela(semFalta);
     await new Promise(r => setTimeout(r, 150));
     const d = dom.window.document;
-    const blocoRealizado = d.querySelector('.duo > div');
+    const blocoRealizado = d.querySelector('.feito > div');
     T('sem tonelada sem comparacao: nenhum aviso ".semcomp" aparece',
       !!blocoRealizado && !blocoRealizado.querySelector('.semcomp'));
   }
@@ -208,7 +208,7 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
     const dom = montarTela(base);
     await new Promise(r => setTimeout(r, 150));
     const d = dom.window.document;
-    const blocoRealizado = d.querySelector('.duo > div');
+    const blocoRealizado = d.querySelector('.feito > div');
     const linhaVolume = [...blocoRealizado.querySelectorAll('.lin')].find(l => l.textContent.indexOf('Volume') === 0);
     T('linha "Volume" mostra o total (150 t), nao so a parte comparavel (100 t)',
       !!linhaVolume && linhaVolume.textContent.indexOf('150') >= 0, linhaVolume && linhaVolume.textContent);

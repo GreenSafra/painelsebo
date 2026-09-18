@@ -518,7 +518,7 @@ function renderResumoSemana() {
       '</div>';
   }
 
-  props.forEach(p => {
+  props.forEach((p, i) => {
     const tr = p.ton_realizado, to = p.ton_otimo;
     const sr = p.saving_realizado, so = p.saving_otimo;
     // O selo so faz sentido quando os DOIS cenarios tem uma comparacao de
@@ -527,27 +527,25 @@ function renderResumoSemana() {
     // com "empatou com o mercado".
     const temComparacao = sr != null && so != null;
     const dif = temComparacao ? so - sr : null;
+    // Motivo de verdade do zero no cenario do modelo — computado uma vez so
+    // (serve pra frase E pro link recolhido, ver rs-togglemodelo abaixo),
+    // sempre que o modelo nao mandou nada pra esta fabrica (to===0), com ou
+    // sem carga recebida de verdade. motivoModeloZero() olha quem realmente
+    // levou cada origem que ela cotou (modo mercado) ou a necessidade
+    // digitada (modo prioridade) — ver core.js pra a logica completa.
+    const necDigitada = Number(ST.nec[p.cliente] || 0);
+    const motivoZeroTxt = to === 0
+      ? textoMotivoZero(motivoModeloZero(p.cliente, ST.modo, necDigitada, DS.quotes, RES.otimoAloc))
+      : null;
     let veredito, frase;
     if (tr === 0 && to === 0) {
       veredito = '<span class="rs-mute">não entrou na semana</span>';
-      frase = 'Não recebeu carga, e o modelo também não mandaria nada para cá.';
+      frase = 'Não recebeu carga, e o modelo também não mandaria nada para cá ' + motivoZeroTxt;
     } else {
       if (tr === 0) {
         frase = 'Não recebeu nada. O modelo mandaria <b>' + tn(to) + '</b> para cá.';
       } else if (to === 0) {
-        // O motivo depende do modo de distribuicao: em mercado livre a
-        // propria disputa NET igual a um terceiro, entao zero significa que
-        // alguem pagou mais; em prioridade de volume ela nunca disputa pela
-        // propria necessidade (o modelo so nao manda nada quando ninguem
-        // digitou necessidade pra ela, ou quando nao havia oferta suficiente
-        // daquela origem pra atender o que foi digitado).
-        const necDigitada = Number(ST.nec[p.cliente] || 0) > 0;
-        const motivoZero = ST.modo === 'mercado'
-          ? 'porque havia terceiro pagando mais por essas cargas.'
-          : (necDigitada
-            ? 'porque não havia oferta disponível para essas origens.'
-            : 'porque não foi digitada necessidade para esta fábrica.');
-        frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá ' + motivoZero;
+        frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá ' + motivoZeroTxt;
       } else {
         const d = to - tr;
         frase = 'Recebeu <b>' + tn(tr) + '</b>; o modelo mandaria <b>' + tn(to) + '</b>' +
@@ -573,13 +571,22 @@ function renderResumoSemana() {
                      : '<span class="rs-pos">+' + rs(-dif) + ' acima do modelo</span>');
       }
     }
+    // "O que foi feito" em destaque, ocupando a largura toda; "O que o
+    // modelo mandava" recolhido atras de um link discreto, com o motivo do
+    // zero (quando existe) direto no link, sem precisar abrir pra ler.
+    const linkTxt = 'ver o que o modelo mandava' +
+      (motivoZeroTxt ? ' <span class="rs-motivozero">(' + motivoZeroTxt.replace(/\.$/, '') + ')</span>' : '');
     h += '<div class="rs-fab' + (tr === 0 && to === 0 ? ' rs-sem' : '') + '">';
     h += '<div class="rs-top"><span class="rs-nome">' + pontoGrupo(p.cliente) + esc(p.cliente) +
       '</span><span class="rs-veredito">' + veredito + '</span></div>';
     h += '<div class="rs-frase">' + frase + '</div>';
-    h += '<div class="rs-duo">';
+    h += '<div class="rs-feito">';
     h += blocoDuo('O que foi feito', tr, p.net_realizado, p.net_ter_realizado, p.n_ter_realizado,
       p.net_ter_melhor_realizado, tr - p.ton_comp_realizado, p.origens_sem_comp_realizado, sr);
+    h += '</div>';
+    h += '<button type="button" class="rs-togglemodelo" data-alvo="rs-modelo-' + i + '" aria-expanded="false">' +
+      linkTxt + '</button>';
+    h += '<div class="rs-modelo hide" id="rs-modelo-' + i + '">';
     h += blocoDuo('O que o modelo mandava', to, p.net_otimo, p.net_ter_otimo, p.n_ter_otimo,
       p.net_ter_melhor_otimo, to - p.ton_comp_otimo, p.origens_sem_comp_otimo, so);
     h += '</div></div>';
@@ -593,6 +600,15 @@ function renderResumoSemana() {
     '</b>.</div>';
 
   box.innerHTML = h;
+  [].forEach.call(box.querySelectorAll('.rs-togglemodelo'), btn => {
+    btn.onclick = () => {
+      const alvo = document.getElementById(btn.dataset.alvo);
+      if (!alvo) return;
+      const abrir = alvo.classList.contains('hide');
+      alvo.classList.toggle('hide', !abrir);
+      btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    };
+  });
 }
 
 // Status da semana (salva/reaberta, por quem, quando) mora no fim do

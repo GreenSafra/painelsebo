@@ -652,6 +652,50 @@ function filtroConsolidado(criterio) {
   return { sql: 'a.data_embarque >= $1 AND a.data_embarque < $2', params: [ini, fim], modo: 'mes', mes: c.mes };
 }
 
+// Preenche motivo_zero_otimo em cada linha de porPropria com ton_otimo=0,
+// usando o mesmo motivoModeloZero()/textoMotivoZero() de src/core.js que a
+// tela ao vivo usa. So funciona no modo "semana" (uma semana so): "mes"
+// juntaria semanas que podem ter modo/necessidade diferentes, e ai nao da
+// pra afirmar um motivo so pro periodo inteiro sem risco de errar (mesma
+// cautela do modoPeriodo em consolidado.html). Precisa do pacote guardado
+// (prod+mapa, pra reconstruir as cotacoes) — semana fechada sem ele fica
+// sem motivo, so o fato, igual as outras informacoes que dependem do
+// pacote (ver avisoPacote/semPacotePeriodo).
+async function preencherMotivosZeroOtimo(ano, semana, porPropriaRows) {
+  const zeradas = (porPropriaRows || []).filter(p => !(Number(p.ton_otimo) > 0));
+  if (!zeradas.length) return;
+
+  const s = await pool.query(
+    `SELECT id, dados, modo, necessidades FROM semanas WHERE ano=$1 AND semana=$2 AND atual`,
+    [ano, semana]
+  );
+  const linha = s.rows[0];
+  if (!linha || !linha.dados || !linha.modo) return;
+
+  let dados;
+  try { dados = JSON.parse(linha.dados); } catch (e) { return; }
+  const prod = dados && dados.prod, mapa = dados && dados.mapa;
+  if (!prod || !mapa || !Array.isArray(mapa.rows) || !Array.isArray(prod.plants)) return;
+
+  const ds = core.montar(prod, [], mapa);
+  const necessidades = linha.necessidades || {};
+
+  const otimoRaw = await pool.query(
+    `SELECT sigla, cliente, net, toneladas, proprio FROM alocacoes
+      WHERE semana_id=$1 AND cenario='otimo'`,
+    [linha.id]
+  );
+  const alocOtimo = otimoRaw.rows.map(r => ({
+    sigla: r.sigla, cli: r.cliente, net: Number(r.net), ton: Number(r.toneladas), prop: !!r.proprio
+  }));
+
+  zeradas.forEach(p => {
+    const necDigitada = Number(necessidades[p.cliente] || 0);
+    const motivo = core.motivoModeloZero(p.cliente, linha.modo, necDigitada, ds.quotes, alocOtimo);
+    p.motivo_zero_otimo = core.textoMotivoZero(motivo);
+  });
+}
+
 async function consolidado(criterio) {
   const f = filtroConsolidado(criterio);
 
@@ -767,6 +811,8 @@ async function consolidado(criterio) {
       WHERE s.atual AND a.cenario = 'realizado' AND ${f.sql}
       GROUP BY s.id, u.nome
       ORDER BY s.ano DESC, s.semana DESC`, f.params);
+
+  if (f.modo === 'semana') await preencherMotivosZeroOtimo(f.ano, f.semana, porPropria.rows);
 
   return {
     modo: f.modo,
@@ -1065,5 +1111,5 @@ module.exports = {
   rascunhoRecenteDoUsuario, semanasSalvas,
   gravarCotacoes, semanasComCotacao, gravarCotacoesLote, cotacoesDaSemana,
   cotacoesDeSemanas, apagarCotacoes, siglaPorOrigem,
-  corrigirFlagPropria, migrarNetTerMedio, descreverConexao
+  corrigirFlagPropria, migrarNetTerMedio, descreverConexao, preencherMotivosZeroOtimo
 };

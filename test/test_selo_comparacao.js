@@ -129,11 +129,14 @@ function frase(doc) { return cardDaFabrica(doc).querySelector('.frase').textCont
       v.textContent.indexOf('180.000') >= 0 || v.textContent.indexOf('180000') >= 0, v.textContent);
   }
 
-  // ---------- motivo do "to===0" na FRASE (nao no selo): so aparece quando
-  // o periodo inteiro sabe o modo usado no fechamento (coluna nova, semana
-  // fechada antes dela fica sem essa informacao — ver semana38 no topo do
-  // arquivo, sem .modo, que e exatamente o cenario "modo desconhecido"
-  // ja coberto acima no motivo 1). ----------
+  // ---------- motivo do "to===0" na FRASE (nao no selo): db.js calcula o
+  // texto no servidor (preencherMotivosZeroOtimo, so no modo Semana e com
+  // pacote guardado — ver test_modo_necessidades.js/test_origens_sem_comp.js
+  // pra a logica de motivoModeloZero() em si) e manda pronto no campo
+  // motivo_zero_otimo; aqui so confere que a tela USA esse campo direito.
+  // Semana fechada antes dele existir (ou fora do modo Semana) manda o
+  // campo ausente — cenario ja coberto acima no motivo 1 (undefined vira
+  // "sem motivo", frase so com o fato). ----------
   const pZeroModelo = {
     cliente: 'Flora GO', ton_realizado: 900, net_realizado: 5300,
     net_ter_realizado: 5100, net_ter_melhor_realizado: 5200, n_ter_realizado: 3,
@@ -141,42 +144,59 @@ function frase(doc) { return cardDaFabrica(doc).querySelector('.frase').textCont
     ton_otimo: 0, net_otimo: null, net_ter_otimo: null, net_ter_melhor_otimo: null,
     n_ter_otimo: null, ton_comp_otimo: 0, saving_otimo: null
   };
-  // mercado livre: propria disputa NET igual a terceiro, entao zero so
-  // acontece quando alguem pagou mais.
   {
-    const semanasMercado = [Object.assign({}, semana38, { tem_pacote: true, modo: 'mercado' })];
-    const d = await montarTela(pZeroModelo, semanasMercado);
-    T('modo mercado: frase explica que havia terceiro pagando mais',
+    const p = Object.assign({}, pZeroModelo, { motivo_zero_otimo: 'porque havia terceiro pagando mais por essas cargas.' });
+    const d = await montarTela(p);
+    T('motivo_zero_otimo="terceiro": frase explica que havia terceiro pagando mais',
       frase(d).indexOf('porque havia terceiro pagando mais por essas cargas') >= 0, frase(d));
   }
-  // prioridade de volume, necessidade digitada ZERO: o motivo e falta de
-  // necessidade, nao concorrencia de preco.
   {
-    const semanasPrioridadeSemNec = [Object.assign({}, semana38,
-      { tem_pacote: true, modo: 'prioridade', necessidades: { 'Flora GO': 0 } })];
-    const d = await montarTela(pZeroModelo, semanasPrioridadeSemNec);
-    T('modo prioridade sem necessidade digitada: frase explica isso, nao fala de terceiro',
+    const p = Object.assign({}, pZeroModelo, { motivo_zero_otimo: 'porque não foi digitada necessidade para esta fábrica.' });
+    const d = await montarTela(p);
+    T('motivo_zero_otimo="semNecessidade": frase explica isso, nao fala de terceiro',
       frase(d).indexOf('porque não foi digitada necessidade para esta fábrica') >= 0, frase(d));
   }
-  // prioridade de volume, necessidade digitada POSITIVA: sobrou sem
-  // atender por falta de oferta daquela origem, nao por falta de pedido.
   {
-    const semanasPrioridadeComNec = [Object.assign({}, semana38,
-      { tem_pacote: true, modo: 'prioridade', necessidades: { 'Flora GO': 1000 } })];
-    const d = await montarTela(pZeroModelo, semanasPrioridadeComNec);
-    T('modo prioridade com necessidade digitada: frase fala de falta de oferta, nao de necessidade',
+    const p = Object.assign({}, pZeroModelo, { motivo_zero_otimo: 'porque não havia oferta disponível para essas origens.' });
+    const d = await montarTela(p);
+    T('motivo_zero_otimo="semOferta": frase fala de falta de oferta, nao de necessidade',
       frase(d).indexOf('porque não havia oferta disponível para essas origens') >= 0, frase(d));
   }
-  // mes com semanas de modos diferentes: nao da pra afirmar um motivo so
-  // pro periodo inteiro, entao fica so o fato (mesmo comportamento da
-  // semana fechada antes da coluna existir).
   {
-    const semanasMistas = [
-      Object.assign({}, semana38, { tem_pacote: true, modo: 'mercado' }),
-      Object.assign({}, semana38, { semana: 37, tem_pacote: true, modo: 'prioridade' })
-    ];
-    const d = await montarTela(pZeroModelo, semanasMistas);
-    T('mes com modos diferentes entre as semanas: frase fica so no fato, sem motivo',
+    const p = Object.assign({}, pZeroModelo, {
+      motivo_zero_otimo: 'porque o NET era igual ao de Flora SP, que ficou com as cargas.'
+    });
+    const d = await montarTela(p);
+    T('motivo_zero_otimo="empate": frase nomeia quem ficou com as cargas',
+      frase(d).indexOf('porque o NET era igual ao de Flora SP, que ficou com as cargas') >= 0, frase(d));
+
+    // ---------- "O que foi feito" em destaque; "O que o modelo mandava"
+    // recolhido, com o motivo direto no link, abre/fecha ao clicar ----------
+    const card = cardDaFabrica(d);
+    T('"O que foi feito" ocupa bloco proprio (sem .duo lado a lado)', !!card.querySelector('.feito'));
+    const btn = card.querySelector('.togglemodelo');
+    const modelo = card.querySelector('.modelo');
+    T('link/botao "ver o que o modelo mandava" existe', !!btn, btn && btn.textContent);
+    T('bloco "O que o modelo mandava" comeca RECOLHIDO (classe hide)',
+      !!modelo && modelo.classList.contains('hide'));
+    T('botao comeca com aria-expanded="false"', !!btn && btn.getAttribute('aria-expanded') === 'false');
+    T('o motivo do zero aparece no PROPRIO link, sem precisar abrir',
+      !!btn && btn.textContent.indexOf('porque o NET era igual ao de Flora SP, que ficou com as cargas') >= 0,
+      btn && btn.textContent);
+    if (btn && modelo) {
+      btn.dispatchEvent(new d.defaultView.Event('click'));
+      T('clique expande: classe hide sai, aria-expanded vira "true"',
+        !modelo.classList.contains('hide') && btn.getAttribute('aria-expanded') === 'true');
+      btn.dispatchEvent(new d.defaultView.Event('click'));
+      T('clique de novo recolhe: classe hide volta, aria-expanded vira "false"',
+        modelo.classList.contains('hide') && btn.getAttribute('aria-expanded') === 'false');
+    }
+  }
+  // sem motivo_zero_otimo (campo ausente: semana sem pacote, ou modo Mes):
+  // frase fica so no fato, sem arriscar dizer o porque.
+  {
+    const d = await montarTela(pZeroModelo);
+    T('sem motivo_zero_otimo: frase fica so no fato, sem motivo',
       frase(d).trim() === 'Recebeu 900 t, mas o modelo não mandaria nada para cá.', frase(d));
   }
 

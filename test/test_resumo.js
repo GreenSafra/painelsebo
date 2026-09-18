@@ -93,9 +93,10 @@ const parseRs = txt => {
     if (!fab) { consistente = false; detalhe = 'faltou bloco de ' + p.cliente; return; }
     const nome = fab.querySelector('.rs-nome').textContent.trim();
     if (nome.indexOf(p.cliente) < 0) { consistente = false; detalhe = 'nome: ' + nome + ' != ' + p.cliente; return; }
-    const duos = fab.querySelectorAll('.rs-duo > div');
-    const difR = parseRs(duos[0].querySelectorAll('.rs-lin.rs-forte span')[1].textContent);
-    const difO = parseRs(duos[1].querySelectorAll('.rs-lin.rs-forte span')[1].textContent);
+    const blocoFeito = fab.querySelector('.rs-feito');
+    const blocoModelo = fab.querySelector('.rs-modelo');
+    const difR = parseRs(blocoFeito.querySelectorAll('.rs-lin.rs-forte span')[1].textContent);
+    const difO = parseRs(blocoModelo.querySelectorAll('.rs-lin.rs-forte span')[1].textContent);
     if (difR !== rd(p.saving_realizado)) {
       consistente = false; detalhe = p.cliente + ' realizado: tela=' + difR + ' agregado=' + rd(p.saving_realizado);
     }
@@ -112,7 +113,7 @@ const parseRs = txt => {
   T('ha pelo menos uma fabrica com comparacao de terceiros nesta bateria', !!comFabricaComparavel);
   if (comFabricaComparavel) {
     const idx = ag.porPropria.indexOf(comFabricaComparavel);
-    const duoRealizado = fabs[idx].querySelectorAll('.rs-duo > div')[0];
+    const duoRealizado = fabs[idx].querySelector('.rs-feito');
     const linhas = [...duoRealizado.querySelectorAll('.rs-lin')].map(l => l.textContent);
     T('rotulo "Média terceiros" aparece (nao mais "Melhor terceiro" como linha principal)',
       linhas.some(t => t.indexOf('Média terceiros') === 0), linhas);
@@ -230,6 +231,32 @@ const parseRs = txt => {
       const fraseFG2 = cardFG2 && cardFG2.querySelector('.rs-frase').textContent;
       T('modo mercado: frase explica que havia terceiro pagando mais, nao fala de necessidade',
         !!fraseFG2 && fraseFG2.indexOf('porque havia terceiro pagando mais por essas cargas') >= 0, fraseFG2);
+
+      // --- 5c. "O que foi feito" em destaque (largura toda, sem par ao
+      // lado); "O que o modelo mandava" comeca recolhido, atras de um link
+      // que ja mostra o motivo do zero, e abre/fecha ao clicar. ---
+      if (cardFG2) {
+        const feito = cardFG2.querySelector('.rs-feito');
+        T('"O que foi feito" ocupa bloco proprio, fora do par lado a lado (sem .rs-duo)', !!feito);
+        const btn = cardFG2.querySelector('.rs-togglemodelo');
+        const modelo = cardFG2.querySelector('.rs-modelo');
+        T('link/botao "ver o que o modelo mandava" existe', !!btn, btn && btn.textContent);
+        T('bloco "O que o modelo mandava" comeca RECOLHIDO (classe hide)',
+          !!modelo && modelo.classList.contains('hide'));
+        T('botao comeca com aria-expanded="false"', !!btn && btn.getAttribute('aria-expanded') === 'false');
+        T('o motivo do zero aparece no PROPRIO link, sem precisar abrir',
+          !!btn && btn.textContent.indexOf('porque havia terceiro pagando mais por essas cargas') >= 0,
+          btn && btn.textContent);
+        if (btn && modelo) {
+          btn.dispatchEvent(new w.Event('click'));
+          T('clique expande: classe hide sai, aria-expanded vira "true"',
+            !modelo.classList.contains('hide') && btn.getAttribute('aria-expanded') === 'true');
+          btn.dispatchEvent(new w.Event('click'));
+          T('clique de novo recolhe: classe hide volta, aria-expanded vira "false"',
+            modelo.classList.contains('hide') && btn.getAttribute('aria-expanded') === 'false');
+        }
+      }
+
       w.ST.modo = 'prioridade';
     }
   }

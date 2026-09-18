@@ -92,6 +92,89 @@ async function fecharComPoolFalso(cab) {
     T('query de semanasFechadas seleciona s.necessidades', /s\.necessidades\b/.test(trechoQuery), trechoQuery);
   }
 
+  // ---------- preencherMotivosZeroOtimo(): reconstroi o motivo (empate,
+  // nesse caso — o bug real da semana 39, ver test_motivo_modelo.js) a
+  // partir do pacote guardado (prod+mapa) e das linhas cruas do cenario
+  // otimo, e escreve motivo_zero_otimo em cada linha de porPropria com
+  // ton_otimo=0. Pool falso: so as duas consultas que a funcao realmente
+  // faz (a sintaxe SQL em si fica por revisao de codigo, mesmo padrao das
+  // levas anteriores). ----------
+  {
+    const dadosPacote = JSON.stringify({
+      prod: { semana: 39, periodo: '21/09 a 27/09', plants: [{ sigla: 'ANF', uf: 'MT', cidade: 'Alta Floresta', ton: 1000 }] },
+      mapa: { rows: [
+        { i: 0, un: 'ANF', uf: 'MT', cli: 'JBS - BioPower Lins', dst: 'X, MT', of: 5669, net: 5669, icms: 0.12, pis: 0.00925, fcli: 0, modal: 'CIF' },
+        { i: 1, un: 'ANF', uf: 'SP', cli: 'Flora SP', dst: 'Y, SP', of: 5669, net: 5669, icms: 0.12, pis: 0.00925, fcli: 0, modal: 'CIF' },
+        { i: 2, un: 'ANF', uf: 'MT', cli: 'Cliente Terceiro', dst: 'Z, MT', of: 5647, net: 5647, icms: 0.12, pis: 0.00925, fcli: 0, modal: 'CIF' }
+      ] }
+    });
+    const chamadas = [];
+    const poolOriginal = db.pool.query;
+    db.pool.query = async (sql, params) => {
+      chamadas.push(sql.replace(/\s+/g, ' ').trim());
+      if (/SELECT id, dados, modo, necessidades FROM semanas/.test(sql)) {
+        return { rows: [{ id: 900, dados: dadosPacote, modo: 'mercado', necessidades: {} }] };
+      }
+      if (/SELECT sigla, cliente, net, toneladas, proprio FROM alocacoes/.test(sql)) {
+        return { rows: [
+          { sigla: 'ANF', cliente: 'Flora SP', net: '5669.00', toneladas: '1000.000', proprio: true }
+        ] };
+      }
+      return { rows: [] };
+    };
+    let porPropriaRows;
+    try {
+      porPropriaRows = [
+        { cliente: 'JBS - BioPower Lins', ton_otimo: 0 },
+        { cliente: 'Flora SP', ton_otimo: 1000 } // ja recebeu, nunca entra no filtro de zeradas
+      ];
+      await db.preencherMotivosZeroOtimo(2026, 39, porPropriaRows);
+    } finally {
+      db.pool.query = poolOriginal;
+    }
+    const lins = porPropriaRows.find(p => p.cliente === 'JBS - BioPower Lins');
+    const florasp = porPropriaRows.find(p => p.cliente === 'Flora SP');
+    T('so consultou o banco (dados+alocacoes) pra quem realmente tem ton_otimo=0',
+      chamadas.length === 2, chamadas);
+    T('motivo_zero_otimo da Lins e o empate com a Flora SP (o bug real da semana 39)',
+      lins.motivo_zero_otimo === 'porque o NET era igual ao de Flora SP, que ficou com as cargas.',
+      lins.motivo_zero_otimo);
+    T('Flora SP (ton_otimo>0) nao ganha motivo_zero_otimo nenhum', florasp.motivo_zero_otimo === undefined);
+  }
+
+  // ---------- sem pacote guardado: nao arrisca motivo nenhum ----------
+  {
+    const poolOriginal = db.pool.query;
+    db.pool.query = async (sql) => {
+      if (/SELECT id, dados, modo, necessidades FROM semanas/.test(sql)) {
+        return { rows: [{ id: 901, dados: null, modo: 'mercado', necessidades: null }] };
+      }
+      return { rows: [] };
+    };
+    let porPropriaRows;
+    try {
+      porPropriaRows = [{ cliente: 'JBS - BioPower Lins', ton_otimo: 0 }];
+      await db.preencherMotivosZeroOtimo(2026, 39, porPropriaRows);
+    } finally {
+      db.pool.query = poolOriginal;
+    }
+    T('semana sem pacote guardado: motivo_zero_otimo fica ausente, sem arriscar',
+      porPropriaRows[0].motivo_zero_otimo === undefined);
+  }
+
+  // ---------- sem nenhuma fabrica com ton_otimo=0: nem consulta o banco ----------
+  {
+    const chamadas = [];
+    const poolOriginal = db.pool.query;
+    db.pool.query = async (sql) => { chamadas.push(sql); return { rows: [] }; };
+    try {
+      await db.preencherMotivosZeroOtimo(2026, 39, [{ cliente: 'Flora SP', ton_otimo: 1000 }]);
+    } finally {
+      db.pool.query = poolOriginal;
+    }
+    T('nenhuma linha zerada: preencherMotivosZeroOtimo nao consulta o banco a toa', chamadas.length === 0);
+  }
+
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);
 })().catch(e => { console.error('ERRO:', e.message, e.stack); process.exit(1); });

@@ -237,7 +237,7 @@ function carregarPagina(url, mockFetch) {
     await new Promise(r => setTimeout(r, 150));
     const d4 = w4.document;
 
-    const duo = d4.querySelector('.duo > div');
+    const duo = d4.querySelector('.feito');
     T('bloco da fabrica renderizado', !!duo);
     const linhasTxt = duo ? [...duo.querySelectorAll('.lin')].map(l => l.textContent) : [];
     T('"Média terceiros" e a linha principal, com a contagem de ofertas',

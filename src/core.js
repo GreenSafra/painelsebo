@@ -570,7 +570,14 @@ function montar(prod, nec, mapa) {
       if (!prev || n > prev.net) q.set(k, { sigla: s, uf: ufDe[s], cli: r.cli, dst: r.dst, net: n, modal: r.modal, src: r.i });
     });
   });
-  const quotes = [...q.values()];
+  // Ordem fixa (sigla, NET decrescente, cliente em ordem alfabetica) — sem
+  // isto, o desempate de NET igual (em resolver() e bestTer, abaixo)
+  // dependia da ordem das linhas no Mapa, que muda de upload pra upload sem
+  // relacao nenhuma com o merito da oferta. Com a ordem fixa, duas ofertas
+  // empatadas sempre resolvem pro mesmo lado (o cliente cujo nome vem
+  // primeiro no alfabeto), documentado em CLAUDE.md.
+  const quotes = [...q.values()]
+    .sort((a, b) => a.sigla.localeCompare(b.sigla) || b.net - a.net || a.cli.localeCompare(b.cli));
   const proprios = new Map(nec.map(d => [d.cliente, d]));
   quotes.forEach(x => x.prop = proprios.has(x.cli));
   return { plants, quotes, proprios, naoMapeadas: [...naoMapeadas], ufDe };
@@ -966,6 +973,75 @@ function recalcularTerceirosSemana(dadosPacote, linhas) {
     const comp = comparacaoTerceiros(porSigla[l.sigla], l.cliente, ehPropriaFabrica);
     return { id: l.id, netTerMed: comp.netTerMed, nTer: comp.nTer };
   });
+}
+
+// Motivo pelo qual uma fabrica propria ficou com ZERO no cenario "otimo" —
+// so faz sentido chamar quando ela realmente recebeu zero nesse cenario.
+// modo 'prioridade': a propria nunca disputa NET pela propria necessidade
+// (resolver() trava o arco dela no volume digitado, sem concorrer por
+// preco — ver "dests.push(d)" so quando pedido[c]>0), entao zero so pode
+// ser falta de necessidade digitada ou, se digitou, falta de oferta
+// daquela origem pra atender.
+// modo 'mercado': a propria disputa NET igual a um terceiro, entao o
+// motivo vem de quem realmente levou cada origem que ela cotou — preco
+// maior (terceiro ou outra propria) ou empate perdido no desempate (NET
+// igual resolve por ordem alfabetica do cliente, ver montar() acima e
+// CLAUDE.md). "quotes" e ds.quotes (ou reconstruido do pacote guardado,
+// pra semana ja fechada); "alocOtimo" e a alocacao real do cenario otimo,
+// normalizada como {sigla, cli, net, ton, prop} por item (RES.otimoAloc ao
+// vivo, ou as linhas de alocacoes cenario='otimo' de uma semana fechada).
+function motivoModeloZero(cliente, modo, necDigitada, quotes, alocOtimo) {
+  if (modo !== 'mercado') {
+    if (!(Number(necDigitada) > 0)) return { tipo: 'semNecessidade' };
+    return { tipo: 'semOferta' };
+  }
+  const minhas = (quotes || []).filter(q => q.cli === cliente);
+  if (!minhas.length) return { tipo: 'semCotacao' };
+
+  const porSigla = {};
+  (alocOtimo || []).forEach(a => {
+    if (!(a.ton > 0.001) || a.cli === cliente) return;
+    (porSigla[a.sigla] || (porSigla[a.sigla] = [])).push(a);
+  });
+
+  // empate tem prioridade sobre "batido por NET maior": e o motivo mais
+  // especifico (e o que estava sendo mostrado errado como "terceiro
+  // pagando mais"), entao procura ele primeiro, em todas as origens dela,
+  // em ordem alfabetica de sigla pra ser deterministico.
+  const ordenadas = minhas.slice().sort((a, b) => a.sigla.localeCompare(b.sigla));
+  for (const q of ordenadas) {
+    const empatou = (porSigla[q.sigla] || []).find(v => Math.abs(v.net - q.net) < 0.005);
+    if (empatou) return { tipo: 'empate', quem: empatou.cli };
+  }
+  let melhorBatido = null;
+  ordenadas.forEach(q => {
+    (porSigla[q.sigla] || []).forEach(v => {
+      if (v.net > q.net + 0.005 && (!melhorBatido || v.net > melhorBatido.net)) {
+        melhorBatido = { quem: v.cli, prop: !!v.prop, net: v.net };
+      }
+    });
+  });
+  if (melhorBatido) return { tipo: melhorBatido.prop ? 'propria' : 'terceiro', quem: melhorBatido.quem };
+  // teve cotacao, ninguem pagou mais nem empatou — a origem simplesmente
+  // sobrou (producao maior que a demanda de qualquer destino).
+  return { tipo: 'semDemanda' };
+}
+
+// Texto pronto pra tela a partir do motivo acima — fica junto da logica que
+// decide o motivo pra nao existir uma segunda fonte de verdade do texto (o
+// Consolidado usa isto no servidor, ver db.js; a tela ao vivo usa direto).
+function textoMotivoZero(motivo) {
+  if (!motivo) return null;
+  switch (motivo.tipo) {
+    case 'semNecessidade': return 'porque não foi digitada necessidade para esta fábrica.';
+    case 'semOferta': return 'porque não havia oferta disponível para essas origens.';
+    case 'semCotacao': return 'porque não havia cotação desta fábrica no Mapa.';
+    case 'terceiro': return 'porque havia terceiro pagando mais por essas cargas.';
+    case 'propria': return 'porque a oferta de ' + motivo.quem + ' tinha NET maior nessas origens.';
+    case 'empate': return 'porque o NET era igual ao de ' + motivo.quem + ', que ficou com as cargas.';
+    case 'semDemanda': return 'porque não havia destino disputando essa origem.';
+    default: return null;
+  }
 }
 
 // Agrega as linhas de montarSemana() por fabrica propria, no realizado e no
@@ -1693,6 +1769,7 @@ function opcoes(ds, travas, topN, manter, modo) {
 // nada de leitura de xlsx nem geracao de planilha, que sao coisa de navegador.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    montar, comparacaoTerceiros, ehPropriaFabrica, recalcularTerceirosSemana, agregarSemana
+    montar, comparacaoTerceiros, ehPropriaFabrica, recalcularTerceirosSemana, agregarSemana,
+    motivoModeloZero, textoMotivoZero
   };
 }
