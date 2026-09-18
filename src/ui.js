@@ -73,6 +73,11 @@ function setupImport() {
     // que o modelo mandou zero pra uma fabrica (ver renderResumoSemana()).
     pac.cabecalho.modo = ST.modo;
     pac.cabecalho.necessidades = Object.assign({}, ST.nec);
+    // A trava fiscal (Dentro/Fora de UF) tambem vai junto, pelo mesmo
+    // motivo: sem ela o Consolidado nao tem como saber se uma fabrica
+    // ficou de fora do cenario do modelo por causa da trava ou por outro
+    // motivo (ver motivoModeloZero() em core.js).
+    pac.cabecalho.travas = Object.assign({}, ST.travas);
     // O mesmo pacote do rascunho (Programação, Mapa, estado) vai junto —
     // sem ele, uma semana fechada so poderia ser consultada, nunca reaberta.
     pac.dados = montarPacoteDados();
@@ -535,7 +540,7 @@ function renderResumoSemana() {
     // digitada (modo prioridade) — ver core.js pra a logica completa.
     const necDigitada = Number(ST.nec[p.cliente] || 0);
     const motivoZeroTxt = to === 0
-      ? textoMotivoZero(motivoModeloZero(p.cliente, ST.modo, necDigitada, DS.quotes, RES.otimoAloc))
+      ? textoMotivoZero(motivoModeloZero(p.cliente, ST.modo, necDigitada, DS.quotes, RES.otimoAloc, ST.travas[p.cliente]))
       : null;
     let veredito, frase;
     if (tr === 0 && to === 0) {
@@ -815,12 +820,22 @@ function renderNecessidade() {
     const g = grupo(d.cliente);
     const car = carretas(d.ton);
     const quebr = d.ton > 0.01 && Math.abs(car - Math.round(car)) > 0.01;
+    // tv guarda ou a UF pura (trava "Dentro de UF", so aceita origem da
+    // mesma UF) ou "!"+UF (trava "Fora de UF", so aceita origem de UF
+    // diferente) — string vazia/null e sem trava. As duas sao exclusivas:
+    // marcar uma sempre desmarca a outra (ver wiring mais abaixo).
     const tv = ST.travas[d.cliente];
+    const dentro = tv && tv.charAt(0) !== '!';
+    const fora = tv && tv.charAt(0) === '!';
     h += '<div class="nrow">' + selo(d.cliente, g) +
       '<span class="nm">' + esc(d.cliente) + '</span>' +
       '<span class="cd">' + esc(d.cidade || '') + (d.uf ? ' · ' + d.uf : '') + '</span>' +
+      '<div class="travas">' +
+      '<label class="tv"><input type="checkbox" data-tv-fora="' + esc(d.cliente) + '"' +
+      (fora ? ' checked' : '') + (d.uf ? '' : ' disabled') + '>Fora de ' + (d.uf || '-') + '</label>' +
       '<label class="tv"><input type="checkbox" data-tv="' + esc(d.cliente) + '"' +
-      (tv ? ' checked' : '') + (d.uf ? '' : ' disabled') + '> só recebe de ' + (d.uf || '-') + '</label>' +
+      (dentro ? ' checked' : '') + (d.uf ? '' : ' disabled') + '>Dentro de ' + (d.uf || '-') + '</label>' +
+      '</div>' +
       '<input class="v" type="number" min="0" step="35" value="' + Math.round(d.ton) +
       '" data-nec="' + esc(d.cliente) + '" aria-label="volume de ' + esc(d.cliente) + '">' +
       '<span class="un">t</span>' +
@@ -848,10 +863,27 @@ function renderNecessidade() {
     };
     i.onkeydown = e => { if (e.key === 'Enter') rodar(); };
   });
+  // "Dentro de UF" e "Fora de UF" sao exclusivas: marcar uma desmarca a
+  // outra na hora, sem precisar recarregar a linha inteira (as duas ficam
+  // juntas dentro do mesmo .travas, por isso o closest()).
   $$('[data-tv]').forEach(c => c.onchange = () => {
     const d = NEC.find(x => x.cliente === c.dataset.tv);
     ST.travas[c.dataset.tv] = c.checked ? d.uf : null;
+    if (c.checked) {
+      const fora = c.closest('.travas').querySelector('[data-tv-fora]');
+      if (fora) fora.checked = false;
+    }
     aplicarVerDest();  // o resumo conta as travas ativas
+    marcarSujo();
+  });
+  $$('[data-tv-fora]').forEach(c => c.onchange = () => {
+    const d = NEC.find(x => x.cliente === c.dataset.tvFora);
+    ST.travas[c.dataset.tvFora] = c.checked ? ('!' + d.uf) : null;
+    if (c.checked) {
+      const dentro = c.closest('.travas').querySelector('[data-tv]');
+      if (dentro) dentro.checked = false;
+    }
+    aplicarVerDest();
     marcarSujo();
   });
   $$('[data-tira]').forEach(b => b.onclick = () => {

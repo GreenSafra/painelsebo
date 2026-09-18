@@ -193,8 +193,9 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:6px 9px;
 .nrow .un{font-size:12.5px;color:var(--mute);width:14px}
 .nrow .cr{font-size:12px;color:var(--mute);width:82px;text-align:right}
 .nrow .cr.bad{color:var(--alertd)}
+.nrow .travas{display:flex;gap:8px;flex-wrap:wrap}
 .nrow label.tv{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:5px;
-  width:150px;cursor:pointer}
+  width:104px;cursor:pointer;flex:none}
 .nrow .x{border:0;background:0;color:var(--mute);font-size:15px;line-height:1;padding:2px 4px}
 .nrow .x:hover{color:var(--alertd)}
 .necfoot{display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:12px;
@@ -383,7 +384,8 @@ footer img{height:17px;width:auto;opacity:.75}
   .nrow .nm{grid-area:nome;min-width:0}
   .nrow .x{grid-area:x}
   .nrow .cd{grid-area:cid;flex:none}
-  .nrow label.tv{grid-area:trava;width:auto}
+  .nrow .travas{grid-area:trava}
+  .nrow label.tv{width:auto}
   .nrow input.v{grid-area:vol;width:100%;font-size:16px}
   .nrow .un{grid-area:un}
   .nrow .cr{grid-area:cr;width:auto;text-align:left}
@@ -1357,6 +1359,16 @@ function mcmf(nNodes, edges, s, t) {
   return { flow, cost, E, map };
 }
 
+// Trava fiscal por fabrica propria: tv e null/undefined (sem trava), uma UF
+// pura ("Dentro de UF" — so aceita origem da mesma UF dela) ou "!"+UF
+// ("Fora de UF" — so aceita origem de UF diferente). As duas valem nos dois
+// modos de distribuicao (mercado/prioridade), igual a trava sempre valeu.
+function travaBloqueia(tv, uf) {
+  if (!tv) return false;
+  if (tv.charAt(0) === '!') return uf === tv.slice(1);
+  return uf !== tv;
+}
+
 function resolver(ds, travas, fixos, modo) {
   const { plants, quotes, proprios } = ds;
   fixos = fixos || {};
@@ -1409,8 +1421,7 @@ function resolver(ds, travas, fixos, modo) {
   const arcos = [];
   quotes.forEach(x => {
     if (!x.prop) return;
-    const tv = travas[x.cli];
-    if (tv && x.uf !== tv) return;
+    if (travaBloqueia(travas[x.cli], x.uf)) return;
     const i = idxP.get(x.sigla), j = idxD.get(x.cli);
     if (i == null || j == null) return;
     arcos.push({ ei: edges.length, x: x });
@@ -1721,12 +1732,19 @@ function recalcularTerceirosSemana(dadosPacote, linhas) {
 // pra semana ja fechada); "alocOtimo" e a alocacao real do cenario otimo,
 // normalizada como {sigla, cli, net, ton, prop} por item (RES.otimoAloc ao
 // vivo, ou as linhas de alocacoes cenario='otimo' de uma semana fechada).
-function motivoModeloZero(cliente, modo, necDigitada, quotes, alocOtimo) {
+// "trava" e ST.travas[cliente] (null, UF, ou "!"+UF — ver travaBloqueia())
+// — quando ela tem cotacao mas a trava exclui TODAS as origens que cotou,
+// o motivo e a trava, nao um NET perdido (ela nunca chegou a disputar).
+function motivoModeloZero(cliente, modo, necDigitada, quotes, alocOtimo, trava) {
+  const todas = (quotes || []).filter(q => q.cli === cliente);
+  if (trava && todas.length && todas.every(q => travaBloqueia(trava, q.uf))) {
+    return { tipo: 'travaFiscal', dentro: trava.charAt(0) !== '!' };
+  }
   if (modo !== 'mercado') {
     if (!(Number(necDigitada) > 0)) return { tipo: 'semNecessidade' };
     return { tipo: 'semOferta' };
   }
-  const minhas = (quotes || []).filter(q => q.cli === cliente);
+  const minhas = todas.filter(q => !trava || !travaBloqueia(trava, q.uf));
   if (!minhas.length) return { tipo: 'semCotacao' };
 
   const porSigla = {};
@@ -1771,6 +1789,8 @@ function textoMotivoZero(motivo) {
     case 'propria': return 'porque a oferta de ' + motivo.quem + ' tinha NET maior nessas origens.';
     case 'empate': return 'porque o NET era igual ao de ' + motivo.quem + ', que ficou com as cargas.';
     case 'semDemanda': return 'porque não havia destino disputando essa origem.';
+    case 'travaFiscal': return 'porque a trava ' + (motivo.dentro ? 'Dentro de UF' : 'Fora de UF') +
+      ' excluiu as origens que ela cotou.';
     default: return null;
   }
 }
@@ -2486,8 +2506,7 @@ function opcoes(ds, travas, topN, manter, modo) {
   const por = {};
   ds.quotes.forEach(x => {
     if (x.prop) {
-      const tv = travas[x.cli];
-      if (tv && x.uf !== tv) return;
+      if (travaBloqueia(travas[x.cli], x.uf)) return;
       const d = ds.proprios.get(x.cli);
       if (!d) return;
       if (!LIVRE && !(d.ton > 0)) return;
@@ -2617,6 +2636,11 @@ function setupImport() {
     // que o modelo mandou zero pra uma fabrica (ver renderResumoSemana()).
     pac.cabecalho.modo = ST.modo;
     pac.cabecalho.necessidades = Object.assign({}, ST.nec);
+    // A trava fiscal (Dentro/Fora de UF) tambem vai junto, pelo mesmo
+    // motivo: sem ela o Consolidado nao tem como saber se uma fabrica
+    // ficou de fora do cenario do modelo por causa da trava ou por outro
+    // motivo (ver motivoModeloZero() em core.js).
+    pac.cabecalho.travas = Object.assign({}, ST.travas);
     // O mesmo pacote do rascunho (Programação, Mapa, estado) vai junto —
     // sem ele, uma semana fechada so poderia ser consultada, nunca reaberta.
     pac.dados = montarPacoteDados();
@@ -3079,7 +3103,7 @@ function renderResumoSemana() {
     // digitada (modo prioridade) — ver core.js pra a logica completa.
     const necDigitada = Number(ST.nec[p.cliente] || 0);
     const motivoZeroTxt = to === 0
-      ? textoMotivoZero(motivoModeloZero(p.cliente, ST.modo, necDigitada, DS.quotes, RES.otimoAloc))
+      ? textoMotivoZero(motivoModeloZero(p.cliente, ST.modo, necDigitada, DS.quotes, RES.otimoAloc, ST.travas[p.cliente]))
       : null;
     let veredito, frase;
     if (tr === 0 && to === 0) {
@@ -3359,12 +3383,22 @@ function renderNecessidade() {
     const g = grupo(d.cliente);
     const car = carretas(d.ton);
     const quebr = d.ton > 0.01 && Math.abs(car - Math.round(car)) > 0.01;
+    // tv guarda ou a UF pura (trava "Dentro de UF", so aceita origem da
+    // mesma UF) ou "!"+UF (trava "Fora de UF", so aceita origem de UF
+    // diferente) — string vazia/null e sem trava. As duas sao exclusivas:
+    // marcar uma sempre desmarca a outra (ver wiring mais abaixo).
     const tv = ST.travas[d.cliente];
+    const dentro = tv && tv.charAt(0) !== '!';
+    const fora = tv && tv.charAt(0) === '!';
     h += '<div class="nrow">' + selo(d.cliente, g) +
       '<span class="nm">' + esc(d.cliente) + '</span>' +
       '<span class="cd">' + esc(d.cidade || '') + (d.uf ? ' · ' + d.uf : '') + '</span>' +
+      '<div class="travas">' +
+      '<label class="tv"><input type="checkbox" data-tv-fora="' + esc(d.cliente) + '"' +
+      (fora ? ' checked' : '') + (d.uf ? '' : ' disabled') + '>Fora de ' + (d.uf || '-') + '</label>' +
       '<label class="tv"><input type="checkbox" data-tv="' + esc(d.cliente) + '"' +
-      (tv ? ' checked' : '') + (d.uf ? '' : ' disabled') + '> só recebe de ' + (d.uf || '-') + '</label>' +
+      (dentro ? ' checked' : '') + (d.uf ? '' : ' disabled') + '>Dentro de ' + (d.uf || '-') + '</label>' +
+      '</div>' +
       '<input class="v" type="number" min="0" step="35" value="' + Math.round(d.ton) +
       '" data-nec="' + esc(d.cliente) + '" aria-label="volume de ' + esc(d.cliente) + '">' +
       '<span class="un">t</span>' +
@@ -3392,10 +3426,27 @@ function renderNecessidade() {
     };
     i.onkeydown = e => { if (e.key === 'Enter') rodar(); };
   });
+  // "Dentro de UF" e "Fora de UF" sao exclusivas: marcar uma desmarca a
+  // outra na hora, sem precisar recarregar a linha inteira (as duas ficam
+  // juntas dentro do mesmo .travas, por isso o closest()).
   $$('[data-tv]').forEach(c => c.onchange = () => {
     const d = NEC.find(x => x.cliente === c.dataset.tv);
     ST.travas[c.dataset.tv] = c.checked ? d.uf : null;
+    if (c.checked) {
+      const fora = c.closest('.travas').querySelector('[data-tv-fora]');
+      if (fora) fora.checked = false;
+    }
     aplicarVerDest();  // o resumo conta as travas ativas
+    marcarSujo();
+  });
+  $$('[data-tv-fora]').forEach(c => c.onchange = () => {
+    const d = NEC.find(x => x.cliente === c.dataset.tvFora);
+    ST.travas[c.dataset.tvFora] = c.checked ? ('!' + d.uf) : null;
+    if (c.checked) {
+      const dentro = c.closest('.travas').querySelector('[data-tv]');
+      if (dentro) dentro.checked = false;
+    }
+    aplicarVerDest();
     marcarSujo();
   });
   $$('[data-tira]').forEach(b => b.onclick = () => {

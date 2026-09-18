@@ -199,6 +199,13 @@ async function iniciar() {
   // sem o motivo, pra essas.
   await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS modo TEXT`);
   await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS necessidades JSONB`);
+  // Trava fiscal (Dentro/Fora de UF) por fabrica propria naquele fechamento
+  // ({cliente: null|UF|"!"+UF} — ver travaBloqueia() em src/core.js). Junto
+  // com modo/necessidades acima, completa o que o Consolidado precisa pra
+  // explicar por que o modelo mandou zero pra uma fabrica: uma trava que
+  // excluiu todas as origens que ela cotou e um motivo bem diferente de
+  // "sem necessidade" ou "sem oferta".
+  await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS travas JSONB`);
 
   // Rascunho da semana em andamento: uma linha por ano+semana, salvar
   // sobrescreve — nao versionado como semanas/alocacoes, porque isto e
@@ -537,11 +544,13 @@ async function fecharSemana(cab, linhas, usuarioId, dados) {
     const modo = (cab.modo === 'mercado' || cab.modo === 'prioridade') ? cab.modo : null;
     const necessidades = (cab.necessidades && typeof cab.necessidades === 'object')
       ? JSON.stringify(cab.necessidades) : null;
+    const travas = (cab.travas && typeof cab.travas === 'object')
+      ? JSON.stringify(cab.travas) : null;
     const s = await c.query(
-      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id, dados, preenchida, modo, necessidades)
-       VALUES ($1,$2,$3,$4,true,$5,$6,$7,$8,$9,$10) RETURNING id, versao`,
+      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id, dados, preenchida, modo, necessidades, travas)
+       VALUES ($1,$2,$3,$4,true,$5,$6,$7,$8,$9,$10,$11) RETURNING id, versao`,
       [ano, semana, cab.periodo || null, v.rows[0].v, cab.mapaData || null, usuarioId || null,
-       dados ? JSON.stringify(dados) : null, preenchida, modo, necessidades]
+       dados ? JSON.stringify(dados) : null, preenchida, modo, necessidades, travas]
     );
     const id = s.rows[0].id;
 
@@ -666,7 +675,7 @@ async function preencherMotivosZeroOtimo(ano, semana, porPropriaRows) {
   if (!zeradas.length) return;
 
   const s = await pool.query(
-    `SELECT id, dados, modo, necessidades FROM semanas WHERE ano=$1 AND semana=$2 AND atual`,
+    `SELECT id, dados, modo, necessidades, travas FROM semanas WHERE ano=$1 AND semana=$2 AND atual`,
     [ano, semana]
   );
   const linha = s.rows[0];
@@ -679,6 +688,7 @@ async function preencherMotivosZeroOtimo(ano, semana, porPropriaRows) {
 
   const ds = core.montar(prod, [], mapa);
   const necessidades = linha.necessidades || {};
+  const travas = linha.travas || {};
 
   const otimoRaw = await pool.query(
     `SELECT sigla, cliente, net, toneladas, proprio FROM alocacoes
@@ -691,7 +701,7 @@ async function preencherMotivosZeroOtimo(ano, semana, porPropriaRows) {
 
   zeradas.forEach(p => {
     const necDigitada = Number(necessidades[p.cliente] || 0);
-    const motivo = core.motivoModeloZero(p.cliente, linha.modo, necDigitada, ds.quotes, alocOtimo);
+    const motivo = core.motivoModeloZero(p.cliente, linha.modo, necDigitada, ds.quotes, alocOtimo, travas[p.cliente]);
     p.motivo_zero_otimo = core.textoMotivoZero(motivo);
   });
 }

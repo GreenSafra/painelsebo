@@ -193,8 +193,9 @@ select.who{border:1px solid var(--line);border-radius:var(--r);padding:6px 9px;
 .nrow .un{font-size:12.5px;color:var(--mute);width:14px}
 .nrow .cr{font-size:12px;color:var(--mute);width:82px;text-align:right}
 .nrow .cr.bad{color:var(--alertd)}
+.nrow .travas{display:flex;gap:8px;flex-wrap:wrap}
 .nrow label.tv{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:5px;
-  width:150px;cursor:pointer}
+  width:104px;cursor:pointer;flex:none}
 .nrow .x{border:0;background:0;color:var(--mute);font-size:15px;line-height:1;padding:2px 4px}
 .nrow .x:hover{color:var(--alertd)}
 .necfoot{display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:12px;
@@ -383,7 +384,8 @@ footer img{height:17px;width:auto;opacity:.75}
   .nrow .nm{grid-area:nome;min-width:0}
   .nrow .x{grid-area:x}
   .nrow .cd{grid-area:cid;flex:none}
-  .nrow label.tv{grid-area:trava;width:auto}
+  .nrow .travas{grid-area:trava}
+  .nrow label.tv{width:auto}
   .nrow input.v{grid-area:vol;width:100%;font-size:16px}
   .nrow .un{grid-area:un}
   .nrow .cr{grid-area:cr;width:auto;text-align:left}

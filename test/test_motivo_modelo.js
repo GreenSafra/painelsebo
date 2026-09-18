@@ -109,6 +109,55 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
     m.tipo === 'semDemanda', m);
 }
 
+// ---------- trava fiscal (Dentro/Fora de UF) exclui TODAS as origens que
+// a fabrica cotou: o motivo e a trava, nao um NET perdido — ela nunca
+// chegou a disputar essas origens. Vale nos dois modos. ----------
+{
+  // Dentro de MT, mas ela so cotou origens de SP e GO: a trava exclui as duas.
+  const quotes = [{ sigla: 'ANF', cli: 'Flora GO', net: 5000, uf: 'SP' },
+    { sigla: 'BTG', cli: 'Flora GO', net: 5100, uf: 'GO' }];
+  const alocOtimo = [{ sigla: 'ANF', cli: 'Cliente Terceiro', net: 5200, ton: 500, prop: false, uf: 'SP' }];
+  const m = motivoModeloZero('Flora GO', 'mercado', 0, quotes, alocOtimo, 'MT');
+  T('trava "Dentro de MT" exclui as duas origens (SP e GO) que ela cotou: motivo "travaFiscal"',
+    m.tipo === 'travaFiscal' && m.dentro === true, m);
+  T('texto identifica a trava "Dentro de UF" certa',
+    textoMotivoZero(m) === 'porque a trava Dentro de UF excluiu as origens que ela cotou.', textoMotivoZero(m));
+}
+{
+  // Fora de SP, mas ela so cotou origens de SP: a trava exclui a unica que tem.
+  const quotes = [{ sigla: 'LIF', cli: 'Flora GO', net: 5000, uf: 'SP' }];
+  const m = motivoModeloZero('Flora GO', 'mercado', 0, quotes, [], '!SP');
+  T('trava "Fora de SP" exclui a unica origem (SP) que ela cotou: motivo "travaFiscal"',
+    m.tipo === 'travaFiscal' && m.dentro === false, m);
+  T('texto identifica a trava "Fora de UF" certa',
+    textoMotivoZero(m) === 'porque a trava Fora de UF excluiu as origens que ela cotou.', textoMotivoZero(m));
+}
+{
+  // trava vale em modo prioridade tambem (item 5 do pedido).
+  const quotes = [{ sigla: 'ANF', cli: 'Flora GO', net: 5000, uf: 'SP' }];
+  const m = motivoModeloZero('Flora GO', 'prioridade', 500, quotes, [], 'MT');
+  T('trava tambem vale em modo prioridade (nao so mercado)', m.tipo === 'travaFiscal', m);
+}
+{
+  // trava existe, mas AINDA SOBRA uma origem elegivel: nao e "travaFiscal"
+  // (essa origem ainda disputou de verdade, o motivo vem da disputa nela).
+  const quotes = [
+    { sigla: 'ANF', cli: 'Flora GO', net: 5000, uf: 'SP' },  // fora da trava (MT)
+    { sigla: 'BTG', cli: 'Flora GO', net: 5100, uf: 'MT' }   // dentro da trava (MT)
+  ];
+  const alocOtimo = [{ sigla: 'BTG', cli: 'Cliente Terceiro', net: 5300, ton: 500, prop: false, uf: 'MT' }];
+  const m = motivoModeloZero('Flora GO', 'mercado', 0, quotes, alocOtimo, 'MT');
+  T('trava parcial (uma origem elegivel sobrou): motivo vem da disputa, nao "travaFiscal"',
+    m.tipo === 'terceiro', m);
+}
+{
+  // sem trava nenhuma: comportamento identico a antes (nao regride)
+  const quotes = [{ sigla: 'ANF', cli: 'Flora GO', net: 5000, uf: 'SP' }];
+  const alocOtimo = [{ sigla: 'ANF', cli: 'Cliente Terceiro', net: 5200, ton: 500, prop: false, uf: 'SP' }];
+  const semTrava = motivoModeloZero('Flora GO', 'mercado', 0, quotes, alocOtimo, null);
+  T('sem trava (null): comportamento igual a antes desta funcionalidade', semTrava.tipo === 'terceiro', semTrava);
+}
+
 /* ====================== desempate deterministico (nao arbitrario) ====================== */
 // A mesma disputa (Lins x Flora SP x terceiro, NET igual entre as duas
 // proprias) resolvida com as linhas do Mapa em ORDEM DIFERENTE tem que dar

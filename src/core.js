@@ -626,6 +626,16 @@ function mcmf(nNodes, edges, s, t) {
   return { flow, cost, E, map };
 }
 
+// Trava fiscal por fabrica propria: tv e null/undefined (sem trava), uma UF
+// pura ("Dentro de UF" — so aceita origem da mesma UF dela) ou "!"+UF
+// ("Fora de UF" — so aceita origem de UF diferente). As duas valem nos dois
+// modos de distribuicao (mercado/prioridade), igual a trava sempre valeu.
+function travaBloqueia(tv, uf) {
+  if (!tv) return false;
+  if (tv.charAt(0) === '!') return uf === tv.slice(1);
+  return uf !== tv;
+}
+
 function resolver(ds, travas, fixos, modo) {
   const { plants, quotes, proprios } = ds;
   fixos = fixos || {};
@@ -678,8 +688,7 @@ function resolver(ds, travas, fixos, modo) {
   const arcos = [];
   quotes.forEach(x => {
     if (!x.prop) return;
-    const tv = travas[x.cli];
-    if (tv && x.uf !== tv) return;
+    if (travaBloqueia(travas[x.cli], x.uf)) return;
     const i = idxP.get(x.sigla), j = idxD.get(x.cli);
     if (i == null || j == null) return;
     arcos.push({ ei: edges.length, x: x });
@@ -990,12 +999,19 @@ function recalcularTerceirosSemana(dadosPacote, linhas) {
 // pra semana ja fechada); "alocOtimo" e a alocacao real do cenario otimo,
 // normalizada como {sigla, cli, net, ton, prop} por item (RES.otimoAloc ao
 // vivo, ou as linhas de alocacoes cenario='otimo' de uma semana fechada).
-function motivoModeloZero(cliente, modo, necDigitada, quotes, alocOtimo) {
+// "trava" e ST.travas[cliente] (null, UF, ou "!"+UF — ver travaBloqueia())
+// — quando ela tem cotacao mas a trava exclui TODAS as origens que cotou,
+// o motivo e a trava, nao um NET perdido (ela nunca chegou a disputar).
+function motivoModeloZero(cliente, modo, necDigitada, quotes, alocOtimo, trava) {
+  const todas = (quotes || []).filter(q => q.cli === cliente);
+  if (trava && todas.length && todas.every(q => travaBloqueia(trava, q.uf))) {
+    return { tipo: 'travaFiscal', dentro: trava.charAt(0) !== '!' };
+  }
   if (modo !== 'mercado') {
     if (!(Number(necDigitada) > 0)) return { tipo: 'semNecessidade' };
     return { tipo: 'semOferta' };
   }
-  const minhas = (quotes || []).filter(q => q.cli === cliente);
+  const minhas = todas.filter(q => !trava || !travaBloqueia(trava, q.uf));
   if (!minhas.length) return { tipo: 'semCotacao' };
 
   const porSigla = {};
@@ -1040,6 +1056,8 @@ function textoMotivoZero(motivo) {
     case 'propria': return 'porque a oferta de ' + motivo.quem + ' tinha NET maior nessas origens.';
     case 'empate': return 'porque o NET era igual ao de ' + motivo.quem + ', que ficou com as cargas.';
     case 'semDemanda': return 'porque não havia destino disputando essa origem.';
+    case 'travaFiscal': return 'porque a trava ' + (motivo.dentro ? 'Dentro de UF' : 'Fora de UF') +
+      ' excluiu as origens que ela cotou.';
     default: return null;
   }
 }
@@ -1755,8 +1773,7 @@ function opcoes(ds, travas, topN, manter, modo) {
   const por = {};
   ds.quotes.forEach(x => {
     if (x.prop) {
-      const tv = travas[x.cli];
-      if (tv && x.uf !== tv) return;
+      if (travaBloqueia(travas[x.cli], x.uf)) return;
       const d = ds.proprios.get(x.cli);
       if (!d) return;
       if (!LIVRE && !(d.ton > 0)) return;

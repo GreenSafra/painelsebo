@@ -43,21 +43,28 @@ async function fecharComPoolFalso(cab) {
 }
 
 (async () => {
-  // ---------- modo e necessidades vao pro INSERT, serializados certo ----------
+  // ---------- modo, necessidades e travas vao pro INSERT, serializados certo ----------
   {
     const insert = await fecharComPoolFalso({
       ano: 2026, semana: 38, periodo: '14/09 a 20/09', mapaData: '10/09/2026',
-      modo: 'mercado', necessidades: { 'Flora GO': 0, 'JBS - BioPower Lins': 1015 }
+      modo: 'mercado', necessidades: { 'Flora GO': 0, 'JBS - BioPower Lins': 1015 },
+      travas: { 'JBS - BioPower Lins': 'SP', 'Flora GO': '!GO', 'Flora SP': null }
     });
     T('INSERT INTO semanas foi chamado', !!insert);
     if (insert) {
       T('coluna modo esta na lista de colunas do INSERT', /\bmodo\b/.test(insert.sql), insert.sql);
       T('coluna necessidades esta na lista de colunas do INSERT', /\bnecessidades\b/.test(insert.sql), insert.sql);
+      T('coluna travas esta na lista de colunas do INSERT', /\btravas\b/.test(insert.sql), insert.sql);
       T('modo="mercado" foi pro parametro certo', insert.params.includes('mercado'), insert.params);
-      const necParam = insert.params.find(p => typeof p === 'string' && p.indexOf('Flora GO') >= 0);
+      const necParam = insert.params.find(p => typeof p === 'string' && p.indexOf('Flora GO') >= 0 && p.indexOf('BioPower') >= 0);
       T('necessidades foi serializada como JSON com os clientes certos',
         !!necParam && JSON.parse(necParam)['Flora GO'] === 0 && JSON.parse(necParam)['JBS - BioPower Lins'] === 1015,
         necParam);
+      const travasParam = insert.params.find(p => typeof p === 'string' && p.indexOf('SP') >= 0 && p.indexOf('!GO') >= 0);
+      T('travas foi serializada como JSON, com "Dentro de UF" (SP) e "Fora de UF" ("!GO") certos',
+        !!travasParam && JSON.parse(travasParam)['JBS - BioPower Lins'] === 'SP' &&
+        JSON.parse(travasParam)['Flora GO'] === '!GO' && JSON.parse(travasParam)['Flora SP'] === null,
+        travasParam);
     }
   }
 
@@ -112,7 +119,7 @@ async function fecharComPoolFalso(cab) {
     const poolOriginal = db.pool.query;
     db.pool.query = async (sql, params) => {
       chamadas.push(sql.replace(/\s+/g, ' ').trim());
-      if (/SELECT id, dados, modo, necessidades FROM semanas/.test(sql)) {
+      if (/SELECT id, dados, modo, necessidades, travas FROM semanas/.test(sql)) {
         return { rows: [{ id: 900, dados: dadosPacote, modo: 'mercado', necessidades: {} }] };
       }
       if (/SELECT sigla, cliente, net, toneladas, proprio FROM alocacoes/.test(sql)) {
@@ -146,7 +153,7 @@ async function fecharComPoolFalso(cab) {
   {
     const poolOriginal = db.pool.query;
     db.pool.query = async (sql) => {
-      if (/SELECT id, dados, modo, necessidades FROM semanas/.test(sql)) {
+      if (/SELECT id, dados, modo, necessidades, travas FROM semanas/.test(sql)) {
         return { rows: [{ id: 901, dados: null, modo: 'mercado', necessidades: null }] };
       }
       return { rows: [] };
