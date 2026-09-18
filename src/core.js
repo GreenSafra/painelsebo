@@ -418,12 +418,15 @@ function netDe(r) {
 /* ====================== COTACOES (serie de precos por cliente) ====================== */
 // Extrai as cotacoes de um Mapa ja parseado — so a oferta BRUTA, sem
 // NET: NET embute frete, que varia por origem, e contaminaria a serie
-// de preco com efeito de logistica em vez de so preco pedido. Se prod
-// (a Programacao) for passado, tenta resolver a sigla da unidade; so
-// grava quando bate com exatamente uma planta — ambiguo (ex.: cidades
-// com duas plantas) ou sem prod vira null, nunca um chute. A data da
-// cotacao e a mesma pra todas as linhas do arquivo, tirada do
-// dataSerial (nunca da string ja formatada, que teve bug de fuso).
+// de preco com efeito de logistica em vez de so preco pedido. O ICMS vai
+// junto (nao embute frete, so o regime fiscal) — a Analise de cotacoes usa
+// ele pra separar o ranking por regime, ja que oferta bruta com ICMS e
+// diferido nao sao comparaveis entre si. Se prod (a Programacao) for
+// passado, tenta resolver a sigla da unidade; so grava quando bate com
+// exatamente uma planta — ambiguo (ex.: cidades com duas plantas) ou sem
+// prod vira null, nunca um chute. A data da cotacao e a mesma pra todas as
+// linhas do arquivo, tirada do dataSerial (nunca da string ja formatada,
+// que teve bug de fuso).
 function extrairCotacoes(mapa, prod) {
   const resolve = (prod && prod.plants && prod.plants.length) ? criarResolvedor(prod.plants) : null;
   const d = (mapa && mapa.dataSerial != null) ? serialToDate(mapa.dataSerial) : null;
@@ -436,7 +439,7 @@ function extrairCotacoes(mapa, prod) {
       const hit = resolve(r.un);
       if (hit.length === 1) sigla = hit[0];
     }
-    out.push({ cliente: r.cli, origem: r.un, sigla, oferta: r.of, dataCotacao });
+    out.push({ cliente: r.cli, origem: r.un, sigla, oferta: r.of, dataCotacao, icms: r.icms });
   });
   return out;
 }

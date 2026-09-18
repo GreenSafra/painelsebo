@@ -236,6 +236,13 @@ async function iniciar() {
   await pool.query(`CREATE INDEX IF NOT EXISTS ix_cotacoes_semana ON cotacoes(ano, semana)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS ix_cotacoes_cliente ON cotacoes(cliente)`);
 
+  // Regime de ICMS da linha (fracao: 0.12 = 12%, 0 = diferido) — a Analise
+  // de cotacoes separa o ranking por regime porque a oferta bruta nao e
+  // comparavel entre eles. Cotacao gravada antes desta coluna existir fica
+  // com icms NULL; a tela trata NULL como diferido (mesma convencao do
+  // resto do codigo: coluna ICMS ausente no Mapa tambem vira 0).
+  await pool.query(`ALTER TABLE cotacoes ADD COLUMN IF NOT EXISTS icms NUMERIC(8,5)`);
+
   // Promove o master caso ele ja tenha se cadastrado.
   await pool.query(
     `UPDATE usuarios SET papel='master', situacao='ativo' WHERE lower(email)=$1`,
@@ -919,14 +926,15 @@ async function gravarCotacoes(execQuery, ano, semana, cotacoes) {
   for (const q of (cotacoes || [])) {
     if (!q || !q.cliente || !q.origem || !(q.oferta > 0)) continue;
     const sigla = q.sigla || siglaPorOrigem(q.origem);
+    const icms = Number.isFinite(q.icms) ? q.icms : null;
     // COALESCE: reimportar um Mapa sem sigla nao apaga uma sigla ja
     // preenchida (inclusive as revisadas manualmente).
     await execQuery.query(
-      `INSERT INTO cotacoes (ano, semana, cliente, origem, sigla, oferta, data_cotacao)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO cotacoes (ano, semana, cliente, origem, sigla, oferta, data_cotacao, icms)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (cliente, origem, ano, semana) DO UPDATE
-         SET sigla=COALESCE($5, cotacoes.sigla), oferta=$6, data_cotacao=$7`,
-      [ano, semana, q.cliente, q.origem, sigla, q.oferta, q.dataCotacao || null]
+         SET sigla=COALESCE($5, cotacoes.sigla), oferta=$6, data_cotacao=$7, icms=$8`,
+      [ano, semana, q.cliente, q.origem, sigla, q.oferta, q.dataCotacao || null, icms]
     );
   }
 }
@@ -960,16 +968,15 @@ async function apagarCotacoes(ano, semana) {
 
 // Linhas cruas de uma semana (uma por cliente+origem). oferta e BRUTA, sem
 // NET — NET = oferta * (1-icms) * (1-pis) - frete cliente, mesma conta de
-// src/core.js:netDe(). Essas parcelas variam por origem e por modal
-// (CIF/FOB) e hoje so existem no Mapa no momento do upload — mapas.html
-// descarta tudo isso de proposito em extrairCotacoes(), e a tabela
-// cotacoes nao guarda nenhuma delas. Pra ligar aqui, precisaria gravar
-// frete/icms/pis/modal por linha (novas colunas) e repetir essa conta no
-// servidor ou nesta tela. Ate isso existir, o ranking usa a oferta bruta.
+// src/core.js:netDe(). Frete/pis/modal nao sao gravados (variam por origem
+// e so existem no Mapa no momento do upload); icms e gravado desde que a
+// Analise de cotacoes passou a separar o ranking por regime fiscal — sem
+// ele, oferta bruta de regimes diferentes (com ICMS x diferido) nao e
+// comparavel. Ate ter as outras parcelas tambem, o ranking usa oferta bruta.
 async function cotacoesDaSemana(ano, semana) {
   if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
   const r = await pool.query(
-    `SELECT cliente, origem, oferta FROM cotacoes WHERE ano=$1 AND semana=$2 ORDER BY cliente`,
+    `SELECT cliente, origem, oferta, icms FROM cotacoes WHERE ano=$1 AND semana=$2 ORDER BY cliente`,
     [ano, semana]
   );
   return r.rows;
@@ -989,7 +996,7 @@ async function cotacoesDeSemanas(pares) {
   const params = [];
   validos.forEach(p => params.push(p.ano, p.semana));
   const r = await pool.query(
-    `SELECT ano, semana, cliente, origem, oferta FROM cotacoes
+    `SELECT ano, semana, cliente, origem, oferta, icms FROM cotacoes
       WHERE (ano, semana) IN (${cond})
       ORDER BY ano, semana, cliente`,
     params

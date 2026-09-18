@@ -136,9 +136,23 @@ function achaIndice(w) {
   return SEMANAS.findIndex(s => s.ano === w.ano && s.semana === w.semana);
 }
 
-// Melhor oferta (maior valor) por cliente, entre todas as origens da
-// semana — a mesma cotacao pode ter varias linhas (uma por origem/unidade).
-function melhorPorCliente(linhas) {
+// Regime fiscal da linha, a partir do ICMS (fracao: 0.12 = 12%). ICMS zero
+// (ou ausente, cotacao gravada antes desta coluna existir) e "diferido";
+// qualquer aliquota positiva vira "com ICMS N%", usando o proprio valor no
+// rotulo em vez de travar em 12% (pode aparecer outra aliquota).
+function regimeDe(icms) {
+  const v = Number(icms) || 0;
+  if (v <= 0) return { chave: 'diferido', rotulo: 'diferido' };
+  const pct = Math.round(v * 100);
+  return { chave: 'icms' + pct, rotulo: 'com ICMS ' + pct + '%' };
+}
+
+// Melhor oferta (maior valor) por cliente E REGIME de ICMS, entre todas as
+// origens da semana — a mesma cotacao pode ter varias linhas (uma por
+// origem/unidade). Oferta bruta nao e comparavel entre regimes diferentes
+// (o ICMS muda o preco liquido), entao cada regime disputa "melhor oferta"
+// separado, nunca junto com outro regime do mesmo cliente.
+function melhorPorClienteRegime(linhas) {
   const m = new Map();
   linhas.forEach(l => {
     const of = Number(l.oferta);
@@ -146,8 +160,12 @@ function melhorPorCliente(linhas) {
     // Ignora variacao de grafia: cliente e o texto cru da coluna, sem
     // normalizacao — "Rio Branco" escrito diferente em duas linhas conta
     // como dois clientes distintos. Fora do recorte desta versao.
-    const atual = m.get(l.cliente);
-    if (atual == null || of > atual) m.set(l.cliente, of);
+    const reg = regimeDe(l.icms);
+    const chaveLinha = l.cliente + ' ' + reg.chave;
+    const atual = m.get(chaveLinha);
+    if (!atual || of > atual.preco) {
+      m.set(chaveLinha, { cliente: l.cliente, regimeChave: reg.chave, regimeRotulo: reg.rotulo, preco: of });
+    }
   });
   return m;
 }
@@ -197,9 +215,10 @@ function renderRanking(lista) {
   box.innerHTML = '<div class="rank">' + lista.map((x, i) => {
     const v = variacao(x.preco, x.anterior);
     const cols = x.historico.map((_, hi) => colunaHtml(x.historico, hi)).join('');
+    const nome = x.cliente + (x.regimeRotulo ? ' · ' + x.regimeRotulo : '');
     return '<div class="card">' +
       '<div class="pos">' + (i + 1) + 'º</div>' +
-      '<div class="nome">' + esc(x.cliente) + '</div>' +
+      '<div class="nome">' + esc(nome) + '</div>' +
       '<div class="semanas">' + cols + '</div>' +
       '<div class="var ' + v.classe + '">' + esc(v.texto) + '</div>' +
       '</div>';
@@ -242,25 +261,41 @@ async function carregarSemana(w) {
   const linhas = await buscarVarias(alvo);
   const porSemana = agruparPorSemana(linhas);
   // mesmo criterio de sempre por semana: a melhor oferta (maior valor) por
-  // cliente, entre as origens daquela semana.
-  const mapas = alvo.map(s => melhorPorCliente(porSemana.get(chave(s)) || []));
+  // cliente E REGIME, entre as origens daquela semana.
+  const mapas = alvo.map(s => melhorPorClienteRegime(porSemana.get(chave(s)) || []));
   const mAtual = mapas[mapas.length - 1];
   const mAnterior = mapas.length > 1 ? mapas[mapas.length - 2] : new Map();
 
+  // rotulo do regime so aparece quando o cliente tem mais de um regime
+  // nesta semana — cliente com um regime so continua com uma linha, sem
+  // sufixo (mesmo texto de antes).
+  const regimesPorCliente = new Map();
+  mAtual.forEach(v => regimesPorCliente.set(v.cliente, (regimesPorCliente.get(v.cliente) || 0) + 1));
+
   const lista = [...mAtual.entries()]
-    .map(([cliente, preco]) => ({
-      cliente, preco,
-      anterior: mAnterior.has(cliente) ? mAnterior.get(cliente) : null,
-      historico: alvo.map((s, i) => ({
-        rotulo: 'S' + s.semana,
-        preco: mapas[i].has(cliente) ? mapas[i].get(cliente) : null,
-        atual: i === alvo.length - 1
-      }))
-    }))
+    .map(([chaveLinha, info]) => {
+      const anteriorInfo = mAnterior.get(chaveLinha);
+      return {
+        cliente: info.cliente,
+        regimeRotulo: regimesPorCliente.get(info.cliente) > 1 ? info.regimeRotulo : null,
+        preco: info.preco,
+        anterior: anteriorInfo ? anteriorInfo.preco : null,
+        // mesma chave (cliente+regime) em cada semana do historico — se o
+        // cliente nao ofertou NESTE regime naquela semana (ofertou noutro,
+        // ou nao ofertou nada), a coluna fica sem preco ("-", sem variacao).
+        historico: alvo.map((s, i) => {
+          const h = mapas[i].get(chaveLinha);
+          return { rotulo: 'S' + s.semana, preco: h ? h.preco : null, atual: i === alvo.length - 1 };
+        })
+      };
+    })
     .sort((a, b) => b.preco - a.preco);
 
-  $('#sub').textContent = 'Semana ' + w.semana + '/' + w.ano + ' · ' +
-    lista.length + (lista.length === 1 ? ' cliente cotou' : ' clientes cotaram') +
+  const nClientes = regimesPorCliente.size;
+  const nLinhas = lista.length;
+  const txtClientes = nClientes + (nClientes === 1 ? ' cliente cotou' : ' clientes cotaram');
+  const txtLinhas = nLinhas !== nClientes ? (' em ' + nLinhas + (nLinhas === 1 ? ' linha' : ' linhas')) : '';
+  $('#sub').textContent = 'Semana ' + w.semana + '/' + w.ano + ' · ' + txtClientes + txtLinhas +
     (anterior ? ' · comparado com a semana ' + anterior.semana + '/' + anterior.ano : '');
   renderRanking(lista);
 }
