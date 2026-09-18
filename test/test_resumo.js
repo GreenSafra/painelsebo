@@ -192,13 +192,14 @@ const parseRs = txt => {
   T('resumo na tela mudou junto (nao ficou preso ao render anterior)',
     box().innerHTML.trim() !== '');
 
-  // --- 5b. selo "modelo sem comparação" na tela ao vivo: Flora GO nunca tem
-  // necessidade digitada nesta bateria (fica de fora da disputa do modelo,
-  // de proposito — comentario da bateria 3 acima), entao uma troca manual
-  // que force volume pra ela no realizado cria exatamente o caso real
-  // investigado: recebeu na mao, mas o modelo (livre de necessidade) nunca
-  // mandaria nada pra ca — o selo tem que virar "modelo sem comparação",
-  // nunca um valor calculado contra zero. ---
+  // --- 5b. selo com motivo (nao mais o generico "modelo sem comparação") na
+  // tela ao vivo: Flora GO nunca tem necessidade digitada nesta bateria
+  // (fica de fora da disputa do modelo, de proposito — comentario da
+  // bateria 3 acima), entao uma troca manual que force volume pra ela no
+  // realizado cria exatamente o caso real investigado: recebeu na mao, mas
+  // o modelo nunca mandaria nada pra ca — o selo tem que explicar o motivo
+  // ("o modelo não indicou esta fábrica"), nunca um valor calculado contra
+  // zero, e a frase tem que dizer o PORQUE certo pro modo em uso. ---
   {
     const quoteFloraGO = w.DS.quotes.find(q => q.cli === 'Flora GO' && !w.RES.otimoAloc.some(a => a.sigla === q.sigla && a.cli === 'Flora GO'));
     T('ha cotacao da Flora GO no Mapa, numa sigla que o modelo nao escolheu pra ela', !!quoteFloraGO,
@@ -211,10 +212,25 @@ const parseRs = txt => {
         .find(f => f.querySelector('.rs-nome').textContent.indexOf('Flora GO') >= 0);
       T('card da Flora GO aparece no resumo ao vivo (recebeu volume na mao)', !!cardFG);
       const selo = cardFG && cardFG.querySelector('.rs-veredito');
-      T('selo mostra "modelo sem comparação", nao um valor contra zero',
-        !!selo && selo.textContent.trim() === 'modelo sem comparação', selo && selo.textContent);
+      T('selo explica o motivo ("o modelo não indicou esta fábrica"), nao um generico "sem comparação"',
+        !!selo && selo.textContent.trim() === 'o modelo não indicou esta fábrica', selo && selo.textContent);
       T('nao aparece texto antigo comparando com zero ("acima do modelo"/"custou")',
         !!selo && !/acima do modelo|custou/.test(selo.textContent), selo && selo.textContent);
+      const fraseFG = cardFG && cardFG.querySelector('.rs-frase').textContent;
+      T('modo prioridade (padrao) e necessidade nunca digitada: frase explica que faltou necessidade, nao fala de terceiro',
+        !!fraseFG && fraseFG.indexOf('porque não foi digitada necessidade para esta fábrica') >= 0, fraseFG);
+
+      // mesma troca manual, agora em modo mercado: a frase muda pro motivo
+      // de preco (a propria disputa NET igual a terceiro nesse modo).
+      w.ST.modo = 'mercado';
+      w.recalcular();
+      await new Promise(r => setTimeout(r, 60));
+      const cardFG2 = [...box().querySelectorAll('.rs-fab')]
+        .find(f => f.querySelector('.rs-nome').textContent.indexOf('Flora GO') >= 0);
+      const fraseFG2 = cardFG2 && cardFG2.querySelector('.rs-frase').textContent;
+      T('modo mercado: frase explica que havia terceiro pagando mais, nao fala de necessidade',
+        !!fraseFG2 && fraseFG2.indexOf('porque havia terceiro pagando mais por essas cargas') >= 0, fraseFG2);
+      w.ST.modo = 'prioridade';
     }
   }
 

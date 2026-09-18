@@ -337,6 +337,22 @@ function render(d) {
   // mandou carga pra aquela fabrica).
   const semPacotePeriodo = semanas.some(s => s.tem_pacote === false);
 
+  // Modo (prioridade/mercado) usado no fechamento so existe a partir desta
+  // migracao — semana fechada antes fica com modo NULL. So da pra explicar
+  // o "porque o modelo mandou zero" quando TODAS as semanas do periodo tem
+  // modo conhecido E o mesmo modo (misturar prioridade com mercado, ou mes
+  // com semana sem essa info, tornaria a explicacao mentirosa pra parte do
+  // periodo) — senao a frase de volume fica sem motivo, so o fato.
+  const modosConhecidos = semanas.every(s => s.modo === 'prioridade' || s.modo === 'mercado');
+  const modosDistintos = new Set(semanas.map(s => s.modo));
+  const modoPeriodo = (modosConhecidos && modosDistintos.size === 1) ? semanas[0].modo : null;
+  // Em modo prioridade, zero pode ser "ninguem digitou necessidade" ou
+  // "digitou, mas nao havia oferta suficiente daquela origem" — sao coisas
+  // diferentes. Se o cliente teve necessidade digitada em QUALQUER semana
+  // do periodo, a explicacao mais especifica (falta de oferta) e a que
+  // melhor descreve o periodo como um todo.
+  const necessidadeDigitada = cliente => semanas.some(s => Number((s.necessidades || {})[cliente] || 0) > 0);
+
   props.forEach(p => {
     const tr = Number(p.ton_realizado || 0), to = Number(p.ton_otimo || 0);
     const sr = num(p.saving_realizado), so = num(p.saving_otimo);
@@ -357,7 +373,20 @@ function render(d) {
       if (tr === 0) {
         frase = 'Não recebeu nada. O modelo mandaria <b>' + ton(to) + '</b> para cá.';
       } else if (to === 0) {
-        frase = 'Recebeu <b>' + ton(tr) + '</b>, mas o modelo não mandaria nada para cá.';
+        // O motivo so aparece quando o periodo inteiro tem modo conhecido e
+        // consistente (ver modoPeriodo acima) — semana fechada antes desta
+        // informacao existir, ou mes com modos misturados, fica so com o
+        // fato, sem arriscar um motivo que pode nao valer pra parte dele.
+        let motivoZero = null;
+        if (modoPeriodo === 'mercado') {
+          motivoZero = 'porque havia terceiro pagando mais por essas cargas.';
+        } else if (modoPeriodo === 'prioridade') {
+          motivoZero = necessidadeDigitada(p.cliente)
+            ? 'porque não havia oferta disponível para essas origens.'
+            : 'porque não foi digitada necessidade para esta fábrica.';
+        }
+        frase = 'Recebeu <b>' + ton(tr) + '</b>, mas o modelo não mandaria nada para cá' +
+          (motivoZero ? ' ' + motivoZero : '.');
       } else {
         const d = to - tr;
         frase = 'Recebeu <b>' + ton(tr) + '</b>; o modelo mandaria <b>' + ton(to) + '</b>' +
@@ -366,14 +395,15 @@ function render(d) {
                      : ', <b>' + ton(-d) + '</b> a menos do que recebeu.'));
       }
       if (!temComparacao) {
-        veredito = '<span style="color:var(--mute)">modelo sem comparação</span>';
-        // "modelo nao mandou carga" (to === 0) ja fica claro so com a frase
-        // de volume. So tenta explicar o motivo quando os DOIS lados tem
-        // volume de verdade (tr>0 e to>0) mas nenhum tem media — e o caso
-        // em que "sem planilhas guardadas" realmente se aplica aos dois ao
-        // mesmo tempo; nos demais (um lado tem comparacao e o outro nao) o
-        // motivo e mais especifico do que da pra resumir numa frase so,
-        // entao fica so a frase de volume, que ja e honesta.
+        // O selo diz o motivo em vez de um generico "sem comparacao": o
+        // modelo nao indicou (to===0), a fabrica nao recebeu nada (tr===0),
+        // ou (com os dois lados com volume) faltou dado pra comparar —
+        // semana sem planilhas guardadas, ou planilhas guardadas mas
+        // nenhuma oferta de terceiro pra aquela origem.
+        const motivo = to === 0 ? 'o modelo não indicou esta fábrica'
+          : tr === 0 ? 'esta fábrica não recebeu carga'
+          : (semPacotePeriodo ? 'sem planilhas para comparar' : 'sem oferta de terceiro para comparar');
+        veredito = '<span style="color:var(--mute)">' + motivo + '</span>';
         if (to !== 0 && tr !== 0) {
           frase += ' ' + (semPacotePeriodo
             ? 'Semana sem planilhas guardadas: não dá para calcular a comparação com o mercado.'
@@ -381,7 +411,7 @@ function render(d) {
         }
       } else {
         veredito = Math.abs(dif) < 1 ? '<span class="pos">no ponto</span>'
-          : (dif > 0 ? '<span class="neg">' + rs(dif) + ' deixados na mesa</span>'
+          : (dif > 0 ? '<span class="neg">' + rs(dif) + ' abaixo do modelo</span>'
                      : '<span class="pos">+' + rs(-dif) + ' acima do modelo</span>');
       }
     }
@@ -428,10 +458,13 @@ function render(d) {
     h += '<h2>' + (d.modo === 'semana' ? 'Semana selecionada' : 'Semanas fechadas neste mês') + '</h2>';
     h += '<p class="nota">Excluir apaga a semana inteira do banco: todas as versões,' +
       ' não só a mais recente. Não pode ser desfeito.</p>';
-    h += '<table><thead><tr><th>Semana</th><th>Período</th><th>Versão</th>' +
+    h += '<table><thead><tr><th>Semana</th><th>Período</th><th>Modo</th><th>Versão</th>' +
       '<th>Linhas</th><th>Fechada por</th><th>Quando</th><th></th></tr></thead><tbody>';
     semanas.forEach(s => {
+      const modoTxt = s.modo === 'mercado' ? 'Mercado livre'
+        : s.modo === 'prioridade' ? 'Prioridade de volume' : '-';
       h += '<tr><td>' + s.semana + '/' + s.ano + '</td><td>' + esc(s.periodo || '-') + '</td>' +
+        '<td>' + modoTxt + '</td>' +
         '<td>v' + s.versao + '</td><td>' + nf.format(s.linhas) + '</td>' +
         '<td>' + esc(s.fechada_por || '-') + '</td><td>' + fmtDataHora(s.fechada_em) + '</td>' +
         '<td><button class="abrir" data-ano="' + s.ano + '" data-semana="' + s.semana +

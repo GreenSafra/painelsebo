@@ -186,6 +186,20 @@ async function iniciar() {
   // preenchida sem precisar abrir o pacote inteiro.
   await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS preenchida BOOLEAN NOT NULL DEFAULT false`);
 
+  // Sob qual premissa o cenario "otimo" foi calculado no fechamento: 'mercado'
+  // (planta propria disputa como terceiro, sem prioridade) ou 'prioridade'
+  // (atende a necessidade digitada primeiro). necessidades e a necessidade
+  // digitada por fabrica propria naquele fechamento ({cliente: toneladas}).
+  // As duas juntas permitem ao Consolidado explicar POR QUE o modelo mandou
+  // zero pra uma fabrica (sem elas so dava pra mostrar o fato, nao o motivo:
+  // "sem necessidade digitada" e "sem oferta disponivel" sao coisas bem
+  // diferentes, so essa distincao entre modo/necessidade separa os dois).
+  // Semana fechada antes destas colunas existirem fica com ambas NULL —
+  // nao ha como reconstruir depois, entao o Consolidado mostra so o fato,
+  // sem o motivo, pra essas.
+  await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS modo TEXT`);
+  await pool.query(`ALTER TABLE semanas ADD COLUMN IF NOT EXISTS necessidades JSONB`);
+
   // Rascunho da semana em andamento: uma linha por ano+semana, salvar
   // sobrescreve — nao versionado como semanas/alocacoes, porque isto e
   // trabalho em progresso; so a versao fechada entra no historico. Guarda o
@@ -520,11 +534,14 @@ async function fecharSemana(cab, linhas, usuarioId, dados) {
       [ano, semana]
     );
     const preenchida = !!(dados && dados.prod && dados.prod.destinosPreenchidos);
+    const modo = (cab.modo === 'mercado' || cab.modo === 'prioridade') ? cab.modo : null;
+    const necessidades = (cab.necessidades && typeof cab.necessidades === 'object')
+      ? JSON.stringify(cab.necessidades) : null;
     const s = await c.query(
-      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id, dados, preenchida)
-       VALUES ($1,$2,$3,$4,true,$5,$6,$7,$8) RETURNING id, versao`,
+      `INSERT INTO semanas (ano, semana, periodo, versao, atual, mapa_data, usuario_id, dados, preenchida, modo, necessidades)
+       VALUES ($1,$2,$3,$4,true,$5,$6,$7,$8,$9,$10) RETURNING id, versao`,
       [ano, semana, cab.periodo || null, v.rows[0].v, cab.mapaData || null, usuarioId || null,
-       dados ? JSON.stringify(dados) : null, preenchida]
+       dados ? JSON.stringify(dados) : null, preenchida, modo, necessidades]
     );
     const id = s.rows[0].id;
 
@@ -734,7 +751,7 @@ async function consolidado(criterio) {
   // fora da comparacao de ganho (ver migrarNetTerMedio()).
   const semanasFechadas = await pool.query(
     `SELECT s.ano, s.semana, s.periodo, s.versao, s.fechada_em, u.nome AS fechada_por,
-            (s.dados IS NOT NULL) AS tem_pacote,
+            (s.dados IS NOT NULL) AS tem_pacote, s.modo, s.necessidades,
             count(a.id)::int AS linhas, coalesce(sum(a.toneladas),0) AS toneladas
        FROM semanas s
        LEFT JOIN usuarios u ON u.id = s.usuario_id

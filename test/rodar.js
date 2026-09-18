@@ -12,7 +12,7 @@ const BATERIAS = [
   'test_analise.js', 'test_terceiros_semana38.js', 'test_migracao_terceiros.js',
   'test_consolidado_otimo.js', 'test_selo_comparacao.js', 'test_semana_home.js',
   'test_descreve_conexao.js', 'test_cabecalho_mobile.js', 'test_analise_mobile.js',
-  'test_analise_regime.js'
+  'test_analise_regime.js', 'test_modo_necessidades.js'
 ];
 
 let falhou = [];

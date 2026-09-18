@@ -2471,6 +2471,11 @@ function setupImport() {
       msg.textContent = 'Nenhuma linha com destino para gravar.';
       return;
     }
+    // Modo (prioridade/mercado) e a necessidade digitada por fabrica propria
+    // vao junto — sem eles, uma semana fechada nunca poderia explicar por
+    // que o modelo mandou zero pra uma fabrica (ver renderResumoSemana()).
+    pac.cabecalho.modo = ST.modo;
+    pac.cabecalho.necessidades = Object.assign({}, ST.nec);
     // O mesmo pacote do rascunho (Programação, Mapa, estado) vai junto —
     // sem ele, uma semana fechada so poderia ser consultada, nunca reaberta.
     pac.dados = montarPacoteDados();
@@ -2928,7 +2933,19 @@ function renderResumoSemana() {
       if (tr === 0) {
         frase = 'Não recebeu nada. O modelo mandaria <b>' + tn(to) + '</b> para cá.';
       } else if (to === 0) {
-        frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá.';
+        // O motivo depende do modo de distribuicao: em mercado livre a
+        // propria disputa NET igual a um terceiro, entao zero significa que
+        // alguem pagou mais; em prioridade de volume ela nunca disputa pela
+        // propria necessidade (o modelo so nao manda nada quando ninguem
+        // digitou necessidade pra ela, ou quando nao havia oferta suficiente
+        // daquela origem pra atender o que foi digitado).
+        const necDigitada = Number(ST.nec[p.cliente] || 0) > 0;
+        const motivoZero = ST.modo === 'mercado'
+          ? 'porque havia terceiro pagando mais por essas cargas.'
+          : (necDigitada
+            ? 'porque não havia oferta disponível para essas origens.'
+            : 'porque não foi digitada necessidade para esta fábrica.');
+        frase = 'Recebeu <b>' + tn(tr) + '</b>, mas o modelo não mandaria nada para cá ' + motivoZero;
       } else {
         const d = to - tr;
         frase = 'Recebeu <b>' + tn(tr) + '</b>; o modelo mandaria <b>' + tn(to) + '</b>' +
@@ -2937,17 +2954,20 @@ function renderResumoSemana() {
                      : ', <b>' + tn(-d) + '</b> a menos do que recebeu.'));
       }
       if (!temComparacao) {
-        veredito = '<span class="rs-mute">modelo sem comparação</span>';
-        // "modelo nao mandou carga" ja fica claro so com a frase de volume
-        // (to === 0). A semana em tela sempre tem planilhas (e ao vivo,
-        // nunca "sem pacote"), entao o motivo aqui e sempre falta de
-        // oferta — so quando os DOIS lados tem volume de verdade, senao a
-        // frase de volume ja e honesta sozinha (ver mesma logica em
-        // consolidado.html).
+        // O selo diz o motivo em vez de um generico "sem comparacao": o
+        // modelo nao indicou (to===0), a fabrica nao recebeu nada (tr===0),
+        // ou (com os dois lados com volume) faltou oferta de terceiro pra
+        // comparar. A semana em tela sempre tem planilhas (e ao vivo, nunca
+        // "sem pacote"), entao esse terceiro motivo so aparece aqui, nunca
+        // "sem planilhas para comparar" (exclusivo do Consolidado).
+        const motivo = to === 0 ? 'o modelo não indicou esta fábrica'
+          : tr === 0 ? 'esta fábrica não recebeu carga'
+          : 'sem oferta de terceiro para comparar';
+        veredito = '<span class="rs-mute">' + motivo + '</span>';
         if (to !== 0 && tr !== 0) frase += ' Nenhuma das cargas teve oferta de terceiro para comparar.';
       } else {
         veredito = Math.abs(dif) < 1 ? '<span class="rs-pos">no ponto</span>'
-          : (dif > 0 ? '<span class="rs-neg">' + rs(dif) + ' deixados na mesa</span>'
+          : (dif > 0 ? '<span class="rs-neg">' + rs(dif) + ' abaixo do modelo</span>'
                      : '<span class="rs-pos">+' + rs(-dif) + ' acima do modelo</span>');
       }
     }
