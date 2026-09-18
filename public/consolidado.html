@@ -80,6 +80,7 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 .lin.forte{font-weight:600;border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
 .lin.sec{font-size:11.5px;color:var(--mute)}
 .lin.sec span:first-child{color:var(--mute)}
+.semcomp{font-size:11.5px;color:var(--mute);padding:2px 0}
 .fab.sem{opacity:.62}
 .avisoPacote{background:var(--card);border-left:3px solid var(--sebo);padding:10px 15px;
   font-size:12.5px;color:var(--mute);margin:0 0 14px;line-height:1.5}
@@ -152,8 +153,11 @@ function selo(cli) {
 }
 // terMed/nTer: media entre terceiros da mesma sigla, base da Diferenca.
 // terMelhor: so informativo, fora da conta (o antigo "Melhor terceiro").
-// tonSemComp: volume sem nenhum terceiro pra comparar, mostrado so quando > 0.
-function bloco(cab, t, net, terMed, nTer, terMelhor, tonSemComp, sav) {
+// tonSemComp/origensSemComp: volume (e as origens responsaveis) sem nenhum
+// terceiro pra comparar. Essa tonelada ja entrou no Volume e no NET medio
+// acima (nao foi descontada dali) — so fica fora da Diferenca, que so soma
+// onde houve media de terceiro pra comparar.
+function bloco(cab, t, net, terMed, nTer, terMelhor, tonSemComp, origensSemComp, sav) {
   const f = v => v == null ? '-' : rs(v);
   let o = '<div><div class="cab">' + cab + '</div>';
   o += '<div class="lin"><span>Volume</span><span>' + (t > 0 ? ton(t) : '-') + '</span></div>';
@@ -162,10 +166,12 @@ function bloco(cab, t, net, terMed, nTer, terMelhor, tonSemComp, sav) {
     (terMed != null && nTer > 0
       ? ' · média de ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' oferta' : ' ofertas')
       : '') + '</span></div>';
-  o += '<div class="lin sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
   if (tonSemComp > 0.01) {
-    o += '<div class="lin sec"><span>Sem comparação</span><span>' + ton(tonSemComp) + '</span></div>';
+    o += '<div class="semcomp">' + ton(tonSemComp) + ' sem oferta de terceiro' +
+      (origensSemComp && origensSemComp.length
+        ? ' (origens: ' + origensSemComp.map(esc).join(', ') + ')' : '') + '</div>';
   }
+  o += '<div class="lin sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
   o += '<div class="lin forte"><span>Diferença</span><span class="' +
     (sav == null ? '' : (sav < 0 ? 'neg' : 'pos')) + '">' +
     (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
@@ -422,9 +428,11 @@ function render(d) {
     h += '<div class="frase">' + frase + '</div>';
     h += '<div class="duo">';
     h += bloco('O que foi feito', tr, num(p.net_realizado), num(p.net_ter_realizado),
-      num(p.n_ter_realizado), num(p.net_ter_melhor_realizado), tr - Number(p.ton_comp_realizado || 0), sr);
+      num(p.n_ter_realizado), num(p.net_ter_melhor_realizado), tr - Number(p.ton_comp_realizado || 0),
+      p.origens_sem_comp_realizado, sr);
     h += bloco('O que o modelo mandava', to, num(p.net_otimo), num(p.net_ter_otimo),
-      num(p.n_ter_otimo), num(p.net_ter_melhor_otimo), to - Number(p.ton_comp_otimo || 0), so);
+      num(p.n_ter_otimo), num(p.net_ter_melhor_otimo), to - Number(p.ton_comp_otimo || 0),
+      p.origens_sem_comp_otimo, so);
     h += '</div></div>';
   });
 

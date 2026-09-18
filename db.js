@@ -711,7 +711,13 @@ async function consolidado(criterio) {
                 AS n_ter,
               sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL) AS ton_comp,
               sum((a.net - a.net_ter_med) * a.toneladas)
-                FILTER (WHERE a.net_ter_med IS NOT NULL) AS saving
+                FILTER (WHERE a.net_ter_med IS NOT NULL) AS saving,
+              -- siglas de origem que entraram no volume/NET da propria mas
+              -- ficaram fora da Diferenca por falta de terceiro pra
+              -- comparar naquela origem (ver tela: "X t sem oferta de
+              -- terceiro (origens: ...)").
+              array_agg(DISTINCT a.sigla) FILTER (WHERE a.net_ter_med IS NULL AND a.sigla IS NOT NULL)
+                AS origens_sem_comp
          FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
         WHERE s.atual AND a.proprio AND ${f.sql}
         GROUP BY 1,2
@@ -732,13 +738,15 @@ async function consolidado(criterio) {
             r.n_ter            AS n_ter_realizado,
             r.ton_comp         AS ton_comp_realizado,
             r.saving           AS saving_realizado,
+            r.origens_sem_comp AS origens_sem_comp_realizado,
             coalesce(o.ton,0)  AS ton_otimo,
             o.net_medio        AS net_otimo,
             o.net_ter          AS net_ter_otimo,
             o.net_ter_melhor   AS net_ter_melhor_otimo,
             o.n_ter            AS n_ter_otimo,
             o.ton_comp         AS ton_comp_otimo,
-            o.saving           AS saving_otimo
+            o.saving           AS saving_otimo,
+            o.origens_sem_comp AS origens_sem_comp_otimo
        FROM plantas p
        LEFT JOIN dados r ON r.cliente = p.cliente AND r.cenario = 'realizado'
        LEFT JOIN dados o ON o.cliente = p.cliente AND o.cenario = 'otimo'

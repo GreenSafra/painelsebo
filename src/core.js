@@ -997,7 +997,8 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
     (lista || []).forEach(l => {
       if (!l.proprio) return;
       const d = g[l.cliente] || (g[l.cliente] = {
-        ton: 0, somaNet: 0, tonComp: 0, somaTerMed: 0, somaTerMelhor: 0, somaNTer: 0, saving: 0
+        ton: 0, somaNet: 0, tonComp: 0, somaTerMed: 0, somaTerMelhor: 0, somaNTer: 0, saving: 0,
+        siglasSemComp: new Set()
       });
       d.ton += l.toneladas;
       d.somaNet += l.net * l.toneladas;
@@ -1007,6 +1008,11 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
         d.somaTerMelhor += l.netTer * l.toneladas;
         d.somaNTer += (l.nTer || 0) * l.toneladas;
         d.saving += (l.net - l.netTerMed) * l.toneladas;
+      } else if (l.sigla) {
+        // a tonelada entra no volume e no NET medio da propria (ja somados
+        // acima), mas fica fora da Diferenca (tonComp/saving nao contam ela)
+        // — aqui so guarda QUAL origem faltou terceiro, pra tela apontar.
+        d.siglasSemComp.add(l.sigla);
       }
     });
     return g;
@@ -1030,13 +1036,15 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
       n_ter_realizado: dr && dr.tonComp > 0 ? dr.somaNTer / dr.tonComp : null,
       ton_comp_realizado: dr ? dr.tonComp : 0,
       saving_realizado: dr && dr.tonComp > 0 ? dr.saving : null,
+      origens_sem_comp_realizado: dr ? [...dr.siglasSemComp].sort() : [],
       ton_otimo: do_ ? do_.ton : 0,
       net_otimo: do_ && do_.ton > 0 ? do_.somaNet / do_.ton : null,
       net_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMed / do_.tonComp : null,
       net_ter_melhor_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMelhor / do_.tonComp : null,
       n_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaNTer / do_.tonComp : null,
       ton_comp_otimo: do_ ? do_.tonComp : 0,
-      saving_otimo: do_ && do_.tonComp > 0 ? do_.saving : null
+      saving_otimo: do_ && do_.tonComp > 0 ? do_.saving : null,
+      origens_sem_comp_otimo: do_ ? [...do_.siglasSemComp].sort() : []
     };
   });
 

@@ -493,6 +493,7 @@ footer img{height:17px;width:auto;opacity:.75}
   margin-top:5px;padding-top:5px}
 #resumoSemana .rs-lin.rs-sec{font-size:11px;color:var(--mute)}
 #resumoSemana .rs-lin.rs-sec span:first-child{color:var(--mute)}
+#resumoSemana .rs-semcomp{font-size:11px;color:var(--mute);padding:2px 0}
 #resumoSemana .rs-fab.rs-sem{opacity:.62}
 #resumoSemana .rs-resumo{background:var(--paper);border:1px solid var(--line);
   padding:13px 15px;font-size:13px;line-height:1.55;margin-top:4px}
@@ -1709,7 +1710,8 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
     (lista || []).forEach(l => {
       if (!l.proprio) return;
       const d = g[l.cliente] || (g[l.cliente] = {
-        ton: 0, somaNet: 0, tonComp: 0, somaTerMed: 0, somaTerMelhor: 0, somaNTer: 0, saving: 0
+        ton: 0, somaNet: 0, tonComp: 0, somaTerMed: 0, somaTerMelhor: 0, somaNTer: 0, saving: 0,
+        siglasSemComp: new Set()
       });
       d.ton += l.toneladas;
       d.somaNet += l.net * l.toneladas;
@@ -1719,6 +1721,11 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
         d.somaTerMelhor += l.netTer * l.toneladas;
         d.somaNTer += (l.nTer || 0) * l.toneladas;
         d.saving += (l.net - l.netTerMed) * l.toneladas;
+      } else if (l.sigla) {
+        // a tonelada entra no volume e no NET medio da propria (ja somados
+        // acima), mas fica fora da Diferenca (tonComp/saving nao contam ela)
+        // — aqui so guarda QUAL origem faltou terceiro, pra tela apontar.
+        d.siglasSemComp.add(l.sigla);
       }
     });
     return g;
@@ -1742,13 +1749,15 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
       n_ter_realizado: dr && dr.tonComp > 0 ? dr.somaNTer / dr.tonComp : null,
       ton_comp_realizado: dr ? dr.tonComp : 0,
       saving_realizado: dr && dr.tonComp > 0 ? dr.saving : null,
+      origens_sem_comp_realizado: dr ? [...dr.siglasSemComp].sort() : [],
       ton_otimo: do_ ? do_.ton : 0,
       net_otimo: do_ && do_.ton > 0 ? do_.somaNet / do_.ton : null,
       net_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMed / do_.tonComp : null,
       net_ter_melhor_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMelhor / do_.tonComp : null,
       n_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaNTer / do_.tonComp : null,
       ton_comp_otimo: do_ ? do_.tonComp : 0,
-      saving_otimo: do_ && do_.tonComp > 0 ? do_.saving : null
+      saving_otimo: do_ && do_.tonComp > 0 ? do_.saving : null,
+      origens_sem_comp_otimo: do_ ? [...do_.siglasSemComp].sort() : []
     };
   });
 
@@ -2856,8 +2865,11 @@ function renderResumoSemana() {
   };
   // terMed/nTer: media entre terceiros da mesma sigla, base da Diferenca.
   // terMelhor: so informativo, fora da conta (o antigo "Melhor terceiro").
-  // tonSemComp: volume sem nenhum terceiro pra comparar, mostrado so quando > 0.
-  const blocoDuo = (cab, t, net, terMed, nTer, terMelhor, tonSemComp, sav) => {
+  // tonSemComp/origensSemComp: volume (e as origens responsaveis) sem
+  // nenhum terceiro pra comparar. Essa tonelada ja entrou no Volume e no
+  // NET medio acima (nao foi descontada dali) — so fica fora da Diferenca,
+  // que so soma onde houve media de terceiro pra comparar.
+  const blocoDuo = (cab, t, net, terMed, nTer, terMelhor, tonSemComp, origensSemComp, sav) => {
     const f = v => v == null ? '-' : rs(v);
     let o = '<div><div class="rs-cab">' + cab + '</div>';
     o += '<div class="rs-lin"><span>Volume</span><span>' + (t > 0 ? tn(t) : '-') + '</span></div>';
@@ -2866,10 +2878,12 @@ function renderResumoSemana() {
       (terMed != null && nTer > 0
         ? ' · média de ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' oferta' : ' ofertas')
         : '') + '</span></div>';
-    o += '<div class="rs-lin rs-sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
     if (tonSemComp > 0.01) {
-      o += '<div class="rs-lin rs-sec"><span>Sem comparação</span><span>' + tn(tonSemComp) + '</span></div>';
+      o += '<div class="rs-semcomp">' + tn(tonSemComp) + ' sem oferta de terceiro' +
+        (origensSemComp && origensSemComp.length
+          ? ' (origens: ' + origensSemComp.map(esc).join(', ') + ')' : '') + '</div>';
     }
+    o += '<div class="rs-lin rs-sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
     o += '<div class="rs-lin rs-forte"><span>Diferença</span><span class="' +
       (sav == null ? '' : (sav < 0 ? 'rs-neg' : 'rs-pos')) + '">' +
       (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
@@ -2977,9 +2991,9 @@ function renderResumoSemana() {
     h += '<div class="rs-frase">' + frase + '</div>';
     h += '<div class="rs-duo">';
     h += blocoDuo('O que foi feito', tr, p.net_realizado, p.net_ter_realizado, p.n_ter_realizado,
-      p.net_ter_melhor_realizado, tr - p.ton_comp_realizado, sr);
+      p.net_ter_melhor_realizado, tr - p.ton_comp_realizado, p.origens_sem_comp_realizado, sr);
     h += blocoDuo('O que o modelo mandava', to, p.net_otimo, p.net_ter_otimo, p.n_ter_otimo,
-      p.net_ter_melhor_otimo, to - p.ton_comp_otimo, so);
+      p.net_ter_melhor_otimo, to - p.ton_comp_otimo, p.origens_sem_comp_otimo, so);
     h += '</div></div>';
   });
 

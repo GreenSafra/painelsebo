@@ -453,8 +453,11 @@ function renderResumoSemana() {
   };
   // terMed/nTer: media entre terceiros da mesma sigla, base da Diferenca.
   // terMelhor: so informativo, fora da conta (o antigo "Melhor terceiro").
-  // tonSemComp: volume sem nenhum terceiro pra comparar, mostrado so quando > 0.
-  const blocoDuo = (cab, t, net, terMed, nTer, terMelhor, tonSemComp, sav) => {
+  // tonSemComp/origensSemComp: volume (e as origens responsaveis) sem
+  // nenhum terceiro pra comparar. Essa tonelada ja entrou no Volume e no
+  // NET medio acima (nao foi descontada dali) — so fica fora da Diferenca,
+  // que so soma onde houve media de terceiro pra comparar.
+  const blocoDuo = (cab, t, net, terMed, nTer, terMelhor, tonSemComp, origensSemComp, sav) => {
     const f = v => v == null ? '-' : rs(v);
     let o = '<div><div class="rs-cab">' + cab + '</div>';
     o += '<div class="rs-lin"><span>Volume</span><span>' + (t > 0 ? tn(t) : '-') + '</span></div>';
@@ -463,10 +466,12 @@ function renderResumoSemana() {
       (terMed != null && nTer > 0
         ? ' · média de ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' oferta' : ' ofertas')
         : '') + '</span></div>';
-    o += '<div class="rs-lin rs-sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
     if (tonSemComp > 0.01) {
-      o += '<div class="rs-lin rs-sec"><span>Sem comparação</span><span>' + tn(tonSemComp) + '</span></div>';
+      o += '<div class="rs-semcomp">' + tn(tonSemComp) + ' sem oferta de terceiro' +
+        (origensSemComp && origensSemComp.length
+          ? ' (origens: ' + origensSemComp.map(esc).join(', ') + ')' : '') + '</div>';
     }
+    o += '<div class="rs-lin rs-sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
     o += '<div class="rs-lin rs-forte"><span>Diferença</span><span class="' +
       (sav == null ? '' : (sav < 0 ? 'rs-neg' : 'rs-pos')) + '">' +
       (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
@@ -574,9 +579,9 @@ function renderResumoSemana() {
     h += '<div class="rs-frase">' + frase + '</div>';
     h += '<div class="rs-duo">';
     h += blocoDuo('O que foi feito', tr, p.net_realizado, p.net_ter_realizado, p.n_ter_realizado,
-      p.net_ter_melhor_realizado, tr - p.ton_comp_realizado, sr);
+      p.net_ter_melhor_realizado, tr - p.ton_comp_realizado, p.origens_sem_comp_realizado, sr);
     h += blocoDuo('O que o modelo mandava', to, p.net_otimo, p.net_ter_otimo, p.n_ter_otimo,
-      p.net_ter_melhor_otimo, to - p.ton_comp_otimo, so);
+      p.net_ter_melhor_otimo, to - p.ton_comp_otimo, p.origens_sem_comp_otimo, so);
     h += '</div></div>';
   });
 
