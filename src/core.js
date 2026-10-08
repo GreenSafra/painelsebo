@@ -1802,13 +1802,23 @@ function opcoes(ds, travas, topN, manter, modo) {
 // [melhor, segunda] — qualquer um vem null quando nao ha candidato
 // suficiente (nunca inventa valor). Usado pela exportacao (ver
 // programacaoPreenchida(), colunas "2º/segunda melhor").
+//
+// "Fabrica propria" aqui e o GRUPO JBS pelo nome (ehGrupoJBS), nao a flag
+// o.prop: o.prop so diz se o cliente esta na lista "Destinos da semana".
+// Flora/BioPower retirada da lista ficava com prop=false e virava "terceiro"
+// (BioPower com 2º melhor = Flora SP, que e do mesmo grupo); terceiro
+// acrescentado ficava com prop=true e sumia da comparacao.
+function ehGrupoJBS(c) {
+  return ehPropriaFabrica(c) || /(^|[^a-z0-9])jbs([^a-z0-9]|$)/i.test(String(c || ''));
+}
+
 function melhoresAlternativas(lista, clienteDestino) {
   // dedup por cliente (a melhor oferta dele) — defensivo: ops[sigla] ja
   // vem de ds.quotes, que so tem uma linha por cliente (ver montar()), mas
   // a funcao nao depende disso pra estar correta sozinha.
   const porCliente = new Map();
   (lista || []).forEach(o => {
-    if (o.cli === clienteDestino || o.prop) return;
+    if (o.cli === clienteDestino || ehGrupoJBS(o.cli)) return;
     const atual = porCliente.get(o.cli);
     if (!atual || o.net > atual.net) porCliente.set(o.cli, o);
   });
