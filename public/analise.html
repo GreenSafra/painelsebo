@@ -14,7 +14,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
-.wrap{max-width:1120px;margin:0 auto;padding:22px 20px 60px}
+.wrap{max-width:1480px;margin:0 auto;padding:22px 20px 60px}
 header{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:6px}
 h1{font-size:23px;margin:0;letter-spacing:-.2px}
 .sub{font-size:13.5px;color:var(--mute);margin:3px 0 0}
@@ -29,7 +29,8 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 .card{cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:6px;
   padding:12px 16px;display:flex;align-items:center;gap:14px}
 .card:focus-visible{outline:3px solid var(--azul);outline-offset:2px}
-.card:hover{border-color:var(--azul)}
+.card:hover{border-color:var(--azul);box-shadow:0 7px 22px rgba(30,30,123,.09);transform:translateY(-1px)}
+.card{transition:box-shadow .2s,border-color .2s,transform .2s}
 .card .pos{flex:none;width:32px;font-size:13px;font-weight:700;color:var(--mute);text-align:center}
 .card:nth-child(1) .pos{color:var(--azul);font-size:15px}
 .card .nome{flex:1;min-width:40px;font-size:14.5px;font-weight:600;
@@ -55,10 +56,10 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 .card .var.ausente{background:transparent;color:var(--line);font-weight:400}
 
 /* Gráficos históricos expansíveis e comparação de clientes */
-.grafico-painel{background:#fff;border:1px solid var(--line);border-top:0;border-radius:0 0 6px 6px;padding:16px;margin-top:-8px}
+.grafico-painel{background:linear-gradient(180deg,#f7f9ff,#fff 45%);border:1px solid #dce1f1;border-top:0;border-radius:0 0 14px 14px;padding:20px;margin-top:-8px;box-shadow:0 12px 24px rgba(20,31,70,.06)}
 .grafico-titulo{font-size:13px;font-weight:700;color:var(--azul);margin-bottom:8px}
 .grafico-legenda{font-size:12px;color:var(--mute);margin-top:6px}
-.grafico-svg{display:block;width:100%;height:auto;max-height:290px}
+.grafico-svg{display:block;width:100%;height:auto;max-height:350px;filter:drop-shadow(0 6px 12px rgba(30,30,123,.05))}
 .grafico-svg text{font-family:inherit;font-size:11px;fill:var(--mute)}
 .grafico-svg .linha-grid{stroke:#E3E4E9;stroke-width:1}
 .grafico-svg .serie{fill:none;stroke:var(--azul);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
@@ -68,8 +69,9 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 .ferramentas button,.grafico-painel button{border:1px solid var(--line);background:#fff;border-radius:4px;padding:7px 10px;cursor:pointer;color:var(--azul);font-weight:600}
 .comparar{flex:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mute)}
 .comparar input{accent-color:var(--azul)}
-.comparacao{margin-bottom:16px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:16px}
-.comparacao h2{font-size:17px;margin:0 0 6px}
+.comparacao{margin-top:26px;margin-bottom:16px;background:linear-gradient(160deg,#f3f6ff,#fff 42%);border:1px solid #dce1f1;border-radius:16px;padding:24px;box-shadow:0 12px 32px rgba(20,31,70,.07)}
+.comparacao h2{font-size:21px;margin:0 0 6px;color:var(--azul)}
+.comparacao select{min-width:240px;max-width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
 .comparacao .legendas{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;margin:8px 0}
 .comparacao .legendas span{display:inline-flex;align-items:center;gap:5px}
 .comparacao .legendas i{width:14px;height:3px;display:inline-block}
@@ -137,9 +139,8 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 </header>
 <hr>
 
-<div class="ferramentas"><label>Selecione até 5 clientes para comparar o histórico de preços.</label><button type="button" id="limparComparacao">Limpar comparação</button></div>
-<div id="comparacao"></div>
 <div id="conteudo"><p class="carregando">Carregando…</p></div>
+<section class="comparacao" aria-label="Comparativo de Mercado"><h2>Comparativo de Mercado</h2><p class="grafico-legenda">Selecione até 5 clientes para analisar a evolução das cotações. Passe o mouse sobre os pontos para consultar os valores.</p><div class="ferramentas"><label for="clienteComparar">Adicionar cliente</label><select id="clienteComparar" aria-label="Selecionar cliente para comparar"><option value="">Selecione um cliente</option></select><button type="button" id="adicionarComparacao">Adicionar</button><button type="button" id="limparComparacao">Limpar</button></div><div id="comparacao"></div></section>
 
 </div>
 <script>
@@ -304,26 +305,28 @@ function desenharGrafico(series) {
 async function atualizarGraficos() {
   const geracao=GERACAO;
   const painel=$('#graficoAberto'), comparacao=$('#comparacao');
-  if (!painel && !SELECIONADOS.size) {comparacao.innerHTML='';return;}
+  if (!painel && !SELECIONADOS.size) {comparacao.innerHTML='<p class="grafico-legenda">Adicione clientes para visualizar o comparativo.</p>';return;}
   if(painel) painel.innerHTML='<div class="grafico-legenda">Carregando histórico…</div>';
-  if(SELECIONADOS.size) comparacao.innerHTML='<div class="comparacao">Carregando comparação…</div>';
+  if(SELECIONADOS.size) comparacao.innerHTML='<p class="grafico-legenda">Carregando comparação…</p>';
   try{
     const mapas=await historicoCompleto();
     if(geracao!==GERACAO)return;
     const escolhidos=LISTA_ATUAL.filter(x=>SELECIONADOS.has(x.id));
-    if(comparacao)comparacao.innerHTML=escolhidos.length?'<div class="comparacao"><h2>Comparação de cotações</h2><div class="grafico-legenda">Valores brutos por semana. Regimes de ICMS distintos não são equivalentes.</div>'+desenharGrafico(escolhidos.map(x=>({nome:x.nome,pontos:pontosSerie(x.id,mapas)})))+'<div class="legendas">'+escolhidos.map((x,i)=>'<span><i style="background:'+CORES[i]+'"></i>'+esc(x.nome)+'</span>').join('')+'</div></div>':'';
+    if(comparacao)comparacao.innerHTML=escolhidos.length?'<div class="grafico-legenda">Valores brutos por semana. Regimes de ICMS distintos não são equivalentes.</div>'+desenharGrafico(escolhidos.map(x=>({nome:x.nome,pontos:pontosSerie(x.id,mapas)})))+'<div class="legendas">'+escolhidos.map((x,i)=>'<span><i style="background:'+CORES[i]+'"></i>'+esc(x.nome)+'</span>').join('')+'</div>':'<p class="grafico-legenda">Adicione clientes para visualizar o comparativo.</p>';
     if(painel&&EXPANDIDO){
       const item=LISTA_ATUAL.find(x=>x.id===EXPANDIDO);
-      if(item) painel.innerHTML='<div class="grafico-titulo">Histórico de cotações · '+esc(item.nome)+'</div>'+desenharGrafico([{nome:item.nome,pontos:pontosSerie(item.id,mapas)}])+'<div class="grafico-legenda">Maior oferta bruta por cliente e regime em cada semana. Ausência de cotação interrompe a linha.</div>';
+      if(item) painel.innerHTML='<div class="grafico-titulo">Histórico de cotações · '+esc(item.nome)+'</div>'+desenharGrafico([{nome:item.nome,pontos:pontosSerie(item.id,mapas).slice(-4)}])+'<div class="grafico-legenda">Maior oferta bruta por cliente e regime em cada semana. Ausência de cotação interrompe a linha.</div>';
     }
   }catch(e){if(painel)painel.textContent='Não foi possível carregar o histórico.';if(comparacao&&SELECIONADOS.size)comparacao.textContent='Não foi possível carregar a comparação.';}
 }
 function renderRanking(lista) {
   LISTA_ATUAL=lista;
+  const seletor=$('#clienteComparar');
+  if(seletor) seletor.innerHTML='<option value="">Selecione um cliente</option>'+lista.filter(x=>!SELECIONADOS.has(x.id)).map(x=>'<option value="'+esc(x.id)+'">'+esc(x.nome)+'</option>').join('');
   const box = $('#conteudo');
   if (!lista.length) {
     box.innerHTML = '<div class="vazio">Nenhuma cotação nesta semana.</div>';
-    $('#comparacao').innerHTML='';
+    $('#comparacao').innerHTML='<p class="grafico-legenda">Sem cotações disponíveis nesta semana.</p>';
     return;
   }
   box.innerHTML = '<div class="rank">' + lista.map((x, i) => {
@@ -336,19 +339,12 @@ function renderRanking(lista) {
       '<div class="semanas">' + cols + '</div>' +
       '<div class="var ' + v.classe + '">' + esc(v.texto) + '</div>' +
       '<span class="indicador" aria-hidden="true">'+(aberto?'▴':'▾')+'</span>' +
-      '<label class="comparar" title="Comparar histórico"><input type="checkbox" data-comparar="'+esc(x.id)+'" '+(SELECIONADOS.has(x.id)?'checked':'')+' aria-label="Comparar '+esc(x.nome)+'"> Comparar</label>' +
+
       '</div>'+(aberto?'<div class="grafico-painel" id="graficoAberto"></div>':'');
   }).join('') + '</div>';
   atualizarGraficos();
 }
 $('#conteudo').addEventListener('click',e=>{
-  if(e.target.matches('[data-comparar]')) {
-    const id=e.target.dataset.comparar;
-    if(e.target.checked&&SELECIONADOS.size>=5){e.target.checked=false;alert('Selecione no máximo 5 clientes.');return;}
-    if(e.target.checked)SELECIONADOS.add(id);else SELECIONADOS.delete(id);
-    atualizarGraficos();return;
-  }
-  if(e.target.closest('.comparar'))return;
   const card=e.target.closest('.card[data-id]');
   if(!card)return;
   EXPANDIDO=EXPANDIDO===card.dataset.id?null:card.dataset.id;
@@ -358,6 +354,7 @@ $('#conteudo').addEventListener('keydown',e=>{
   if(e.target.matches('.card')&&(e.key==='Enter'||e.key===' ')){e.preventDefault();e.target.click();}
 });
 $('#limparComparacao').onclick=()=>{SELECIONADOS.clear();renderRanking(LISTA_ATUAL);};
+$('#adicionarComparacao').onclick=()=>{const id=$('#clienteComparar').value;if(!id)return;if(SELECIONADOS.size>=5){alert('Selecione no máximo 5 clientes.');return;}SELECIONADOS.add(id);renderRanking(LISTA_ATUAL);};
 // Linhas cruas de varias semanas de uma vez, numa unica ida ao banco
 // (db.js:cotacoesDeSemanas) — nunca uma consulta por semana, e muito menos
 // por cliente.
