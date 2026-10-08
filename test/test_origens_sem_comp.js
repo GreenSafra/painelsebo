@@ -5,7 +5,7 @@
 // - core.js: agregarSemana() separa direitinho origens com e sem terceiro
 //   pra um mesmo cliente, e confirma que a tonelada sem comparacao ENTRA no
 //   volume e no NET medio, mas FICA FORA de ton_comp/saving (a Diferenca).
-// - consolidado.html: a frase "X t sem oferta de terceiro (origens: ...)"
+// - consolidado.html: a frase "X t sem referência válida de terceiro programado (origens: ...)"
 //   aparece entre "Média terceiros" e "Melhor terceiro", em cinza, so quando
 //   ha tonelada sem comparacao.
 // - db.js: a query de porPropria pede as origens sem comparacao junto (por
@@ -106,7 +106,7 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
   const ini = src.indexOf('const porPropria = await pool.query(');
   const bloco = src.slice(ini, src.indexOf("ORDER BY p.cliente`, f.params);", ini) + 30);
   T('CTE "dados" calcula origens sem terceiro programado',
-    /array_agg\(DISTINCT a\.sigla\) FILTER \(WHERE tp\.net_ref IS NULL/.test(bloco));
+    /array_agg\(DISTINCT a\.sigla\) FILTER \(WHERE \(tp\.net_ref IS NULL OR a\.net IS NULL\)/.test(bloco));
   T('SELECT final expoe origens_sem_comp_realizado', /origens_sem_comp_realizado/.test(bloco));
   T('SELECT final expoe origens_sem_comp_otimo', /origens_sem_comp_otimo/.test(bloco));
 })();
@@ -162,10 +162,10 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
     const blocoRealizado = d.querySelector('.feito > div');
     T('bloco da fabrica renderizado', !!blocoRealizado);
     const nota = blocoRealizado && blocoRealizado.querySelector('.semcomp');
-    T('aviso "sem oferta de terceiro" aparece no bloco "O que foi feito"', !!nota, nota && nota.textContent);
+    T('aviso "sem referência válida de terceiro programado" aparece no bloco "O que foi feito"', !!nota, nota && nota.textContent);
     T('texto tem a tonelada certa (50 t = 150 - 100) e as origens (ANF, LIF)',
       !!nota && nota.textContent.indexOf('50') >= 0 &&
-      nota.textContent.indexOf('sem oferta de terceiro') >= 0 &&
+      nota.textContent.indexOf('sem referência válida de terceiro programado') >= 0 &&
       nota.textContent.indexOf('origens: ANF, LIF') >= 0,
       nota && nota.textContent);
     const corNota = nota && dom.window.getComputedStyle(nota).color;

@@ -272,11 +272,16 @@ async function iniciar() {
 
   // Corrige primeiro a flag "proprio" (nao depende de pacote, cobre
   // qualquer semana/cenario) e so depois recalcula net_ter_med/n_ter — a
-  // ordem importa: e a flag certa que faz uma carga recem-corrigida
-  // aparecer como pendente de media. Roda toda subida do servidor, mas so
-  // processa o que ainda falta (idempotente).
-  await corrigirFlagPropria();
-  await migrarNetTerMedio();
+  // Historicos sao snapshots: nunca reescrever cargas no startup.
+  // As consultas gerenciais reconstroem a referencia dos destinos registrados.
+  // Preservar NET calculado nos novos fechamentos; aumentar a escala nao
+  // recupera nem altera os valores historicos ja arredondados.
+  const escalas = await pool.query(`SELECT column_name, numeric_scale FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='alocacoes' AND column_name IN ('net','net2','net_ter','net_ter_med')`);
+  for (const coluna of ['net', 'net2', 'net_ter', 'net_ter_med']) {
+    if (escalas.rows.some(c=>c.column_name===coluna && c.numeric_scale<9))
+      await pool.query(`ALTER TABLE alocacoes ALTER COLUMN ${coluna} TYPE NUMERIC(18,9)`);
+  }
 
   const n = await pool.query(`SELECT count(*)::int AS q FROM usuarios`);
   return n.rows[0].q;
@@ -528,9 +533,27 @@ async function fecharSemana(cab, linhas, usuarioId, dados) {
   if (!Array.isArray(linhas) || !linhas.length) throw new Error('Nenhuma linha para gravar.');
   if (linhas.length > LIM_LINHAS) throw new Error('Semana com linhas demais.');
 
+  const normalizar = lista => (lista || []).map(l => ({...l,
+    proprio: core.ehGrupoJBS(l.cliente), toneladas: Number(l.toneladas),
+    net: l.net == null || l.net === '' ? null : Number(l.net),
+    ...(core.ehGrupoJBS(l.cliente) && core.ehGrupoJBS(l.cliente2) ? {net2:null,cliente2:null} : {})}));
+  linhas = normalizar(linhas);
+  cab = {...cab, linhasOtimo:normalizar(cab.linhasOtimo)};
+  for (const l of [...linhas, ...cab.linhasOtimo]) {
+    if (!l.cliente || !l.sigla || !(l.toneladas > 0) || !Number.isFinite(l.toneladas) || !Number.isFinite(l.net))
+      throw new Error('Carga sem cliente, origem, volume positivo ou NET válido.');
+  }
+  const restricoes = cab.travas || (dados && dados.estado && dados.estado.travas) || {};
+  for (const l of [...linhas, ...cab.linhasOtimo]) {
+    const trava=restricoes[l.cliente];
+    if (trava && (!l.origemUf || core.travaBloqueia(trava,l.origemUf)))
+      throw new Error('Destino fora da trava configurada: ' + l.sigla + ' → ' + l.cliente + '.');
+  }
+  core.aplicarReferenciasProgramadas(linhas, cab.linhasOtimo);
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
+    await c.query('SELECT pg_advisory_xact_lock($1, $2)', [ano, semana]);
     // A versao nova nasce depois da ultima, e so ela fica valendo.
     const v = await c.query(
       `SELECT coalesce(max(versao),0) + 1 AS v FROM semanas WHERE ano=$1 AND semana=$2`,
@@ -613,14 +636,22 @@ async function listarSemanas() {
 async function lerSemanaAtual(ano, semana) {
   if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
   const r = await pool.query(
-    `SELECT s.dados, s.versao, s.periodo, s.fechada_em, u.nome AS fechada_por
+    `SELECT s.id, s.dados, s.versao, s.periodo, s.fechada_em, u.nome AS fechada_por
        FROM semanas s LEFT JOIN usuarios u ON u.id = s.usuario_id
       WHERE s.ano=$1 AND s.semana=$2 AND s.atual`,
     [ano, semana]
   );
   if (!r.rows.length) return null;
   const row = r.rows[0];
+  const cargas = (await pool.query('SELECT * FROM alocacoes WHERE semana_id=$1 ORDER BY id', [row.id])).rows;
+  const normalizadas = cargas.map(a=>({cliente:a.cliente,sigla:a.sigla,
+    toneladas:Number(a.toneladas),net:a.net==null?null:Number(a.net),
+    proprio:core.ehGrupoJBS(a.cliente),cenario:a.cenario}));
+  const linhas=normalizadas.filter(a=>a.cenario==='realizado');
+  const linhasOtimo=normalizadas.filter(a=>a.cenario==='otimo');
+  core.aplicarReferenciasProgramadas(linhas,linhasOtimo);
   return {
+    linhas, linhasOtimo,
     dados: row.dados ? JSON.parse(row.dados) : null,
     versao: row.versao, periodo: row.periodo,
     fechadaEm: row.fechada_em, fechadaPor: row.fechada_por
@@ -686,7 +717,10 @@ async function preencherMotivosZeroOtimo(ano, semana, porPropriaRows) {
   const prod = dados && dados.prod, mapa = dados && dados.mapa;
   if (!prod || !mapa || !Array.isArray(mapa.rows) || !Array.isArray(prod.plants)) return;
 
-  const ds = core.montar(prod, [], mapa);
+  const edicoes = (dados.estado && dados.estado.ofEdits) || {};
+  const mapaComEdicoes = {...mapa,rows:mapa.rows.map((r,i)=>({...r,
+    ofEdit:Object.prototype.hasOwnProperty.call(edicoes,i) ? Number(edicoes[i]) : null}))};
+  const ds = core.montar(prod, [], mapaComEdicoes);
   const necessidades = linha.necessidades || {};
   const travas = linha.travas || {};
 
@@ -752,7 +786,7 @@ async function consolidado(criterio) {
   const porPropria = await pool.query(
     `WITH terceiros_programados AS (
        SELECT semana_id, sigla,
-              sum(net * toneladas) / nullif(sum(toneladas),0) AS net_ref,
+              CASE WHEN count(*) FILTER (WHERE net IS NULL) = 0 THEN sum(net * toneladas) / nullif(sum(toneladas),0) END AS net_ref,
               max(net) AS melhor_net,
               count(DISTINCT cliente) AS quantidade
          FROM alocacoes
@@ -763,23 +797,23 @@ async function consolidado(criterio) {
        SELECT a.cliente, a.cenario,
               sum(a.toneladas) AS ton,
               sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
-              sum(tp.net_ref * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL)
-                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL),0)
+              sum(tp.net_ref * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL),0)
                 AS net_ter,
-              sum(tp.melhor_net * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL)
-                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL),0)
+              sum(tp.melhor_net * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL),0)
                 AS net_ter_melhor,
-              sum(tp.quantidade * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL)
-                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL),0)
+              sum(tp.quantidade * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL),0)
                 AS n_ter,
-              sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL) AS ton_comp,
+              sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL) AS ton_comp,
               sum((a.net - tp.net_ref) * a.toneladas)
-                FILTER (WHERE tp.net_ref IS NOT NULL) AS saving,
+                FILTER (WHERE tp.net_ref IS NOT NULL AND a.net IS NOT NULL) AS saving,
               -- siglas de origem que entraram no volume/NET da propria mas
               -- ficaram fora da Diferenca por falta de terceiro pra
               -- comparar naquela origem (ver tela: "X t sem oferta de
               -- terceiro (origens: ...)").
-              array_agg(DISTINCT a.sigla) FILTER (WHERE tp.net_ref IS NULL AND a.sigla IS NOT NULL)
+              array_agg(DISTINCT a.sigla) FILTER (WHERE (tp.net_ref IS NULL OR a.net IS NULL) AND a.sigla IS NOT NULL)
                 AS origens_sem_comp
          FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
          LEFT JOIN terceiros_programados tp ON tp.semana_id = a.semana_id AND tp.sigla = a.sigla
@@ -832,6 +866,39 @@ async function consolidado(criterio) {
       GROUP BY s.id, u.nome
       ORDER BY s.ano DESC, s.semana DESC`, f.params);
 
+  const cargasMemoria = await pool.query(
+    `SELECT a.*, s.ano, s.semana, (${f.sql}) AS em_periodo
+       FROM alocacoes a JOIN semanas s ON s.id=a.semana_id
+      WHERE s.atual AND s.id IN (
+        SELECT s.id FROM alocacoes a JOIN semanas s ON s.id=a.semana_id
+         WHERE s.atual AND ${f.sql})
+      ORDER BY s.ano, s.semana, a.id`, f.params);
+  const porSemana = new Map();
+  cargasMemoria.rows.forEach(a => {
+    const grupo = porSemana.get(a.semana_id) || [];
+    grupo.push({cliente:a.cliente, sigla:a.sigla, proprio:core.ehGrupoJBS(a.cliente),
+      toneladas:Number(a.toneladas), net:a.net == null ? null : Number(a.net),
+      cenario:a.cenario, emPeriodo:a.em_periodo, ano:a.ano, semana:a.semana});
+    porSemana.set(a.semana_id, grupo);
+  });
+  porPropria.rows.forEach(p => {
+    p.memoria_realizado=[];p.memoria_otimo=[];
+    const todas=[...porSemana.values()].flat().filter(l=>l.emPeriodo);
+    p.bases_comparaveis=core.basesComparaveis(todas.filter(l=>l.cenario==='realizado'),todas.filter(l=>l.cenario==='otimo'),p.cliente);
+  });
+  porSemana.forEach(lista => {
+    const realizado = lista.filter(a => a.cenario === 'realizado');
+    const otimo = lista.filter(a => a.cenario === 'otimo');
+    const refs = core.aplicarReferenciasProgramadas(realizado, otimo);
+    porPropria.rows.forEach(p => {
+      ['realizado','otimo'].forEach(cenario => {
+        const detalhes = core.memoriaPorOrigem(lista.filter(a => a.cenario===cenario && a.emPeriodo), p.cliente, refs);
+        detalhes.forEach(g => {g.ano=lista[0].ano;g.semana=lista[0].semana;});
+        p['memoria_'+cenario].push(...detalhes);
+      });
+    });
+  });
+
   if (f.modo === 'semana') await preencherMotivosZeroOtimo(f.ano, f.semana, porPropria.rows);
 
   return {
@@ -852,7 +919,7 @@ async function historicoEconomico() {
   const r = await pool.query(`
     WITH terceiros AS (
       SELECT semana_id, sigla,
-             sum(net * toneladas) / nullif(sum(toneladas),0) AS referencia
+             CASE WHEN count(*) FILTER (WHERE net IS NULL) = 0 THEN sum(net * toneladas) / nullif(sum(toneladas),0) END AS referencia
         FROM alocacoes
        WHERE cenario='realizado' AND NOT proprio AND toneladas > 0
          AND cliente !~* 'biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)'
@@ -860,17 +927,20 @@ async function historicoEconomico() {
     ), base AS (
       SELECT s.ano, s.semana, a.cliente, a.data_embarque,
              (a.net-t.referencia)*a.toneladas AS desvio,
-             CASE WHEN t.referencia IS NOT NULL THEN a.toneladas ELSE 0 END AS volume
+             CASE WHEN t.referencia IS NOT NULL AND a.net IS NOT NULL THEN a.toneladas ELSE 0 END AS volume,
+             a.toneladas AS volume_total
         FROM alocacoes a JOIN semanas s ON s.id=a.semana_id
         LEFT JOIN terceiros t ON t.semana_id=a.semana_id AND t.sigla=a.sigla
        WHERE s.atual AND a.cenario='realizado' AND a.proprio
     )
     SELECT 'semana' AS tipo, (ano::text || '-W' || lpad(semana::text,2,'0')) AS periodo,
-           cliente, sum(desvio) AS desvio, sum(volume) AS volume
+           cliente, sum(desvio) AS desvio, sum(volume) AS volume,
+           sum(volume_total-volume) AS volume_sem_referencia
       FROM base GROUP BY ano,semana,cliente
     UNION ALL
     SELECT 'mes' AS tipo, to_char(data_embarque,'YYYY-MM') AS periodo,
-           cliente, sum(desvio) AS desvio, sum(volume) AS volume
+           cliente, sum(desvio) AS desvio, sum(volume) AS volume,
+           sum(volume_total-volume) AS volume_sem_referencia
       FROM base WHERE data_embarque IS NOT NULL
       GROUP BY to_char(data_embarque,'YYYY-MM'),cliente
     ORDER BY tipo, periodo, cliente
@@ -902,7 +972,7 @@ async function mesesComDado() {
     `SELECT to_char(a.data_embarque, 'YYYY-MM') AS mes,
             sum(a.toneladas) AS toneladas
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.data_embarque IS NOT NULL
+      WHERE s.atual AND a.cenario = 'realizado' AND a.data_embarque IS NOT NULL
       GROUP BY 1 ORDER BY 1 DESC`
   );
   return r.rows;

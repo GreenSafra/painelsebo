@@ -843,7 +843,7 @@ function anoDaSemana(prod) {
 // Fabrica propria: mesmo criterio em todo lugar que precisa distinguir
 // propria de terceiro (montarSemana, agregarSemana, comparacaoTerceiros).
 // Um so lugar evita a lista divergir entre as tres contas.
-function ehPropriaFabrica(c) { return /biopower|flora/i.test(String(c || '')); }
+function ehPropriaFabrica(c) { return /biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)/i.test(String(c || '')); }
 
 // Estatisticas de terceiro para UMA carga: media simples do NET entre os
 // clientes terceiros (nunca fabrica propria) que ofertaram para a MESMA
@@ -924,7 +924,7 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa, ds) {
           origemUf: un.uf || null,
           produto: null,
           cliente: p.dest.cli,
-          proprio: !!p.dest.prop,
+          proprio: ehGrupoJBS(p.dest.cli),
           destino: p.dest.dst || null,
           destinoUf: (String(p.dest.dst || '').match(/([A-Z]{2})\s*$/) || [])[1] || null,
           toneladas: Math.round(p.ton * 1000) / 1000,
@@ -949,25 +949,7 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa, ds) {
   const linhas = montar(aloc);
   const linhasOtimo = (alocOtimo && alocOtimo.length) ? montar(alocOtimo) : [];
 
-  // Referencia comercial: apenas terceiros REALMENTE programados, por origem.
-  // A mesma referencia do realizado vale para o cenario otimo; nunca se
-  // compara JBS e Flora entre si. Ofertas descartadas ficam fora desta media.
-  const terceiros = {};
-  linhas.forEach(l => {
-    if (ehGrupoJBS(l.cliente) || !(l.toneladas > 0)) return;
-    const d = terceiros[l.sigla] || (terceiros[l.sigla] = {ton:0, soma:0, clientes:new Set(), melhor:null});
-    d.ton += l.toneladas;
-    d.soma += l.net * l.toneladas;
-    d.clientes.add(l.cliente);
-    if (d.melhor == null || l.net > d.melhor) d.melhor = l.net;
-  });
-  [linhas,linhasOtimo].forEach(lista => lista.forEach(l => {
-    if (!ehGrupoJBS(l.cliente)) return;
-    const t=terceiros[l.sigla];
-    l.netTerMed=t && t.ton>0 ? t.soma/t.ton : null;
-    l.nTer=t ? t.clientes.size : 0;
-    l.netTer=t ? t.melhor : null;
-  }));
+  aplicarReferenciasProgramadas(linhas, linhasOtimo);
 
   return {
     cabecalho: {
@@ -980,6 +962,90 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa, ds) {
     linhasOtimo: linhasOtimo,
     cotacoes: extrairCotacoes(mapa, prod)
   };
+}
+
+// Referencia unica: destinos independentes com volume positivo na programacao.
+// Nenhuma oferta descartada substitui dados programados ausentes. Um NET
+// desconhecido entre terceiros impede uma media incompleta naquela origem.
+function referenciasProgramadas(linhas) {
+  const refs = {};
+  (linhas || []).forEach(l => {
+    if (ehGrupoJBS(l.cliente) || !(l.toneladas > 0) || !l.sigla) return;
+    const t = refs[l.sigla] || (refs[l.sigla] = {
+      ton: 0, soma: 0, clientes: new Set(), melhor: null, clienteMelhor: null,
+      min: null, invalidos: 0, destinos: {}
+    });
+    t.ton += l.toneladas;
+    t.clientes.add(l.cliente);
+    if (!Number.isFinite(l.net)) { t.invalidos++; return; }
+    t.soma += l.net * l.toneladas;
+    if (t.melhor == null || l.net > t.melhor) { t.melhor = l.net; t.clienteMelhor = l.cliente; }
+    t.min = t.min == null ? l.net : Math.min(t.min, l.net);
+    const d = t.destinos[l.cliente] || (t.destinos[l.cliente] = {cliente:l.cliente, toneladas:0, soma:0});
+    d.toneladas += l.toneladas; d.soma += l.net*l.toneladas;
+  });
+  return refs;
+}
+function aplicarReferenciasProgramadas(linhas, linhasOtimo) {
+  const refs = referenciasProgramadas(linhas);
+  [linhas, linhasOtimo].forEach(lista => (lista || []).forEach(l => {
+    if (!ehGrupoJBS(l.cliente)) return;
+    const t = refs[l.sigla], valido = t && t.ton > 0 && !t.invalidos && Number.isFinite(l.net);
+    l.netTerMed = valido ? t.soma/t.ton : null;
+    l.nTer = valido ? t.clientes.size : 0;
+    l.netTer = valido ? t.melhor : null;
+    l.clienteTer = valido ? t.clienteMelhor : null;
+    l.netTerMin = valido ? t.min : null;
+    l.netTerMax = valido ? t.melhor : null;
+    l.motivoSemReferencia = valido ? null : !Number.isFinite(l.net) ? 'NET da planta ausente ou inválido' : !l.sigla ? 'Origem não identificada'
+      : t && t.invalidos ? 'Terceiro programado com NET ausente ou inválido'
+      : 'Sem terceiro independente programado nesta origem';
+  }));
+  return refs;
+}
+function basesComparaveis(realizado, otimo, cliente) {
+  function base(lista) {
+    const g={};
+    (lista || []).filter(l=>l.cliente===cliente && l.toneladas>0).forEach(l=>{
+      const k=(l.ano || '') + '/' + (l.semana || '') + '/' + l.sigla;
+      g[k]=(g[k] || 0)+l.toneladas;
+    });
+    return g;
+  }
+  const r=base(realizado), o=base(otimo), keys=Object.keys(r);
+  return keys.length>0 && keys.length===Object.keys(o).length &&
+    keys.every(k=>o[k]!=null && Math.abs(r[k]-o[k])<0.001);
+}
+// Memoria por origem; usa exatamente as linhas que alimentam o indicador.
+// Pode receber cargas de varias semanas: a referencia ja vem por semana.
+function memoriaPorOrigem(linhas, cliente, referencias) {
+  const grupos = {};
+  (linhas || []).filter(l => l.cliente === cliente && l.toneladas > 0).forEach(l => {
+    const k = l.sigla || 'Sem origem';
+    const g = grupos[k] || (grupos[k] = {sigla:k, toneladas:0, somaNet:0,
+      toneladasComparaveis:0, somaNetComparavel:0, somaReferencia:0, impacto:0, netInvalido:false,
+      motivos:new Set(), terceiros:[]});
+    g.toneladas += l.toneladas; g.somaNet += l.net*l.toneladas;
+    if (!Number.isFinite(l.net)) g.netInvalido=true;
+    if (Number.isFinite(l.netTerMed) && Number.isFinite(l.net)) {
+      g.toneladasComparaveis += l.toneladas; g.somaNetComparavel += l.net*l.toneladas;
+      g.somaReferencia += l.netTerMed*l.toneladas;
+      g.impacto += (l.net-l.netTerMed)*l.toneladas;
+    } else g.motivos.add(l.motivoSemReferencia || 'Sem referência válida de terceiro programado');
+  });
+  return Object.keys(grupos).sort().map(k => {
+    const g=grupos[k], t=referencias && referencias[k];
+    return {sigla:k, toneladas:g.toneladas, net:g.netInvalido ? null : g.somaNet/g.toneladas,
+      toneladasComparaveis:g.toneladasComparaveis,
+      toneladasSemReferencia:g.toneladas-g.toneladasComparaveis,
+      referencia:g.toneladasComparaveis ? g.somaReferencia/g.toneladasComparaveis : null,
+      diferencaPorTonelada:g.toneladasComparaveis ?
+        (g.somaNetComparavel-g.somaReferencia)/g.toneladasComparaveis : null,
+      impacto:g.toneladasComparaveis ? g.impacto : null,
+      motivos:[...g.motivos],
+      terceiros:t && !t.invalidos ? Object.values(t.destinos).map(d =>
+        ({cliente:d.cliente, toneladas:d.toneladas, net:d.soma/d.toneladas})) : []};
+  });
 }
 
 // Recalcula netTerMed/nTer das cargas de uma semana JA FECHADA, a partir do
@@ -1109,14 +1175,15 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
   function porCliente(lista) {
     const g = {};
     (lista || []).forEach(l => {
-      if (!l.proprio) return;
+      if (!ehGrupoJBS(l.cliente)) return;
       const d = g[l.cliente] || (g[l.cliente] = {
         ton: 0, somaNet: 0, tonComp: 0, somaTerMed: 0, somaTerMelhor: 0, somaNTer: 0, saving: 0,
-        siglasSemComp: new Set()
+        siglasSemComp: new Set(), netInvalido:false
       });
       d.ton += l.toneladas;
       d.somaNet += l.net * l.toneladas;
-      if (l.netTerMed != null) {
+      if (!Number.isFinite(l.net)) d.netInvalido=true;
+      if (Number.isFinite(l.netTerMed) && Number.isFinite(l.net)) {
         d.tonComp += l.toneladas;
         d.somaTerMed += l.netTerMed * l.toneladas;
         d.somaTerMelhor += l.netTer * l.toneladas;
@@ -1134,8 +1201,8 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
   const somaTonTotal = lista => (lista || []).reduce((s, l) => s + l.toneladas, 0);
   const netPonderado = lista => {
     let ton = 0, soma = 0;
-    (lista || []).forEach(l => { ton += l.toneladas; soma += l.net * l.toneladas; });
-    return ton > 0 ? soma / ton : null;
+    (lista || []).forEach(l => { ton += l.toneladas; soma += Number.isFinite(l.net) ? l.net * l.toneladas : NaN; });
+    return Number.isFinite(soma) && ton > 0 ? soma / ton : null;
   };
 
   const r = porCliente(linhas), o = porCliente(linhasOtimo);
@@ -1144,7 +1211,7 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
     return {
       cliente,
       ton_realizado: dr ? dr.ton : 0,
-      net_realizado: dr && dr.ton > 0 ? dr.somaNet / dr.ton : null,
+      net_realizado: dr && !dr.netInvalido && dr.ton > 0 ? dr.somaNet / dr.ton : null,
       net_ter_realizado: dr && dr.tonComp > 0 ? dr.somaTerMed / dr.tonComp : null,
       net_ter_melhor_realizado: dr && dr.tonComp > 0 ? dr.somaTerMelhor / dr.tonComp : null,
       n_ter_realizado: dr && dr.tonComp > 0 ? dr.somaNTer / dr.tonComp : null,
@@ -1152,7 +1219,7 @@ function agregarSemana(linhas, linhasOtimo, mapaRows) {
       saving_realizado: dr && dr.tonComp > 0 ? dr.saving : null,
       origens_sem_comp_realizado: dr ? [...dr.siglasSemComp].sort() : [],
       ton_otimo: do_ ? do_.ton : 0,
-      net_otimo: do_ && do_.ton > 0 ? do_.somaNet / do_.ton : null,
+      net_otimo: do_ && !do_.netInvalido && do_.ton > 0 ? do_.somaNet / do_.ton : null,
       net_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMed / do_.tonComp : null,
       net_ter_melhor_otimo: do_ && do_.tonComp > 0 ? do_.somaTerMelhor / do_.tonComp : null,
       n_ter_otimo: do_ && do_.tonComp > 0 ? do_.somaNTer / do_.tonComp : null,
@@ -1853,7 +1920,8 @@ function melhoresAlternativas(lista, clienteDestino) {
 // nada de leitura de xlsx nem geracao de planilha, que sao coisa de navegador.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    montar, comparacaoTerceiros, ehPropriaFabrica, recalcularTerceirosSemana, agregarSemana,
+    montar, comparacaoTerceiros, ehPropriaFabrica, ehGrupoJBS, recalcularTerceirosSemana, agregarSemana,
+    referenciasProgramadas, aplicarReferenciasProgramadas, memoriaPorOrigem, basesComparaveis, travaBloqueia,
     motivoModeloZero, textoMotivoZero
   };
 }

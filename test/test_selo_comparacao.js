@@ -101,10 +101,10 @@ function frase(doc) { return cardDaFabrica(doc).querySelector('.frase').textCont
     const semanasSemPacote = [Object.assign({}, semana38, { tem_pacote: false })];
     const d = await montarTela(p, semanasSemPacote);
     const v = veredito(d);
-    T('selo explica que faltam planilhas ("sem planilhas para comparar"), nao um generico "sem comparação"',
-      v.textContent.trim() === 'sem planilhas para comparar', v.textContent);
-    T('frase explica que a semana nao tem planilhas guardadas',
-      frase(d).indexOf('Semana sem planilhas guardadas') >= 0, frase(d));
+    T('selo explica que faltam planilhas ("sem terceiro programado na mesma origem"), nao um generico "sem comparação"',
+      v.textContent.trim() === 'sem terceiro programado na mesma origem', v.textContent);
+    T('frase explica a ausencia de terceiros programados; pacote nao define referencia',
+      frase(d).indexOf('não há terceiro programado comparável') >= 0, frase(d));
     T('frase continua descrevendo os volumes reais (900 t / 735 t), nao esconde o dado',
       frase(d).indexOf('900') >= 0 || /Recebeu.*<b>900/.test(cardDaFabrica(d).querySelector('.frase').innerHTML));
   }
@@ -118,7 +118,7 @@ function frase(doc) { return cardDaFabrica(doc).querySelector('.frase').textCont
       ton_comp_realizado: 900, saving_realizado: 180000,
       ton_otimo: 900, net_otimo: 5400,
       net_ter_otimo: 5000, net_ter_melhor_otimo: 5100, n_ter_otimo: 4,
-      ton_comp_otimo: 900, saving_otimo: 360000
+      ton_comp_otimo: 900, saving_otimo: 360000, bases_comparaveis:true
     };
     const d = await montarTela(p);
     const v = veredito(d);

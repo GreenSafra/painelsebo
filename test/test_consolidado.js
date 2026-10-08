@@ -247,10 +247,10 @@ function carregarPagina(url, mockFetch) {
       !!duo.querySelector('.lin.sec') &&
       duo.querySelector('.lin.sec').textContent.indexOf('Melhor terceiro') === 0 &&
       duo.querySelector('.lin.sec').textContent.indexOf('5.800') >= 0);
-    T('aviso de "sem oferta de terceiro" aparece com as 200 t (900 - 700) que nao tiveram terceiro',
+    T('aviso de "sem referência válida de terceiro programado" aparece com as 200 t (900 - 700) que nao tiveram terceiro',
       !!duo.querySelector('.semcomp') &&
       duo.querySelector('.semcomp').textContent.indexOf('200') >= 0 &&
-      duo.querySelector('.semcomp').textContent.indexOf('sem oferta de terceiro') >= 0,
+      duo.querySelector('.semcomp').textContent.indexOf('sem referência válida de terceiro programado') >= 0,
       duo.querySelector('.semcomp') && duo.querySelector('.semcomp').textContent);
     T('texto explicativo informa media ponderada dos terceiros programados',
       d4.querySelector('.nota').textContent.indexOf('NET médio ponderado pelo volume') >= 0);

@@ -440,10 +440,17 @@ function render() {
 // duplicada: vem de montarSemana()+agregarSemana(), as mesmas do banco.
 // Classes prefixadas com "rs-" de proposito: ui.js ja tem .pos/.neg com
 // outro sentido (shell.html:190-191), entao nomes novos evitam colisao.
+function assinaturaProgramacao() {
+  return JSON.stringify([ST.manual,ST.nec,ST.travas,ST.ofEdits,ST.modo,ST.fora,ST.extras]);
+}
 function renderResumoSemana() {
   const box = $('#resumoSemana');
   if (!box) return;
-  const pac = montarSemana(PROD, RES.alocFinal, RES.otimoAloc, OPS, MAPA, DS);
+  const snapshot = ORIGEM_FECHADA && ORIGEM_FECHADA.prod === PROD &&
+    ORIGEM_FECHADA.mapa === MAPA && ORIGEM_FECHADA.assinatura === assinaturaProgramacao() &&
+    ORIGEM_FECHADA.linhas && ORIGEM_FECHADA.linhas.length;
+  const pac = snapshot ? {linhas:ORIGEM_FECHADA.linhas,linhasOtimo:ORIGEM_FECHADA.linhasOtimo} :
+    montarSemana(PROD, RES.alocFinal, RES.otimoAloc, OPS, MAPA, DS);
   if (!pac.linhas.length) { box.classList.add('hide'); box.innerHTML = ''; return; }
   const ag = agregarSemana(pac.linhas, pac.linhasOtimo, MAPA.rows);
   box.classList.remove('hide');
@@ -472,7 +479,7 @@ function renderResumoSemana() {
         ? ' · ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' cliente programado' : ' clientes programados')
         : '') + '</span></div>';
     if (tonSemComp > 0.01) {
-      o += '<div class="rs-semcomp">' + tn(tonSemComp) + ' sem oferta de terceiro' +
+      o += '<div class="rs-semcomp">' + tn(tonSemComp) + ' sem referência válida de terceiro programado' +
         (origensSemComp && origensSemComp.length
           ? ' (origens: ' + origensSemComp.map(esc).join(', ') + ')' : '') + '</div>';
     }
@@ -484,21 +491,20 @@ function renderResumoSemana() {
   };
 
   const props = ag.porPropria, tot = ag.total;
-  let savR = 0, savO = 0, temSavO = false;
+  let savR = 0, savO = 0, temSavR = false, temSavO = false;
   props.forEach(p => {
-    if (p.saving_realizado != null) savR += p.saving_realizado;
+    if (p.saving_realizado != null) { savR += p.saving_realizado; temSavR = true; }
     if (p.saving_otimo != null) { savO += p.saving_otimo; temSavO = true; }
   });
   const tProp = props.reduce((s, p) => s + p.ton_realizado, 0);
   const tTudo = tot.toneladas;
   const tTer = tTudo - tProp;
-  const perdido = temSavO ? (savO - savR) : null;
 
   let h = '';
   h += '<h2>Resultado da semana em tela</h2>';
   h += '<p class="rs-nota">Isto é a semana que está na tela agora' +
     (ST.semana ? ' (Semana ' + fmt0(ST.semana) + ')' : '') +
-    ', não o mês fechado, e nada aqui foi salvo ainda. Feche a semana ' +
+    ', conforme a programação em tela. Esta visão não confirma embarques. Feche a semana ' +
     'quando estiver de acordo.</p>';
 
   h += '<div class="rs-cards">';
@@ -510,18 +516,12 @@ function renderResumoSemana() {
   h += '<div class="rs-c"><div class="rs-lab">Para terceiros</div><div class="rs-big">' +
     tn(tTer) + '</div><div class="rs-pe">NET médio geral ' + rs(tot.net_medio) + '</div></div>';
   h += '<div class="rs-c"><div class="rs-lab">Diferença econômica</div><div class="rs-big ' +
-    (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') + rs(savR) +
-    '</div><div class="rs-pe">realizado, nas cargas que foram para própria</div></div>';
+    (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') + (temSavR ? rs(savR) : 'Não apurado') +
+    '</div><div class="rs-pe">programado, somente no volume comparável</div></div>';
   h += '</div>';
+  if (snapshot) h += '<p class="rs-nota">Semana fechada: este resumo usa as cargas e a precisão NET persistidas, iguais ao Consolidado. Ao alterar a programação, passa a mostrar a nova simulação.</p>';
 
-  if (perdido != null && Math.abs(perdido) > 1) {
-    h += '<div class="rs-aviso"><b>' + rs(Math.abs(perdido)) + '</b> ' +
-      (perdido > 0
-        ? 'é a diferença entre o que a alocação do modelo geraria e o que foi feito até agora ' +
-          'nesta semana. Vem das trocas manuais de destino.'
-        : 'foi ganho acima do que o modelo indicava, por trocas feitas na mão.') +
-      '</div>';
-  }
+
 
   props.forEach((p, i) => {
     const tr = p.ton_realizado, to = p.ton_otimo;
@@ -530,7 +530,7 @@ function renderResumoSemana() {
     // verdade — comparar com zero quando um dos dois nao tem dado (ex.: o
     // modelo nao mandou carga nenhuma pra ca) confundia "sem comparacao"
     // com "empatou com o mercado".
-    const temComparacao = sr != null && so != null;
+    const temComparacao = sr != null && so != null && Math.abs(tr-to)<0.001 && Math.abs(tr-p.ton_comp_realizado)<0.001 && Math.abs(to-p.ton_comp_otimo)<0.001 && basesComparaveis(pac.linhas,pac.linhasOtimo,p.cliente);
     const dif = temComparacao ? so - sr : null;
     // Motivo de verdade do zero no cenario do modelo — computado uma vez so
     // (serve pra frase E pro link recolhido, ver rs-togglemodelo abaixo),
@@ -567,9 +567,9 @@ function renderResumoSemana() {
         // "sem planilhas para comparar" (exclusivo do Consolidado).
         const motivo = to === 0 ? 'o modelo não indicou esta fábrica'
           : tr === 0 ? 'esta fábrica não recebeu carga'
-          : 'sem terceiro programado na mesma origem';
+          : sr == null ? 'sem terceiro programado na mesma origem' : 'cenários com bases de volume diferentes';
         veredito = '<span class="rs-mute">' + motivo + '</span>';
-        if (to !== 0 && tr !== 0) frase += ' Nenhuma das cargas teve oferta de terceiro para comparar.';
+        if (sr == null && tr > 0) frase += ' Sem desvio apurado: não há terceiro programado comparável.';
       } else {
         veredito = Math.abs(dif) < 1 ? '<span class="rs-pos">no ponto</span>'
           : (dif > 0 ? '<span class="rs-neg">' + rs(dif) + ' abaixo do modelo</span>'
@@ -592,29 +592,23 @@ function renderResumoSemana() {
     // Memoria do desvio REALIZADO, independente do cenario do modelo.
     // Somatorio por origem = (NET escolhido - referencia ponderada dos
     // terceiros programados) x toneladas. Nao altera o calculo.
-    const origemDetalhe = {};
-    pac.linhas.filter(l => l.cliente === p.cliente && l.toneladas > 0).forEach(l => {
-      const k = l.sigla || 'Sem origem';
-      const g = origemDetalhe[k] || (origemDetalhe[k] = {ton:0, net:0, ter:0, comp:0, desvio:0});
-      g.ton += l.toneladas;
-      g.net += l.net * l.toneladas;
-      if (l.netTerMed != null) {
-        g.comp += l.toneladas;
-        g.ter += l.netTerMed * l.toneladas;
-        g.desvio += (l.net - l.netTerMed) * l.toneladas;
-      }
-    });
-    h += '<details class="rs-memoria"><summary>Ver composição da diferença ' +
+    const refs = referenciasProgramadas(pac.linhas);
+    const memoria = memoriaPorOrigem(pac.linhas, p.cliente, refs);
+    const preciso = (v, casas=2) => v == null ? 'Não apurado' : 'R$ ' +
+      v.toLocaleString('pt-BR', {minimumFractionDigits:casas, maximumFractionDigits:casas});
+    h += '<details class="rs-memoria"><summary>Ver composição da diferença · ' + esc(p.cliente) + ' ' +
       (sr == null ? '(sem referência comparável)' : '(' + rs(sr) + ')') + '</summary>' +
-      '<p>Desvio realizado por origem = (NET da planta − NET médio ponderado dos terceiros programados) × toneladas. ' +
-      'Não é a diferença contra o cenário sugerido pelo modelo.</p>' +
-      Object.keys(origemDetalhe).sort().map(k => {
-        const g = origemDetalhe[k];
-        return '<div class="rs-memoria-lin"><b>' + esc(k) + '</b> · ' + tn(g.ton) +
-          ' · NET planta ' + rs(g.net/g.ton) +
-          (g.comp ? ' · Referência terceiros ' + rs(g.ter/g.comp) + ' · Desvio ' + rs(g.desvio)
-                  : ' · Sem terceiro programado nesta origem; desvio não apurado') + '</div>';
-      }).join('') + '</details>';
+      '<p>Desvio programado por origem = (NET da planta − NET médio ponderado dos terceiros programados) × toneladas comparáveis. ' +
+      'A programação não confirma embarques realizados. Ofertas não escolhidas e cenário do modelo são indicadores separados.</p>' +
+      memoria.map(g => '<div class="rs-memoria-lin"><b>' + esc(g.sigla) + '</b> · ' + tn(g.toneladas) +
+        ' · NET planta ' + preciso(g.net,9) + '/t' +
+        (g.impacto != null ? ' · Referência ' + preciso(g.referencia,9) + '/t · Diferença ' +
+          preciso(g.diferencaPorTonelada,9) + '/t · Volume comparável ' + tn(g.toneladasComparaveis) +
+          ' · Desvio ' + preciso(g.impacto) + '<br>Terceiros programados: ' +
+          g.terceiros.map(t => esc(t.cliente) + ' · ' + tn(t.toneladas) + ' · NET ' + preciso(t.net,9) + '/t').join('; ')
+          : ' · Desvio não apurado: ' + g.motivos.map(esc).join('; ')) +
+        (g.toneladasSemReferencia > 0 ? ' · Sem referência: ' + tn(g.toneladasSemReferencia) : '') + '</div>').join('') +
+      '<p>Total apurado: ' + preciso(sr) + '. A soma utiliza NET sem arredondamento intermediário; os cards mostram reais inteiros.</p></details>';
     h += '<button type="button" class="rs-togglemodelo" data-alvo="rs-modelo-' + i + '" aria-expanded="false">' +
       linkTxt + '</button>';
     h += '<div class="rs-modelo hide" id="rs-modelo-' + i + '">';
@@ -626,10 +620,10 @@ function renderResumoSemana() {
   });
 
   const totO = props.reduce((s2, p) => s2 + p.ton_otimo, 0);
-  h += '<div class="rs-resumo">Nesta semana, <b>' + tn(tProp) + '</b> foram para fábrica própria ' +
-    'e rendem <b class="' + (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') +
-    rs(savR) + '</b> frente aos terceiros efetivamente programados nas mesmas origens. A alocação do ' +
-    'modelo mandaria <b>' + tn(totO) + '</b> e renderia <b class="rs-pos">+' + rs(savO) +
+  h += '<div class="rs-resumo">Nesta semana, <b>' + tn(tProp) + '</b> foram para fábrica própria e ' +
+    'têm desvio programado de <b class="' + (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') +
+    (temSavR ? rs(savR) : 'Não apurado') + '</b> frente aos terceiros efetivamente programados nas mesmas origens. A alocação do ' +
+    'modelo mandaria <b>' + tn(totO) + '</b>; desvio simulado: <b class="' + (savO < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savO > 0 ? '+' : '') + (temSavO ? rs(savO) : 'Não apurado') +
     '</b>.</div>';
 
   box.innerHTML = h;
@@ -704,12 +698,12 @@ function renderSemanaHome() {
 
 function renderKpis() {
   const tot = RES.alocFinal.reduce((s, a) => s + a.ton, 0);
-  const prop = RES.alocFinal.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
+  const prop = RES.alocFinal.filter(a => ehGrupoJBS(a.cli)).reduce((s, a) => s + a.ton, 0);
   const ter = tot - prop;
-  const nTer = new Set(RES.alocFinal.filter(a => !a.prop).map(a => a.cli)).size;
+  const nTer = new Set(RES.alocFinal.filter(a => !ehGrupoJBS(a.cli)).map(a => a.cli)).size;
   // fabricas que de fato receberam carga. Contar pelo volume digitado dava
   // zero no Mercado livre, onde ninguem digita volume.
-  const nProp = new Set(RES.alocFinal.filter(a => a.prop).map(a => a.cli)).size;
+  const nProp = new Set(RES.alocFinal.filter(a => ehGrupoJBS(a.cli)).map(a => a.cli)).size;
   const k = [
     ['Toneladas da semana', fmt0(tot) + ' t', DS.plants.length + ' unidades produzindo'],
     ['Comprometido com fábrica própria', fmt0(prop) + ' t',
@@ -732,9 +726,9 @@ function renderAvisos() {
   let oportunidade = 0, volumeOportunidade = 0, detalhes = [];
   (RES.alocFinal || []).forEach(a => {
     if (!(a.ton > 0) || !Number.isFinite(a.net)) return;
-    const grupoProprio = /biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)/i.test(a.cli);
+    const grupoProprio = ehGrupoJBS(a.cli);
     const candidatos = (porOrigem[a.sigla] || []).filter(q =>
-      q.cli !== a.cli && !(grupoProprio && /biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)/i.test(q.cli)) &&
+      q.cli !== a.cli && !(grupoProprio && ehGrupoJBS(q.cli)) &&
       Number.isFinite(q.net));
     if (!candidatos.length) return;
     const melhor = candidatos.reduce((b,q)=>!b || q.net>b.net?q:b,null);
@@ -832,9 +826,15 @@ function renderAvisos() {
   if (nMan) {
     const perda = RES.otimoNet - RES.netFinal;
     h += '<div class="warn"><b>' + nMan + (nMan > 1 ? ' unidades estão' : ' unidade está') +
-      '</b> fora da indicação do modelo. Isso custa <b>' + rs(perda) +
-      '</b> de NET na semana. <button class="mini" onclick="zerarManual()">voltar ao ótimo</button></div>';
+      '</b> fora da indicação do modelo, com destinos fixados. Diferença teórica de NET total (modelo − programação): <b>' + rs(perda) +
+      '</b> de NET na semana; não é perda realizada nem alternativa validada. <button class="mini" onclick="zerarManual()">voltar ao ótimo</button></div>';
   }
+  const foraDaTrava = RES.alocFinal.filter(a => a.ton > 0 && ST.travas[a.cli] &&
+    (!a.uf || travaBloqueia(ST.travas[a.cli],a.uf)));
+  if (foraDaTrava.length) h += '<div class="warn bad">A programação escolhida contém destinos fora da trava configurada: <b>' +
+    foraDaTrava.map(a=>esc(a.sigla)+' → '+esc(a.cli)).join('; ') +
+    '</b>. Confira os destinos ou a trava antes de fechar. A programação foi preservada.</div>';
+  $('#bFechar').disabled = foraDaTrava.length > 0;
   $('#avisos').innerHTML = h;
 }
 
@@ -1187,8 +1187,8 @@ function renderTabela() {
     const plantas = DS.plants.filter(p => p.uf === uf);
     const prod = plantas.reduce((s, p) => s + p.ton, 0);
     const linhas = RES.alocFinal.filter(a => a.uf === uf);
-    const pp = linhas.filter(a => a.prop).reduce((s, a) => s + a.ton, 0);
-    const tt = linhas.filter(a => !a.prop).reduce((s, a) => s + a.ton, 0);
+    const pp = linhas.filter(a => ehGrupoJBS(a.cli)).reduce((s, a) => s + a.ton, 0);
+    const tt = linhas.filter(a => !ehGrupoJBS(a.cli)).reduce((s, a) => s + a.ton, 0);
     const cel = v => v > 0.01 ? fmt0(v) + ' t' : '<span class="dim">-</span>';
     h += '<tr data-uf="' + uf + '"' + (uf === UFSEL ? ' class="sel"' : '') + '>' +
       '<td><b>' + uf + '</b></td>' +
@@ -1620,6 +1620,11 @@ async function carregarSemanaFechada(ano, semana) {
     ORIGEM_FECHADA = { versao: j.versao };
     ST._syncIso = j.fechadaEm;
     iniciar(true);
+    if (j.linhas && j.linhas.length) {
+      Object.assign(ORIGEM_FECHADA,{linhas:j.linhas,linhasOtimo:j.linhasOtimo || [],
+        prod:PROD,mapa:MAPA,assinatura:assinaturaProgramacao()});
+      renderResumoSemana();
+    }
   } catch (e) { erro('Não consegui abrir essa semana: ' + e.message); }
 }
 

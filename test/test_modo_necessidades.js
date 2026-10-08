@@ -34,7 +34,7 @@ async function fecharComPoolFalso(cab) {
   const poolOriginal = db.pool.connect;
   db.pool.connect = async () => cli;
   try {
-    const linhas = [{ toneladas: 35, sigla: 'SEN', cliente: 'Flora GO', proprio: true, destino: 'X' }];
+    const linhas = [{ toneladas: 35, net:5000, origemUf:'MT', sigla: 'SEN', cliente: 'Flora GO', proprio: true, destino: 'X' }];
     await db.fecharSemana(cab, linhas, 1, null);
   } finally {
     db.pool.connect = poolOriginal;

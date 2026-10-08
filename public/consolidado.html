@@ -77,7 +77,7 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 .lin.forte{font-weight:600;border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
 .lin.sec{font-size:11.5px;color:var(--mute)}
 .lin.sec span:first-child{color:var(--mute)}
-.semcomp{font-size:11.5px;color:var(--mute);padding:2px 0}
+.memoria{border-top:1px solid var(--line);padding:12px 16px;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.memoria summary{cursor:pointer;font-weight:700;color:var(--azul)}.memoria-lin{border-top:1px solid var(--line);padding:8px 0}.semcomp{font-size:11.5px;color:var(--mute);padding:2px 0}
 .fab.sem{opacity:.62}
 .hide{display:none!important}
 /* "O que foi feito" em destaque, largura toda, numeros maiores que o
@@ -208,7 +208,7 @@ function bloco(cab, t, net, terMed, nTer, terMelhor, tonSemComp, origensSemComp,
       ? ' · ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' cliente programado' : ' clientes programados')
       : '') + '</span></div>';
   if (tonSemComp > 0.01) {
-    o += '<div class="semcomp">' + ton(tonSemComp) + ' sem oferta de terceiro' +
+    o += '<div class="semcomp">' + ton(tonSemComp) + ' sem referência válida de terceiro programado' +
       (origensSemComp && origensSemComp.length
         ? ' (origens: ' + origensSemComp.map(esc).join(', ') + ')' : '') + '</div>';
   }
@@ -322,16 +322,15 @@ function render(d) {
   let h = '';
   if (temDado) {
   // Totais. O saving so existe onde havia alternativa de terceiro para comparar.
-  let savR = 0, savO = 0, temSavO = false;
+  let savR = 0, savO = 0, temSavR = false, temSavO = false;
   props.forEach(p => {
-    if (num(p.saving_realizado) != null) savR += num(p.saving_realizado);
+    if (num(p.saving_realizado) != null) {savR += num(p.saving_realizado);temSavR=true;}
     if (num(p.saving_otimo) != null) { savO += num(p.saving_otimo); temSavO = true; }
   });
   const tot = d.total || {};
   const tProp = props.reduce((s, p) => s + Number(p.ton_realizado || 0), 0);
   const tTudo = Number(tot.toneladas || 0);
   const tTer = tTudo - tProp;
-  const perdido = temSavO ? (savO - savR) : null;
 
   h += '<div class="cards">';
   h += '<div class="c"><div class="lab">' +
@@ -345,18 +344,11 @@ function render(d) {
        ton(tTer) + '</div><div class="pe">NET médio geral ' +
        rs(num(tot.net_medio)) + '</div></div>';
   h += '<div class="c"><div class="lab">Diferença econômica</div><div class="big ' +
-       (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') + rs(savR) +
-       '</div><div class="pe">realizado, nas cargas que foram para própria</div></div>';
+       (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') + (temSavR ? rs(savR) : 'Não apurado') +
+       '</div><div class="pe">programado, somente no volume comparável</div></div>';
   h += '</div>';
 
-  if (perdido != null && Math.abs(perdido) > 1) {
-    h += '<div class="aviso"><b>' + rs(Math.abs(perdido)) + '</b> ' +
-      (perdido > 0
-        ? 'é a diferença entre o que a alocação do modelo geraria e o que foi feito. ' +
-          'Vem das trocas manuais de destino durante a semana.'
-        : 'foi ganho acima do que o modelo indicava, por trocas feitas na mão.') +
-      '</div>';
-  }
+
 
   // Semana(s) fechada(s) antes de net_ter_med existir (sem o pacote com
   // Programação e Mapa guardado) nunca entram na comparação de ganho: nao
@@ -391,7 +383,7 @@ function render(d) {
     // DOIS lados tem uma comparacao de verdade — comparar com zero quando
     // um dos dois nao tem dado (ex.: o modelo nao mandou carga nenhuma pra
     // ca) confundia "sem comparacao" com "empatou com o mercado".
-    const temComparacao = sr != null && so != null;
+    const temComparacao = sr != null && so != null && tr === to && tr === Number(p.ton_comp_realizado) && to === Number(p.ton_comp_otimo) && p.bases_comparaveis === true;
     const dif = temComparacao ? so - sr : null;
 
     // A frase sempre descreve os volumes de verdade, comparacao existindo
@@ -427,13 +419,9 @@ function render(d) {
         // nenhuma oferta de terceiro pra aquela origem.
         const motivo = to === 0 ? 'o modelo não indicou esta fábrica'
           : tr === 0 ? 'esta fábrica não recebeu carga'
-          : (semPacotePeriodo ? 'sem planilhas para comparar' : 'sem oferta de terceiro para comparar');
+          : sr == null ? 'sem terceiro programado na mesma origem' : 'cenários com bases de volume diferentes';
         veredito = '<span style="color:var(--mute)">' + motivo + '</span>';
-        if (to !== 0 && tr !== 0) {
-          frase += ' ' + (semPacotePeriodo
-            ? 'Semana sem planilhas guardadas: não dá para calcular a comparação com o mercado.'
-            : 'Nenhuma das cargas teve oferta de terceiro para comparar.');
-        }
+        if (sr == null && tr > 0) frase += ' Sem desvio apurado: não há terceiro programado comparável.';
       } else {
         veredito = Math.abs(dif) < 1 ? '<span class="pos">no ponto</span>'
           : (dif > 0 ? '<span class="neg">' + rs(dif) + ' abaixo do modelo</span>'
@@ -455,6 +443,20 @@ function render(d) {
       num(p.n_ter_realizado), num(p.net_ter_melhor_realizado), tr - Number(p.ton_comp_realizado || 0),
       p.origens_sem_comp_realizado, sr);
     h += '</div>';
+    const preciso = (v, casas=2) => v == null ? 'Não apurado' : 'R$ ' +
+      Number(v).toLocaleString('pt-BR',{minimumFractionDigits:casas, maximumFractionDigits:casas});
+    h += '<details class="memoria"><summary>Ver composição da diferença · ' + esc(p.cliente) + ' ' +
+      (sr == null ? '(sem referência comparável)' : '(' + rs(sr) + ')') + '</summary>' +
+      '<p>Desvio da programação fechada = (NET da planta − referência de terceiros programados na mesma origem e semana) × volume comparável.</p>' +
+      (p.memoria_realizado || []).map(g => '<div class="memoria-lin"><b>S-' + g.semana + '/' + g.ano + ' · ' +
+        esc(g.sigla) + '</b> · ' + ton(g.toneladas) + ' · NET planta ' + preciso(g.net,9) + '/t' +
+        (g.impacto != null ? ' · Referência ' + preciso(g.referencia,9) + '/t · Diferença ' +
+          preciso(g.diferencaPorTonelada,9) + '/t · Volume comparável ' + ton(g.toneladasComparaveis) +
+          ' · Desvio ' + preciso(g.impacto) + '<br>Terceiros programados: ' +
+          g.terceiros.map(t => esc(t.cliente) + ' · ' + ton(t.toneladas) + ' · NET ' + preciso(t.net,9) + '/t').join('; ')
+          : ' · Desvio não apurado: ' + g.motivos.map(esc).join('; ')) +
+        (g.toneladasSemReferencia > 0 ? ' · Sem referência: ' + ton(g.toneladasSemReferencia) : '') + '</div>').join('') +
+      '<p>Total apurado: ' + preciso(sr) + '. A soma usa o NET persistido; registros antigos preservam a precisão original.</p></details>';
     h += '<button type="button" class="togglemodelo" data-alvo="modelo-' + i + '" aria-expanded="false">' +
       linkTxt + '</button>';
     h += '<div class="modelo hide" id="modelo-' + i + '">';
@@ -467,10 +469,10 @@ function render(d) {
   const totO = props.reduce((s2, p) => s2 + Number(p.ton_otimo || 0), 0);
   const prepPeriodo = d.modo === 'semana' ? 'Na semana' : 'No mês';
   h += '<div class="resumo">' + prepPeriodo + ', <b>' + ton(tProp) + '</b> foram para fábrica própria e ' +
-    'renderam <b class="' + (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') +
-    rs(savR) + '</b> frente aos terceiros efetivamente programados nas mesmas origens. ' +
-    'A alocação do modelo mandaria <b>' + ton(totO) + '</b> e renderia <b class="pos">+' +
-    rs(savO) + '</b>.</div>';
+    'têm desvio programado de <b class="' + (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') +
+    (temSavR ? rs(savR) : 'Não apurado') + '</b> frente aos terceiros efetivamente programados nas mesmas origens. ' +
+    'A alocação do modelo mandaria <b>' + ton(totO) + '</b> ; desvio simulado: <b class="' + (savO < 0 ? 'neg' : 'pos') + '">' + (savO > 0 ? '+' : '') +
+    (temSavO ? rs(savO) : 'Não apurado') + '</b>.</div>';
 
   // Terceiros num bloco so, como combinado.
   const ters = (d.porPlanta || []).filter(x => x.proprio === false);
@@ -594,7 +596,8 @@ function desenharHistorico() {
   const periodos = [...new Set(dados.map(x => x.periodo))].sort();
   const pontos = periodos.map(periodo => {
     const linhas = dados.filter(x => x.periodo === periodo);
-    return {periodo, valor:linhas.reduce((s,x)=>s+Number(x.desvio||0),0),
+    return {periodo, valor:linhas.some(x=>num(x.desvio)!=null) ? linhas.reduce((s,x)=>s+(num(x.desvio)||0),0) : null,
+      semReferencia:linhas.reduce((s,x)=>s+Number(x.volume_sem_referencia||0),0),
       volume:linhas.reduce((s,x)=>s+Number(x.volume||0),0)};
   });
   if (!pontos.length) { $('#histGrafico').textContent='Nenhuma programação fechada com histórico comparável.';return; }
@@ -604,13 +607,19 @@ function desenharHistorico() {
   let svg='<svg class="histgrafico" viewBox="0 0 '+largura+' '+altura+'" role="img" aria-label="Desvios econômicos por período">';
   svg+='<line x1="0" y1="'+zero+'" x2="'+largura+'" y2="'+zero+'" stroke="#b8bfce"/>';
   pontos.forEach((p,i)=>{
-    const x=i*passo+(passo-bar)/2, h=Math.abs(p.valor)/limite*112, y=p.valor>=0?zero-h:zero;
+    const x=i*passo+(passo-bar)/2, h=Math.abs(p.valor||0)/limite*112, y=p.valor>=0?zero-h:zero;
+    if(p.valor==null) {
+      svg+='<text x="'+(x+bar/2)+'" y="170" text-anchor="middle" font-size="10" fill="#626878">Sem referência</text>';
+      svg+='<text x="'+(x+bar/2)+'" y="285" text-anchor="middle" font-size="11">'+esc(p.periodo.replace('-W','/S'))+'</text>';
+      return;
+    }
     svg+='<rect x="'+x+'" y="'+y+'" width="'+bar+'" height="'+Math.max(1,h)+'" rx="4" fill="'+(p.valor>=0?'#168054':'#bf4045')+'"><title>'+esc(p.periodo)+' · '+rs(p.valor)+' · '+ton(p.volume)+'</title></rect>';
     svg+='<text x="'+(x+bar/2)+'" y="285" text-anchor="middle" font-size="11" fill="#626878">'+esc(p.periodo.replace('-W','/S'))+'</text>';
   });
   svg+='</svg>';
-  const total=pontos.reduce((s,x)=>s+x.valor,0), volume=pontos.reduce((s,x)=>s+x.volume,0);
-  $('#histGrafico').innerHTML='<p><b>Desvio acumulado: '+rs(total)+'</b> · Volume comparável: '+ton(volume)+'</p>'+
+  const total=pontos.some(p=>p.valor!=null) ? pontos.reduce((s,x)=>s+(x.valor||0),0) : null, volume=pontos.reduce((s,x)=>s+x.volume,0);
+  const semReferencia=pontos.reduce((s,x)=>s+x.semReferencia,0);
+  $('#histGrafico').innerHTML='<p><b>Desvio acumulado: '+(total==null?'Não apurado':rs(total))+'</b> · Volume comparável: '+ton(volume)+' · Sem referência: '+ton(semReferencia)+'</p>'+
     svg+'<p class="histlegenda">Passe o mouse sobre as barras para consultar o valor de cada período. '+
     'Positivo: NET da planta acima da referência; negativo: abaixo. '+
     'O acumulado soma somente cargas com terceiros programados na mesma origem e semana.</p>';
