@@ -449,11 +449,11 @@ function render(d) {
       (sr == null ? '(sem referência comparável)' : '(' + rs(sr) + ')') + '</summary>' +
       '<p>Desvio da programação fechada = (NET da planta − referência de terceiros programados na mesma origem e semana) × volume comparável.</p>' +
       (p.memoria_realizado || []).map(g => '<div class="memoria-lin"><b>S-' + g.semana + '/' + g.ano + ' · ' +
-        esc(g.sigla) + '</b> · ' + ton(g.toneladas) + ' · NET planta ' + preciso(g.net,9) + '/t' +
-        (g.impacto != null ? ' · Referência ' + preciso(g.referencia,9) + '/t · Diferença ' +
-          preciso(g.diferencaPorTonelada,9) + '/t · Volume comparável ' + ton(g.toneladasComparaveis) +
+        esc(g.sigla) + '</b> · ' + ton(g.toneladas) + ' · NET planta ' + preciso(g.net) + '/t' +
+        (g.impacto != null ? ' · Referência ' + preciso(g.referencia) + '/t · Diferença ' +
+          preciso(g.diferencaPorTonelada) + '/t · Volume comparável ' + ton(g.toneladasComparaveis) +
           ' · Desvio ' + preciso(g.impacto) + '<br>Terceiros programados: ' +
-          g.terceiros.map(t => esc(t.cliente) + ' · ' + ton(t.toneladas) + ' · NET ' + preciso(t.net,9) + '/t').join('; ')
+          g.terceiros.map(t => esc(t.cliente) + ' · ' + ton(t.toneladas) + ' · NET ' + preciso(t.net) + '/t').join('; ')
           : ' · Desvio não apurado: ' + g.motivos.map(esc).join('; ')) +
         (g.toneladasSemReferencia > 0 ? ' · Sem referência: ' + ton(g.toneladasSemReferencia) : '') + '</div>').join('') +
       '<p>Total apurado: ' + preciso(sr) + '. A soma usa o NET persistido; registros antigos preservam a precisão original.</p></details>';

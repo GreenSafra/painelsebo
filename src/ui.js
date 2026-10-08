@@ -601,11 +601,11 @@ function renderResumoSemana() {
       '<p>Desvio programado por origem = (NET da planta − NET médio ponderado dos terceiros programados) × toneladas comparáveis. ' +
       'A programação não confirma embarques realizados. Ofertas não escolhidas e cenário do modelo são indicadores separados.</p>' +
       memoria.map(g => '<div class="rs-memoria-lin"><b>' + esc(g.sigla) + '</b> · ' + tn(g.toneladas) +
-        ' · NET planta ' + preciso(g.net,9) + '/t' +
-        (g.impacto != null ? ' · Referência ' + preciso(g.referencia,9) + '/t · Diferença ' +
-          preciso(g.diferencaPorTonelada,9) + '/t · Volume comparável ' + tn(g.toneladasComparaveis) +
+        ' · NET planta ' + preciso(g.net) + '/t' +
+        (g.impacto != null ? ' · Referência ' + preciso(g.referencia) + '/t · Diferença ' +
+          preciso(g.diferencaPorTonelada) + '/t · Volume comparável ' + tn(g.toneladasComparaveis) +
           ' · Desvio ' + preciso(g.impacto) + '<br>Terceiros programados: ' +
-          g.terceiros.map(t => esc(t.cliente) + ' · ' + tn(t.toneladas) + ' · NET ' + preciso(t.net,9) + '/t').join('; ')
+          g.terceiros.map(t => esc(t.cliente) + ' · ' + tn(t.toneladas) + ' · NET ' + preciso(t.net) + '/t').join('; ')
           : ' · Desvio não apurado: ' + g.motivos.map(esc).join('; ')) +
         (g.toneladasSemReferencia > 0 ? ' · Sem referência: ' + tn(g.toneladasSemReferencia) : '') + '</div>').join('') +
       '<p>Total apurado: ' + preciso(sr) + '. A soma utiliza NET sem arredondamento intermediário; os cards mostram reais inteiros.</p></details>';
