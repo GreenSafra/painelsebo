@@ -64,7 +64,7 @@ T('.col no celular divide a largura em partes iguais (flex:1 1 0), nao largura f
 T('.col no celular pode encolher (min-width:0, nao trava com width fixo)',
   !!colMobile && /width:auto/.test(colMobile[1]) && /min-width:0/.test(colMobile[1]), colMobile);
 T('fora do celular, .col continua com largura fixa (desktop intocado)',
-  /\.card \.col\{flex:none;width:60px/.test(cssForaDoMobile));
+  /\.card \.col\{flex:none;width:82px/.test(cssForaDoMobile));
 
 // ---------- item 5: titulo/subtitulo menores e seletor de semana subindo pro topo ----------
 const h1Mobile = cssMobile.match(/\bh1\{([^}]*)\}/);

@@ -116,13 +116,13 @@ function txt(el, sel) { return el.querySelector(sel).textContent.trim(); }
   if (cardCV12) {
     const cols = colsDe(cardCV12);
     T('regime com ICMS 12%: sequencia das 3 semanas e so desse regime (6.400, 6.500, 6.600)',
-      txt(cols[0], '.pr') === '6.400' && txt(cols[1], '.pr') === '6.500' && txt(cols[2], '.pr') === 'R$ 6.600',
+      txt(cols[0], '.pr') === 'R$ 6.400' && txt(cols[1], '.pr') === 'R$ 6.500' && txt(cols[2], '.pr') === 'R$ 6.600',
       cols.map(c => txt(c, '.pr')));
   }
   if (cardCVdif) {
     const cols = colsDe(cardCVdif);
     T('regime diferido: sequencia das 3 semanas e so desse regime (5.900, 5.850, 5.808), nao mistura com o outro regime',
-      txt(cols[0], '.pr') === '5.900' && txt(cols[1], '.pr') === '5.850' && txt(cols[2], '.pr') === 'R$ 5.808',
+      txt(cols[0], '.pr') === 'R$ 5.900' && txt(cols[1], '.pr') === 'R$ 5.850' && txt(cols[2], '.pr') === 'R$ 5.808',
       cols.map(c => txt(c, '.pr')));
   }
 
@@ -151,8 +151,8 @@ function txt(el, sel) { return el.querySelector(sel).textContent.trim(); }
       txt(cols[0], '.pr') === '-', txt(cols[0], '.pr'));
     T('semana 36: sem variacao (espaco reservado)',
       txt(cols[0], '.dif') === '' && cols[0].querySelector('.dif').classList.contains('ausente'));
-    T('semana 37 (primeira oferta deste regime): preco 4.700, sem "R$" (nao e a atual)',
-      txt(cols[1], '.pr') === '4.700', txt(cols[1], '.pr'));
+    T('semana 37 (primeira oferta deste regime): preco 4.700, com R$ padronizado',
+      txt(cols[1], '.pr') === 'R$ 4.700', txt(cols[1], '.pr'));
     T('semana 37: sem variacao tambem (a coluna anterior, S36, nao tem preco NESTE regime)',
       txt(cols[1], '.dif') === '' && cols[1].querySelector('.dif').classList.contains('ausente'));
     T('semana 38 (atual): preco 4.750, com "R$", em destaque',
@@ -164,7 +164,7 @@ function txt(el, sel) { return el.querySelector(sel).textContent.trim(); }
   if (cardDif) {
     const cols = colsDe(cardDif);
     T('linha diferido do mesmo cliente nao foi afetada pelo regime 7% (4.500, 4.550, R$ 4.600)',
-      txt(cols[0], '.pr') === '4.500' && txt(cols[1], '.pr') === '4.550' && txt(cols[2], '.pr') === 'R$ 4.600',
+      txt(cols[0], '.pr') === 'R$ 4.500' && txt(cols[1], '.pr') === 'R$ 4.550' && txt(cols[2], '.pr') === 'R$ 4.600',
       cols.map(c => txt(c, '.pr')));
   }
 
