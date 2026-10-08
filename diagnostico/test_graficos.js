@@ -1,0 +1,23 @@
+const {JSDOM}=require('../test/node_modules/jsdom');
+const fs=require('fs'),assert=require('assert');
+const html=fs.readFileSync(__dirname+'/../public/analise.html','utf8');
+const weeks=[{ano:2026,semana:40},{ano:2026,semana:39},{ano:2026,semana:38},{ano:2026,semana:37}];
+const dados=weeks.flatMap((w,i)=>['Cliente A','Cliente B'].map((cliente,j)=>({...w,cliente,icms:.12,oferta:6500-i*100-j*200})));
+let calls=0;
+const dom=new JSDOM(html,{url:'https://example.com/analise',runScripts:'dangerously',beforeParse(w){w.fetch=async url=>{calls++;if(url==='/api/cotacoes/semanas')return{ok:true,json:async()=>weeks};const pares=decodeURIComponent(url.split('pares=')[1]).split(',');return{ok:true,json:async()=>dados.filter(x=>pares.includes(x.ano+'-'+x.semana))};};w.alert=()=>{};}});
+const wait=()=>new Promise(r=>setTimeout(r,60));
+(async()=>{
+await wait();
+const doc=dom.window.document;
+assert.equal(doc.querySelectorAll('.card').length,2,'ranking');
+const card=doc.querySelector('.card');card.click();await wait();
+assert(doc.querySelector('#graficoAberto svg'),'expansao com SVG');
+assert(doc.querySelector('#graficoAberto').textContent.includes('Cliente A'),'identificacao');
+const check=doc.querySelector('[data-comparar]');check.click();await wait();
+assert(doc.querySelector('#comparacao svg'),'comparacao SVG');
+assert(doc.querySelector('#comparacao').textContent.includes('Cliente A'),'legenda');
+doc.querySelector('#limparComparacao').click();await wait();
+assert(!doc.querySelector('#comparacao svg'),'limpar');
+console.log('PASSOU: ranking, expansao, historico, comparacao e limpeza. Consultas:',calls);
+dom.window.close();
+})().catch(e=>{console.error(e);process.exitCode=1;dom.window.close();});
