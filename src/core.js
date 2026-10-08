@@ -911,7 +911,7 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa, ds) {
         // ranking ja cortado de opcoes(), sem relacao com a media abaixo
         let alt = null;
         lista.forEach(o => {
-          if (o.cli === p.dest.cli) return;
+          if (o.cli === p.dest.cli || (ehGrupoJBS(p.dest.cli) && ehGrupoJBS(o.cli))) return;
           if (!alt || o.net > alt.net) alt = o;
         });
         // media (e melhor, so informativo) entre TERCEIROS de verdade para
@@ -948,6 +948,26 @@ function montarSemana(prod, aloc, alocOtimo, ops, mapa, ds) {
 
   const linhas = montar(aloc);
   const linhasOtimo = (alocOtimo && alocOtimo.length) ? montar(alocOtimo) : [];
+
+  // Referencia comercial: apenas terceiros REALMENTE programados, por origem.
+  // A mesma referencia do realizado vale para o cenario otimo; nunca se
+  // compara JBS e Flora entre si. Ofertas descartadas ficam fora desta media.
+  const terceiros = {};
+  linhas.forEach(l => {
+    if (ehGrupoJBS(l.cliente) || !(l.toneladas > 0)) return;
+    const d = terceiros[l.sigla] || (terceiros[l.sigla] = {ton:0, soma:0, clientes:new Set(), melhor:null});
+    d.ton += l.toneladas;
+    d.soma += l.net * l.toneladas;
+    d.clientes.add(l.cliente);
+    if (d.melhor == null || l.net > d.melhor) d.melhor = l.net;
+  });
+  [linhas,linhasOtimo].forEach(lista => lista.forEach(l => {
+    if (!ehGrupoJBS(l.cliente)) return;
+    const t=terceiros[l.sigla];
+    l.netTerMed=t && t.ton>0 ? t.soma/t.ton : null;
+    l.nTer=t ? t.clientes.size : 0;
+    l.netTer=t ? t.melhor : null;
+  }));
 
   return {
     cabecalho: {

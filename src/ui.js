@@ -469,7 +469,7 @@ function renderResumoSemana() {
     o += '<div class="rs-lin"><span>NET médio</span><span>' + f(net) + '</span></div>';
     o += '<div class="rs-lin"><span>Média terceiros</span><span>' + f(terMed) +
       (terMed != null && nTer > 0
-        ? ' · média de ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' oferta' : ' ofertas')
+        ? ' · ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' cliente programado' : ' clientes programados')
         : '') + '</span></div>';
     if (tonSemComp > 0.01) {
       o += '<div class="rs-semcomp">' + tn(tonSemComp) + ' sem oferta de terceiro' +
@@ -509,7 +509,7 @@ function renderResumoSemana() {
     (tTudo ? fmt1(tProp / tTudo * 100) + '% do total' : '-') + '</div></div>';
   h += '<div class="rs-c"><div class="rs-lab">Para terceiros</div><div class="rs-big">' +
     tn(tTer) + '</div><div class="rs-pe">NET médio geral ' + rs(tot.net_medio) + '</div></div>';
-  h += '<div class="rs-c"><div class="rs-lab">Ganho sobre o mercado</div><div class="rs-big ' +
+  h += '<div class="rs-c"><div class="rs-lab">Diferença econômica</div><div class="rs-big ' +
     (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') + rs(savR) +
     '</div><div class="rs-pe">realizado, nas cargas que foram para própria</div></div>';
   h += '</div>';
@@ -600,7 +600,7 @@ function renderResumoSemana() {
   const totO = props.reduce((s2, p) => s2 + p.ton_otimo, 0);
   h += '<div class="rs-resumo">Nesta semana, <b>' + tn(tProp) + '</b> foram para fábrica própria ' +
     'e rendem <b class="' + (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') +
-    rs(savR) + '</b> em relação ao que o mercado pagaria pelas mesmas cargas. A alocação do ' +
+    rs(savR) + '</b> frente aos terceiros efetivamente programados nas mesmas origens. A alocação do ' +
     'modelo mandaria <b>' + tn(totO) + '</b> e renderia <b class="rs-pos">+' + rs(savO) +
     '</b>.</div>';
 
@@ -697,6 +697,34 @@ function renderKpis() {
 
 function renderAvisos() {
   let h = '';
+  // Custo de oportunidade TEORICO das escolhas da programacao.
+  // Nao pressupoe capacidade de retirada da melhor oferta nem altera destino.
+  const porOrigem = {};
+  (DS.quotes || []).forEach(q => (porOrigem[q.sigla] || (porOrigem[q.sigla] = [])).push(q));
+  let oportunidade = 0, volumeOportunidade = 0, detalhes = [];
+  (RES.alocFinal || []).forEach(a => {
+    if (!(a.ton > 0) || !Number.isFinite(a.net)) return;
+    const grupoProprio = /biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)/i.test(a.cli);
+    const candidatos = (porOrigem[a.sigla] || []).filter(q =>
+      q.cli !== a.cli && !(grupoProprio && /biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)/i.test(q.cli)) &&
+      Number.isFinite(q.net));
+    if (!candidatos.length) return;
+    const melhor = candidatos.reduce((b,q)=>!b || q.net>b.net?q:b,null);
+    const dif = Math.max(0,melhor.net-a.net);
+    if (dif <= 0.005) return;
+    const valor = dif*a.ton;
+    oportunidade += valor;
+    volumeOportunidade += a.ton;
+    detalhes.push({sigla:a.sigla,cliente:a.cli,melhor:melhor.cli,ton:a.ton,dif,valor});
+  });
+  if (detalhes.length) {
+    detalhes.sort((a,b)=>b.valor-a.valor);
+    h += '<details class="warn"><summary><b>Custo de oportunidade potencial: '+rs(oportunidade)+
+      '</b> · '+fmt0(volumeOportunidade)+' t · ver escolhas</summary>'+
+      '<p>Comparação teórica com a melhor oferta alternativa por origem. Não considera capacidade de retirada, confiabilidade ou restrições comerciais. Não representa perda realizada.</p>'+
+      detalhes.map(x=>'<p><b>'+esc(x.sigla)+'</b> · '+esc(x.cliente)+' → '+esc(x.melhor)+
+        ' · '+fmt0(x.ton)+' t · '+rs(x.dif)+'/t · '+rs(x.valor)+'</p>').join('')+'</details>';
+  }
   if (PROD.destinosPreenchidos) {
     h += '<div class="warn">Programação preenchida: a distribuição será a da planilha.</div>';
   }

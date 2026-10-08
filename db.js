@@ -750,29 +750,39 @@ async function consolidado(criterio) {
   // melhor terceiro entrava antes (ver comparacaoTerceiros() em
   // src/core.js:montarSemana, mesma regra usada ao fechar a semana).
   const porPropria = await pool.query(
-    `WITH dados AS (
+    `WITH terceiros_programados AS (
+       SELECT semana_id, sigla,
+              sum(net * toneladas) / nullif(sum(toneladas),0) AS net_ref,
+              max(net) AS melhor_net,
+              count(DISTINCT cliente) AS quantidade
+         FROM alocacoes
+        WHERE cenario = 'realizado' AND NOT proprio AND toneladas > 0
+          AND cliente !~* 'biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)'
+        GROUP BY semana_id, sigla
+     ), dados AS (
        SELECT a.cliente, a.cenario,
               sum(a.toneladas) AS ton,
               sum(a.net * a.toneladas) / nullif(sum(a.toneladas),0) AS net_medio,
-              sum(a.net_ter_med * a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL)
-                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL),0)
+              sum(tp.net_ref * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL),0)
                 AS net_ter,
-              sum(a.net_ter * a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL)
-                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL),0)
+              sum(tp.melhor_net * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL),0)
                 AS net_ter_melhor,
-              sum(a.n_ter * a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL)
-                / nullif(sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL),0)
+              sum(tp.quantidade * a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL)
+                / nullif(sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL),0)
                 AS n_ter,
-              sum(a.toneladas) FILTER (WHERE a.net_ter_med IS NOT NULL) AS ton_comp,
-              sum((a.net - a.net_ter_med) * a.toneladas)
-                FILTER (WHERE a.net_ter_med IS NOT NULL) AS saving,
+              sum(a.toneladas) FILTER (WHERE tp.net_ref IS NOT NULL) AS ton_comp,
+              sum((a.net - tp.net_ref) * a.toneladas)
+                FILTER (WHERE tp.net_ref IS NOT NULL) AS saving,
               -- siglas de origem que entraram no volume/NET da propria mas
               -- ficaram fora da Diferenca por falta de terceiro pra
               -- comparar naquela origem (ver tela: "X t sem oferta de
               -- terceiro (origens: ...)").
-              array_agg(DISTINCT a.sigla) FILTER (WHERE a.net_ter_med IS NULL AND a.sigla IS NOT NULL)
+              array_agg(DISTINCT a.sigla) FILTER (WHERE tp.net_ref IS NULL AND a.sigla IS NOT NULL)
                 AS origens_sem_comp
          FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
+         LEFT JOIN terceiros_programados tp ON tp.semana_id = a.semana_id AND tp.sigla = a.sigla
         WHERE s.atual AND a.proprio AND ${f.sql}
         GROUP BY 1,2
      ),
@@ -835,6 +845,37 @@ async function consolidado(criterio) {
     semanasFechadas: semanasFechadas.rows,
     total: total.rows[0] || { toneladas: 0, net_medio: null, semanas: 0 }
   };
+}
+
+// Historico gerencial sem modificar registros de semanas fechadas.
+async function historicoEconomico() {
+  const r = await pool.query(`
+    WITH terceiros AS (
+      SELECT semana_id, sigla,
+             sum(net * toneladas) / nullif(sum(toneladas),0) AS referencia
+        FROM alocacoes
+       WHERE cenario='realizado' AND NOT proprio AND toneladas > 0
+         AND cliente !~* 'biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)'
+       GROUP BY semana_id, sigla
+    ), base AS (
+      SELECT s.ano, s.semana, a.cliente, a.data_embarque,
+             (a.net-t.referencia)*a.toneladas AS desvio,
+             CASE WHEN t.referencia IS NOT NULL THEN a.toneladas ELSE 0 END AS volume
+        FROM alocacoes a JOIN semanas s ON s.id=a.semana_id
+        LEFT JOIN terceiros t ON t.semana_id=a.semana_id AND t.sigla=a.sigla
+       WHERE s.atual AND a.cenario='realizado' AND a.proprio
+    )
+    SELECT 'semana' AS tipo, (ano::text || '-W' || lpad(semana::text,2,'0')) AS periodo,
+           cliente, sum(desvio) AS desvio, sum(volume) AS volume
+      FROM base GROUP BY ano,semana,cliente
+    UNION ALL
+    SELECT 'mes' AS tipo, to_char(data_embarque,'YYYY-MM') AS periodo,
+           cliente, sum(desvio) AS desvio, sum(volume) AS volume
+      FROM base WHERE data_embarque IS NOT NULL
+      GROUP BY to_char(data_embarque,'YYYY-MM'),cliente
+    ORDER BY tipo, periodo, cliente
+  `);
+  return r.rows;
 }
 
 async function apagarSemana(ano, semana) {
@@ -1115,7 +1156,7 @@ module.exports = {
   fecharOutrasSessoes, redefinirSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,
   criarHash, conferirSenha,
-  fecharSemana, listarSemanas, consolidado, mesesComDado, apagarSemana,
+  fecharSemana, listarSemanas, consolidado, historicoEconomico, mesesComDado, apagarSemana,
   lerSemanaAtual, semanaMaisRecente,
   salvarRascunho, listarRascunhos, lerRascunho, apagarRascunho,
   rascunhoRecenteDoUsuario, semanasSalvas,

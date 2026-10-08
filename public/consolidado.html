@@ -102,6 +102,19 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
   font-size:12.5px;color:var(--mute);margin:0 0 14px;line-height:1.5}
 .resumo{background:var(--card);border:1px solid var(--line);padding:14px 16px;
   font-size:13.5px;line-height:1.6;margin-bottom:14px}
+.historico{background:#fff;border:1px solid #d9ddeb;border-radius:14px;padding:20px;margin:22px 0;box-shadow:0 12px 28px #1e1e7b0c}
+.historico.hide{display:none}
+.histcab,.histfiltros{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between}
+.histcab h2{margin:0;color:var(--azul)}
+.histcab button,.histfiltros select{border:1px solid var(--line);background:#fff;border-radius:7px;padding:8px;color:var(--azul);cursor:pointer}
+.histfiltros{justify-content:flex-start;margin:16px 0}
+.histfiltros label{font-size:13px;color:var(--mute)}
+.histgrafico{width:100%;height:auto;display:block}
+.histlegenda{font-size:12px;color:var(--mute);line-height:1.6}
+.feito .lin.forte{cursor:pointer}
+.feito .lin.forte:hover{background:#eef1ff}
+.metodologia{margin:24px 0;padding:12px 16px;background:#fff;border:1px solid var(--line);border-radius:9px;font-size:13px;line-height:1.65}
+.metodologia summary{font-weight:700;color:var(--azul);cursor:pointer}
 @media(max-width:640px){
   .feito .lin.forte{font-size:17px}
 }
@@ -135,7 +148,17 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 <hr>
 
 <div id="conteudo"><p class="carregando">Carregando…</p></div>
-
+<section id="painelHistorico" class="historico hide" aria-label="Histórico econômico">
+  <div class="histcab"><h2>Histórico econômico das alocações</h2><button type="button" id="fecharHistorico">Fechar</button></div>
+  <div class="histfiltros"><label>Unidade <select id="histCliente"><option value="">Todas as plantas</option></select></label>
+    <label>Visão <select id="histModo"><option value="mes">Mensal</option><option value="semana">Semanal</option></select></label></div>
+  <div id="histGrafico" aria-live="polite"></div>
+</section>
+<details class="metodologia"><summary>Metodologia de Cálculo</summary>
+  <p><b>Competitividade das plantas:</b> compara o NET das cargas destinadas a cada planta com o NET médio dos terceiros efetivamente programados na mesma origem e semana, ponderado pelas toneladas destinadas a cada terceiro. JBS e Flora pertencem ao mesmo grupo e não entram como terceiros. Sem terceiro programado naquela origem, a carga não entra no desvio, mas permanece no volume e no NET da planta.</p>
+  <p><b>Custo de oportunidade:</b> diferença potencial entre a escolha realizada e a melhor alternativa de oferta comparável. É uma simulação comercial, não perda realizada nem garantia de retirada.</p>
+  <p><b>Resultado econômico:</b> soma dos desvios (NET da planta − NET médio dos terceiros programados) × toneladas comparáveis. A visão semanal usa a semana fechada; a mensal usa a data de embarque de cada carga, preservando os meses anteriores. Valores positivos indicam NET maior na planta; negativos, menor.</p>
+</details>
 </div>
 <script>
 const $ = s => document.querySelector(s);
@@ -182,7 +205,7 @@ function bloco(cab, t, net, terMed, nTer, terMelhor, tonSemComp, origensSemComp,
   o += '<div class="lin"><span>NET médio</span><span>' + f(net) + '</span></div>';
   o += '<div class="lin"><span>Média terceiros</span><span>' + f(terMed) +
     (terMed != null && nTer > 0
-      ? ' · média de ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' oferta' : ' ofertas')
+      ? ' · ' + Math.round(nTer) + (Math.round(nTer) === 1 ? ' cliente programado' : ' clientes programados')
       : '') + '</span></div>';
   if (tonSemComp > 0.01) {
     o += '<div class="semcomp">' + ton(tonSemComp) + ' sem oferta de terceiro' +
@@ -321,7 +344,7 @@ function render(d) {
   h += '<div class="c"><div class="lab">Para terceiros</div><div class="big">' +
        ton(tTer) + '</div><div class="pe">NET médio geral ' +
        rs(num(tot.net_medio)) + '</div></div>';
-  h += '<div class="c"><div class="lab">Ganho sobre o mercado</div><div class="big ' +
+  h += '<div class="c"><div class="lab">Diferença econômica</div><div class="big ' +
        (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') + rs(savR) +
        '</div><div class="pe">realizado, nas cargas que foram para própria</div></div>';
   h += '</div>';
@@ -342,17 +365,17 @@ function render(d) {
   if (semPacote.length) {
     h += '<div class="avisoPacote">' +
       (d.modo === 'semana'
-        ? 'Esta semana está sem média de terceiros: reabra e feche com as planilhas para recalcular.'
-        : semPacote.length + ' de ' + semanas.length + ' semana(s) deste período estão sem média ' +
-          'de terceiros e ficaram fora do Ganho sobre o mercado. Reabra e feche cada uma com as ' +
-          'planilhas para recalcular.') +
+        ? 'Semana antiga sem pacote original: a comparação atual utiliza somente os destinos efetivamente registrados na programação.'
+        : semPacote.length + ' de ' + semanas.length + ' semana(s) não têm pacote original. ' +
+          'A referência econômica atual utiliza apenas as alocações registradas, sem recriar ofertas ausentes.') +
       '</div>';
   }
 
   h += '<h2>Fábricas próprias</h2>';
   h += '<p class="nota">Para cada carga que foi para uma fábrica própria, o painel compara ' +
-    'com a média do NET entre os terceiros que ofertaram para <b>a mesma origem</b>, na mesma ' +
-    'semana. A diferença entre as duas é o que a decisão valeu. Aqui isso aparece duas vezes: ' +
+    'com o NET médio ponderado pelo volume dos terceiros <b>efetivamente programados</b> ' +
+    'para a mesma origem e semana. Sem terceiro programado nessa origem, não há desvio apurado. ' +
+    'O comparativo distingue o realizado do cenário indicado pelo modelo: ' +
     'no que foi feito, e no que o modelo mandava fazer antes de qualquer troca manual.</p>';
 
   // Sem planilhas guardadas (ver avisoPacote acima), nenhuma carga da(s)
@@ -423,7 +446,7 @@ function render(d) {
     // existe) direto no link, sem precisar abrir pra ler.
     const linkTxt = 'ver o que o modelo mandava' +
       (motivoZero ? ' <span class="motivozero">(' + motivoZero.replace(/\.$/, '') + ')</span>' : '');
-    h += '<div class="fab' + (tr === 0 && to === 0 ? ' sem' : '') + '">';
+    h += '<div class="fab' + (tr === 0 && to === 0 ? ' sem' : '') + '" data-cliente="' + esc(p.cliente) + '">';
     h += '<div class="top"><span class="nome">' + selo(p.cliente) + esc(p.cliente) +
       '</span><span class="veredito">' + veredito + '</span></div>';
     h += '<div class="frase">' + frase + '</div>';
@@ -445,7 +468,7 @@ function render(d) {
   const prepPeriodo = d.modo === 'semana' ? 'Na semana' : 'No mês';
   h += '<div class="resumo">' + prepPeriodo + ', <b>' + ton(tProp) + '</b> foram para fábrica própria e ' +
     'renderam <b class="' + (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') +
-    rs(savR) + '</b> em relação ao que o mercado pagaria pelas mesmas cargas. ' +
+    rs(savR) + '</b> frente aos terceiros efetivamente programados nas mesmas origens. ' +
     'A alocação do modelo mandaria <b>' + ton(totO) + '</b> e renderia <b class="pos">+' +
     rs(savO) + '</b>.</div>';
 
@@ -490,6 +513,20 @@ function render(d) {
 
   cont.innerHTML = h;
 
+  [].forEach.call(cont.querySelectorAll('.feito .lin.forte'), linha => {
+    linha.setAttribute('title','Clique para abrir histórico semanal e mensal');
+    linha.setAttribute('role','button');
+    linha.setAttribute('tabindex','0');
+    const abrir = () => abrirHistorico(linha.closest('.fab').dataset.cliente);
+    linha.onclick = abrir;
+    linha.onkeydown = e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();abrir();} };
+  });
+  const totalDesvio=cont.querySelector('.cards .c:nth-child(4)');
+  if(totalDesvio) {
+    totalDesvio.style.cursor='pointer';
+    totalDesvio.title='Clique para abrir o histórico econômico consolidado';
+    totalDesvio.onclick=()=>abrirHistorico('');
+  }
   [].forEach.call(cont.querySelectorAll('.togglemodelo'), btn => {
     btn.onclick = () => {
       const alvo = document.getElementById(btn.dataset.alvo);
@@ -518,6 +555,8 @@ function render(d) {
       const r = await fetch('/api/semanas?ano=' + ano + '&semana=' + semana, { method: 'DELETE' });
       if (sessaoExpirada(r)) return;
       if (!r.ok) { alert('Não consegui apagar essa semana.'); return; }
+      HIST_ECON=null;
+      $('#painelHistorico').classList.add('hide');
       // Apagou justo a semana escolhida no modo Semana: ela some da lista,
       // repopula e cai em outra semana valida — sem trocar de modo.
       if (modo === 'semana' && $('#periodo').value === ano + '-' + semana) {
@@ -529,6 +568,56 @@ function render(d) {
     };
   });
 }
+
+let HIST_ECON = null;
+async function abrirHistorico(cliente) {
+  $('#painelHistorico').classList.remove('hide');
+  $('#histGrafico').textContent = 'Carregando histórico…';
+  try {
+    if (!HIST_ECON) {
+      const r = await fetch('/api/consolidado/historico');
+      if (sessaoExpirada(r)) return;
+      if (!r.ok) throw new Error('Não foi possível consultar o histórico.');
+      HIST_ECON = await r.json();
+    }
+    const clientes = [...new Set(HIST_ECON.map(x => x.cliente))].sort();
+    $('#histCliente').innerHTML = '<option value="">Todas as plantas</option>' +
+      clientes.map(x => '<option value="' + esc(x) + '">' + esc(x) + '</option>').join('');
+    $('#histCliente').value = clientes.includes(cliente) ? cliente : '';
+    desenharHistorico();
+    $('#painelHistorico').scrollIntoView({behavior:'smooth',block:'start'});
+  } catch(e) { $('#histGrafico').textContent = e.message; }
+}
+function desenharHistorico() {
+  const modoHist = $('#histModo').value, cliente = $('#histCliente').value;
+  const dados = (HIST_ECON || []).filter(x => x.tipo === modoHist && (!cliente || x.cliente === cliente));
+  const periodos = [...new Set(dados.map(x => x.periodo))].sort();
+  const pontos = periodos.map(periodo => {
+    const linhas = dados.filter(x => x.periodo === periodo);
+    return {periodo, valor:linhas.reduce((s,x)=>s+Number(x.desvio||0),0),
+      volume:linhas.reduce((s,x)=>s+Number(x.volume||0),0)};
+  });
+  if (!pontos.length) { $('#histGrafico').textContent='Nenhuma programação fechada com histórico comparável.';return; }
+  const largura=Math.max(700,pontos.length*75), altura=300, zero=150;
+  const limite=Math.max(1,...pontos.map(x=>Math.abs(x.valor)));
+  const bar=44, passo=largura/pontos.length;
+  let svg='<svg class="histgrafico" viewBox="0 0 '+largura+' '+altura+'" role="img" aria-label="Desvios econômicos por período">';
+  svg+='<line x1="0" y1="'+zero+'" x2="'+largura+'" y2="'+zero+'" stroke="#b8bfce"/>';
+  pontos.forEach((p,i)=>{
+    const x=i*passo+(passo-bar)/2, h=Math.abs(p.valor)/limite*112, y=p.valor>=0?zero-h:zero;
+    svg+='<rect x="'+x+'" y="'+y+'" width="'+bar+'" height="'+Math.max(1,h)+'" rx="4" fill="'+(p.valor>=0?'#168054':'#bf4045')+'"><title>'+esc(p.periodo)+' · '+rs(p.valor)+' · '+ton(p.volume)+'</title></rect>';
+    svg+='<text x="'+(x+bar/2)+'" y="285" text-anchor="middle" font-size="11" fill="#626878">'+esc(p.periodo.replace('-W','/S'))+'</text>';
+  });
+  svg+='</svg>';
+  const total=pontos.reduce((s,x)=>s+x.valor,0), volume=pontos.reduce((s,x)=>s+x.volume,0);
+  $('#histGrafico').innerHTML='<p><b>Desvio acumulado: '+rs(total)+'</b> · Volume comparável: '+ton(volume)+'</p>'+
+    svg+'<p class="histlegenda">Passe o mouse sobre as barras para consultar o valor de cada período. '+
+    'Positivo: NET da planta acima da referência; negativo: abaixo. '+
+    'O acumulado soma somente cargas com terceiros programados na mesma origem e semana.</p>';
+}
+$('#histModo').onchange=desenharHistorico;
+$('#histCliente').onchange=desenharHistorico;
+$('#fecharHistorico').onclick=()=>$('#painelHistorico').classList.add('hide');
 
 async function carregar() {
   const v = $('#periodo').value;

@@ -122,7 +122,7 @@ const parseRs = txt => {
       duoRealizado.querySelector('.rs-lin.rs-sec').textContent.indexOf('Melhor terceiro') === 0);
     const nOfertas = Math.round(comFabricaComparavel.n_ter_realizado);
     T('a contagem de ofertas na tela bate com n_ter_realizado agregado',
-      linhas.some(t => t.indexOf('média de ' + nOfertas + ' oferta') >= 0), nOfertas);
+      linhas.some(t => t.indexOf(nOfertas + ' cliente') >= 0), nOfertas);
   }
 
   // --- 2b. a soma dos savings por fabrica bate com a soma linha a linha

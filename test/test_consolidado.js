@@ -241,7 +241,7 @@ function carregarPagina(url, mockFetch) {
     T('bloco da fabrica renderizado', !!duo);
     const linhasTxt = duo ? [...duo.querySelectorAll('.lin')].map(l => l.textContent) : [];
     T('"Média terceiros" e a linha principal, com a contagem de ofertas',
-      linhasTxt.some(t => t.indexOf('Média terceiros') === 0 && t.indexOf('média de 4 ofertas') >= 0),
+      linhasTxt.some(t => t.indexOf('Média terceiros') === 0 && t.indexOf('4 clientes programados') >= 0),
       linhasTxt.join(' | '));
     T('"Melhor terceiro" (R$ 5.436-like) aparece so como linha informativa (.lin.sec)',
       !!duo.querySelector('.lin.sec') &&
@@ -252,8 +252,8 @@ function carregarPagina(url, mockFetch) {
       duo.querySelector('.semcomp').textContent.indexOf('200') >= 0 &&
       duo.querySelector('.semcomp').textContent.indexOf('sem oferta de terceiro') >= 0,
       duo.querySelector('.semcomp') && duo.querySelector('.semcomp').textContent);
-    T('texto explicativo fala em "média", nao mais em "melhor oferta"',
-      d4.querySelector('.nota').textContent.indexOf('média do NET') >= 0);
+    T('texto explicativo informa media ponderada dos terceiros programados',
+      d4.querySelector('.nota').textContent.indexOf('NET médio ponderado pelo volume') >= 0);
   }
 
   // ---------- bateria 5: semana(s) sem pacote ficam marcadas e fora do total ----------
@@ -287,8 +287,8 @@ function carregarPagina(url, mockFetch) {
     T('modo mes com 1 de 2 semanas sem pacote: aviso aparece com a contagem certa',
       !!aviso5a && aviso5a.textContent.indexOf('1 de 2 semana(s)') >= 0,
       aviso5a && aviso5a.textContent);
-    T('aviso explica que a(s) semana(s) ficaram fora do Ganho sobre o mercado',
-      !!aviso5a && aviso5a.textContent.indexOf('fora do Ganho sobre o mercado') >= 0);
+    T('aviso preserva a referencia por alocacoes registradas',
+      !!aviso5a && aviso5a.textContent.indexOf('alocações registradas') >= 0);
 
     // 5b. modo semana, a unica semana do periodo sem pacote
     const mockFetch5b = async url => {
@@ -313,8 +313,8 @@ function carregarPagina(url, mockFetch) {
     await new Promise(r => setTimeout(r, 150));
     const d5b = w5b.document;
     const aviso5b = d5b.querySelector('.avisoPacote');
-    T('modo semana sem pacote: aviso especifico de "reabra e feche com as planilhas"',
-      !!aviso5b && aviso5b.textContent.indexOf('reabra e feche com as planilhas') >= 0,
+    T('modo semana sem pacote: referencia baseada nos destinos registrados',
+      !!aviso5b && aviso5b.textContent.indexOf('destinos efetivamente registrados') >= 0,
       aviso5b && aviso5b.textContent);
 
     // 5c. todas as semanas do periodo com pacote: sem aviso nenhum

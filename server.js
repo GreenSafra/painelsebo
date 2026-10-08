@@ -332,6 +332,11 @@ app.get('/api/meses', exigeLoginPronto, async (req, res) => {
   res.json(await db.mesesComDado());
 });
 
+app.get('/api/consolidado/historico', exigeLoginPronto, async (req, res) => {
+  try { res.json(await db.historicoEconomico()); }
+  catch (e) { res.status(500).json({ erro: 'Falha ao consultar histórico econômico.' }); }
+});
+
 app.get('/api/consolidado', exigeLoginPronto, async (req, res) => {
   try {
     const { mes, semana } = req.query;

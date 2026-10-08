@@ -105,8 +105,8 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
   const src = fs.readFileSync(path.join(__dirname, '..', 'db.js'), 'utf8');
   const ini = src.indexOf('const porPropria = await pool.query(');
   const bloco = src.slice(ini, src.indexOf("ORDER BY p.cliente`, f.params);", ini) + 30);
-  T('CTE "dados" calcula origens_sem_comp (array_agg das siglas sem net_ter_med)',
-    /array_agg\(DISTINCT a\.sigla\) FILTER \(WHERE a\.net_ter_med IS NULL/.test(bloco));
+  T('CTE "dados" calcula origens sem terceiro programado',
+    /array_agg\(DISTINCT a\.sigla\) FILTER \(WHERE tp\.net_ref IS NULL/.test(bloco));
   T('SELECT final expoe origens_sem_comp_realizado', /origens_sem_comp_realizado/.test(bloco));
   T('SELECT final expoe origens_sem_comp_otimo', /origens_sem_comp_otimo/.test(bloco));
 })();

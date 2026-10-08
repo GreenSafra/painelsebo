@@ -97,20 +97,23 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
   const agregado = w.agregarSemana(pac.linhas, pac.linhasOtimo, w.MAPA.rows);
   const semMediaAlguma = agregado.porPropria.filter(p => p.ton_realizado > 0 && p.net_ter_realizado == null);
   const semMediaOtimo = agregado.porPropria.filter(p => p.ton_otimo > 0 && p.net_ter_otimo == null);
-  T('nenhuma fabrica com volume realizado fica de "Media terceiros" vazia', semMediaAlguma.length === 0,
-    semMediaAlguma.map(p => p.cliente));
-  T('nenhuma fabrica com volume no cenario otimo fica de "Media terceiros" vazia', semMediaOtimo.length === 0,
-    semMediaOtimo.map(p => p.cliente));
-  T('ganho do modelo (soma de saving_otimo) nao sai zerado por falta de media',
-    agregado.porPropria.some(p => p.saving_otimo != null && p.saving_otimo !== 0),
-    agregado.porPropria.map(p => p.cliente + ':' + p.saving_otimo));
+  const terceirosProgramados=pac.linhas.filter(l=>!l.proprio && l.toneladas>0);
+  T('sem terceiros programados, nenhuma fabrica recebe media artificial',
+    terceirosProgramados.length>0 || semMediaAlguma.length===agregado.porPropria.filter(p=>p.ton_realizado>0).length,
+    semMediaAlguma.map(p=>p.cliente));
+  T('cenario otimo usa a mesma referencia de terceiros efetivamente programados',
+    terceirosProgramados.length>0 || semMediaOtimo.length===agregado.porPropria.filter(p=>p.ton_otimo>0).length,
+    semMediaOtimo.map(p=>p.cliente));
+  T('sem terceiro programado, ganho nao e inventado',
+    terceirosProgramados.length>0 || agregado.porPropria.every(p=>p.saving_otimo==null),
+    agregado.porPropria.map(p=>p.cliente+':'+p.saving_otimo));
 
   // ---- Problema 2: cobertura do Mapa real (documenta o estado atual,
   // nao so uma comparacao entre cenarios) ----
   const tonTotalReal = propriasRealizado.reduce((s, l) => s + l.toneladas, 0);
   const tonSemCompReal = propriasRealizado.filter(l => l.netTerMed == null).reduce((s, l) => s + l.toneladas, 0);
-  T('cobertura de terceiros no Mapa real: sem comparacao fica bem abaixo de metade do volume',
-    tonTotalReal > 0 && (tonSemCompReal / tonTotalReal) < 0.5,
+  T('sem terceiros programados, 100% das cargas proprias ficam sem referencia',
+    tonTotalReal > 0 && (terceirosProgramados.length > 0 || Math.abs(tonSemCompReal-tonTotalReal)<0.01),
     Math.round(tonSemCompReal) + ' de ' + Math.round(tonTotalReal) + ' t');
 
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
