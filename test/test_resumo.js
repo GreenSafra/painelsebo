@@ -105,6 +105,19 @@ const parseRs = txt => {
     }
   });
   T('diferenca mostrada na tela bate com agregarSemana(), fabrica por fabrica', consistente, detalhe);
+  T('cada fabrica apresenta memoria de calculo por origem',
+    fabs.every(f => !!f.querySelector('.rs-memoria summary') && !!f.querySelector('.rs-memoria p')));
+  T('cenario do modelo tem explicacao mesmo com volume zero',
+    fabs.every(f => !!f.querySelector('.rs-modelo-nota') && f.querySelector('.rs-modelo-nota').textContent.length>20));
+  let memoriaConfere=true;
+  ag.porPropria.forEach((p,i)=>{
+    const linhas=pac.linhas.filter(l=>l.cliente===p.cliente && l.netTerMed!=null);
+    const soma=linhas.reduce((s,l)=>s+(l.net-l.netTerMed)*l.toneladas,0);
+    const exibido=fabs[i].querySelector('.rs-memoria summary').textContent;
+    if(p.saving_realizado!=null && (Math.abs(soma-p.saving_realizado)>.01 ||
+      !exibido.includes(Math.round(Math.abs(soma)).toLocaleString('pt-BR'))))memoriaConfere=false;
+  });
+  T('memoria por origem soma exatamente o desvio realizado',memoriaConfere);
 
   // --- 2a-bis: rotulo "Média terceiros" (com contagem de ofertas) e "Melhor
   // terceiro" como linha informativa menor, os dois presentes e coerentes

@@ -39,7 +39,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
    propria (flex:none) — se nao couber no celular, rola so este bloco (ver
    media query), nunca empurra o nome nem estoura o card. */
 .card .semanas{flex:none;display:flex;gap:10px;overflow-x:auto}
-.card .col{flex:none;width:60px;text-align:center}
+.card .col{flex:none;width:82px;text-align:center}
 .card .col .rot{font-size:10.5px;font-weight:600;color:var(--mute)}
 .card .col .pr{font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;margin-top:1px}
 .card .col .dif{font-size:10.5px;margin-top:1px;min-height:13px;font-variant-numeric:tabular-nums}
@@ -56,6 +56,8 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0 20px}
 .card .var.ausente{background:transparent;color:var(--line);font-weight:400}
 
 /* Gráficos históricos expansíveis e comparação de clientes */
+.grafico-svg text.valor-ponto{font-size:12px;font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
+
 .grafico-painel{background:linear-gradient(180deg,#f7f9ff,#fff 45%);border:1px solid #dce1f1;border-top:0;border-radius:0 0 14px 14px;padding:20px;margin-top:-8px;box-shadow:0 12px 24px rgba(20,31,70,.06)}
 .grafico-titulo{font-size:13px;font-weight:700;color:var(--azul);margin-bottom:8px}
 .grafico-legenda{font-size:12px;color:var(--mute);margin-top:6px}
@@ -247,7 +249,7 @@ function colunaHtml(historico, i) {
   const h = historico[i];
   const antes = i > 0 ? historico[i - 1].preco : null;
   const dv = variacaoReais(h.preco, antes);
-  const precoTxt = h.preco == null ? '-' : (h.atual ? rs(h.preco) : nf.format(h.preco));
+  const precoTxt = h.preco == null ? '-' : rs(h.preco);
   return '<div class="col' + (h.atual ? ' atual' : '') + '">' +
     '<div class="rot">' + esc(h.rotulo) + '</div>' +
     '<div class="pr">' + precoTxt + '</div>' +
@@ -309,7 +311,7 @@ function desenharGrafico(series) {
     const descarregar=()=>{if(trecho.length){svg+='<polyline class="serie" stroke="'+CORES[si%CORES.length]+'" style="stroke:'+CORES[si%CORES.length]+'" points="'+trecho.join(' ')+'"/>';trecho=[];}};
     s.pontos.forEach((p,i)=>{if(p.preco==null){descarregar();return;}trecho.push(x(i)+','+y(p.preco));});
     descarregar();
-    s.pontos.forEach((p,i)=>{if(p.preco!=null)svg+='<circle cx="'+x(i)+'" cy="'+y(p.preco)+'" r="3.2" fill="'+CORES[si%CORES.length]+'"><title>'+esc(s.nome)+' · '+esc(p.rotulo)+' · '+rs(p.preco)+'</title></circle>';});
+    s.pontos.forEach((p,i)=>{if(p.preco!=null){svg+='<circle cx="'+x(i)+'" cy="'+y(p.preco)+'" r="4" fill="'+CORES[si%CORES.length]+'"><title>'+esc(s.nome)+' · '+esc(p.rotulo)+' · '+rs(p.preco)+'</title></circle>';if(n<=12){const yy=y(p.preco)-(si%2===0?12:-20);svg+='<text class="valor-ponto" x="'+x(i)+'" y="'+Math.max(12,Math.min(altura-baixo-5,yy))+'" text-anchor="middle" fill="'+CORES[si%CORES.length]+'">'+esc(rs(p.preco))+'</text>';}}});
   });
   return svg+'</svg>';
 }

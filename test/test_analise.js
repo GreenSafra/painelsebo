@@ -100,8 +100,8 @@ function txt(el, sel) { return el.querySelector(sel).textContent.trim(); }
     T('3 colunas, uma por semana (mais antiga -> mais recente)', cols.length === 3, cols.length);
     T('rotulos na ordem certa: S36, S37, S38',
       JSON.stringify(cols.map(c => txt(c, '.rot'))) === JSON.stringify(['S36', 'S37', 'S38']));
-    T('precos das semanas anteriores sem "R$" (so o numero)',
-      txt(cols[0], '.pr') === '6.380' && txt(cols[1], '.pr') === '6.483');
+    T('precos de todas as semanas padronizados com R$',
+      txt(cols[0], '.pr') === 'R$ 6.380' && txt(cols[1], '.pr') === 'R$ 6.483');
     T('a ultima coluna (semana selecionada) tem "R$" e a classe "atual"',
       txt(cols[2], '.pr') === 'R$ 6.619' && cols[2].classList.contains('atual'));
     T('as colunas anteriores nao tem a classe "atual"',
@@ -190,6 +190,17 @@ function txt(el, sel) { return el.querySelector(sel).textContent.trim(); }
   T('.semanas e irmao de .nome e .var dentro do .card (lado a lado), nao aninhado no nome',
     !!cardA.querySelector(':scope > .nome') && !!cardA.querySelector(':scope > .semanas') &&
     !!cardA.querySelector(':scope > .var'));
+
+  const grafico4=w1.desenharGrafico([{nome:'Cliente A',pontos:[
+    {rotulo:'S38',preco:6619},{rotulo:'S39',preco:6500},
+    {rotulo:'S40',preco:6600},{rotulo:'S41',preco:6700}]}]);
+  T('grafico individual mostra R$ permanentemente em todos os quatro pontos',
+    (grafico4.match(/class="valor-ponto"/g)||[]).length===4 &&
+    grafico4.includes('R$ 6.619') && grafico4.includes('R$ 6.700'));
+  const graficoLongo=w1.desenharGrafico([{nome:'Cliente A',pontos:
+    Array.from({length:26},(_,i)=>({rotulo:'S'+i,preco:6000+i*10}))}]);
+  T('grafico longo preserva tooltip sem sobrepor 26 rotulos monetarios',
+    !graficoLongo.includes('class="valor-ponto"') && graficoLongo.includes('<title>'));
 
   console.log('\n' + ok + ' OK, ' + bad + ' falhas');
   process.exit(bad ? 1 : 0);

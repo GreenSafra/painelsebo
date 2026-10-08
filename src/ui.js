@@ -567,7 +567,7 @@ function renderResumoSemana() {
         // "sem planilhas para comparar" (exclusivo do Consolidado).
         const motivo = to === 0 ? 'o modelo não indicou esta fábrica'
           : tr === 0 ? 'esta fábrica não recebeu carga'
-          : 'sem oferta de terceiro para comparar';
+          : 'sem terceiro programado na mesma origem';
         veredito = '<span class="rs-mute">' + motivo + '</span>';
         if (to !== 0 && tr !== 0) frase += ' Nenhuma das cargas teve oferta de terceiro para comparar.';
       } else {
@@ -589,9 +589,37 @@ function renderResumoSemana() {
     h += blocoDuo('O que foi feito', tr, p.net_realizado, p.net_ter_realizado, p.n_ter_realizado,
       p.net_ter_melhor_realizado, tr - p.ton_comp_realizado, p.origens_sem_comp_realizado, sr);
     h += '</div>';
+    // Memoria do desvio REALIZADO, independente do cenario do modelo.
+    // Somatorio por origem = (NET escolhido - referencia ponderada dos
+    // terceiros programados) x toneladas. Nao altera o calculo.
+    const origemDetalhe = {};
+    pac.linhas.filter(l => l.cliente === p.cliente && l.toneladas > 0).forEach(l => {
+      const k = l.sigla || 'Sem origem';
+      const g = origemDetalhe[k] || (origemDetalhe[k] = {ton:0, net:0, ter:0, comp:0, desvio:0});
+      g.ton += l.toneladas;
+      g.net += l.net * l.toneladas;
+      if (l.netTerMed != null) {
+        g.comp += l.toneladas;
+        g.ter += l.netTerMed * l.toneladas;
+        g.desvio += (l.net - l.netTerMed) * l.toneladas;
+      }
+    });
+    h += '<details class="rs-memoria"><summary>Ver composição da diferença ' +
+      (sr == null ? '(sem referência comparável)' : '(' + rs(sr) + ')') + '</summary>' +
+      '<p>Desvio realizado por origem = (NET da planta − NET médio ponderado dos terceiros programados) × toneladas. ' +
+      'Não é a diferença contra o cenário sugerido pelo modelo.</p>' +
+      Object.keys(origemDetalhe).sort().map(k => {
+        const g = origemDetalhe[k];
+        return '<div class="rs-memoria-lin"><b>' + esc(k) + '</b> · ' + tn(g.ton) +
+          ' · NET planta ' + rs(g.net/g.ton) +
+          (g.comp ? ' · Referência terceiros ' + rs(g.ter/g.comp) + ' · Desvio ' + rs(g.desvio)
+                  : ' · Sem terceiro programado nesta origem; desvio não apurado') + '</div>';
+      }).join('') + '</details>';
     h += '<button type="button" class="rs-togglemodelo" data-alvo="rs-modelo-' + i + '" aria-expanded="false">' +
       linkTxt + '</button>';
     h += '<div class="rs-modelo hide" id="rs-modelo-' + i + '">';
+    h += '<p class="rs-modelo-nota">Cenário alternativo do modelo; não explica o desvio realizado acima. ' +
+      (to > 0 ? 'Volume sugerido: ' + tn(to) + '.' : 'O modelo não destinou volume para esta unidade nesta semana.') + '</p>';
     h += blocoDuo('O que o modelo mandava', to, p.net_otimo, p.net_ter_otimo, p.n_ter_otimo,
       p.net_ter_melhor_otimo, to - p.ton_comp_otimo, p.origens_sem_comp_otimo, so);
     h += '</div></div>';
