@@ -662,24 +662,25 @@ function desenharHistorico() {
   if(!HIST_PONTOS.length){$('#histGrafico').textContent='Nenhuma semana fechada disponível neste filtro.';return;}
   const ps=HIST_PONTOS, tem=ps.some(p=>p.valor!=null), ganho=ps.reduce((s,p)=>s+p.ganhos,0), reducao=ps.reduce((s,p)=>s+p.reducoes,0), saldo=tem?ganho+reducao:null;
   const volume=ps.reduce((s,p)=>s+p.volume,0),sem=ps.reduce((s,p)=>s+p.semReferencia,0);
-  const largura=Math.max(650,ps.length*125),passo=largura/ps.length,limite=Math.max(1,...ps.map(p=>Math.abs(p.valor||0))),zero=155;
+  const largura=Math.max(1000,ps.length*125),passo=largura/ps.length,limite=Math.max(1,...ps.map(p=>Math.abs(p.valor||0)));
+  const temPos=ps.some(p=>p.valor>0),temNeg=ps.some(p=>p.valor<0),zero=temPos?(temNeg?125:190):45,escala=temPos&&temNeg?78:130;
   const rotulo=p=>tipo==='semana'?'S-'+Number(p.periodo.slice(-2)):nomeMes(p.periodo).split(' de ')[0].slice(0,3);
-  let barras='<svg class="histgrafico" viewBox="0 0 '+largura+' 310" role="img" aria-label="Desvio positivo e negativo por '+(tipo==='semana'?'semana':'mês')+'"><line x1="0" y1="'+zero+'" x2="'+largura+'" y2="'+zero+'" stroke="#a9b1c2"/>';
+  let barras='<svg class="histgrafico" viewBox="0 0 '+largura+' 255" role="img" aria-label="Desvio positivo e negativo por '+(tipo==='semana'?'semana':'mês')+'"><line x1="0" y1="'+zero+'" x2="'+largura+'" y2="'+zero+'" stroke="#a9b1c2"/>';
   ps.forEach((p,i)=>{
-    const x=i*passo+passo/2,h=Math.abs(p.valor||0)/limite*102,y=p.valor>=0?zero-h:zero;
+    const x=i*passo+passo/2,h=Math.abs(p.valor||0)/limite*escala,y=p.valor>=0?zero-h:zero;
     barras+='<g tabindex="0" role="button" data-hist-periodo="'+esc(p.periodo)+'" aria-label="'+esc(p.periodo+' · '+(p.valor==null?'Não apurado':dinheiro2(p.valor)))+'">';
-    if(p.valor!=null) barras+='<rect x="'+(x-24)+'" y="'+y+'" width="48" height="'+Math.max(h,2)+'" rx="5" fill="'+(p.valor>=0?'#168054':'#c31419')+'"/><text x="'+x+'" y="'+(p.valor>=0?y-10:y+h+18)+'" text-anchor="middle" font-size="12" fill="'+(p.valor>=0?'#0f7b40':'#c31419')+'">'+esc(rs(p.valor))+'</text>';
-    else barras+='<text x="'+x+'" y="176" text-anchor="middle" font-size="12" fill="#6b6d78">Não apurado</text>';
-    barras+='<text x="'+x+'" y="287" text-anchor="middle" font-size="13" fill="#23242b">'+esc(rotulo(p))+'</text></g>';
+    if(p.valor!=null) barras+='<rect x="'+(x-24)+'" y="'+y+'" width="48" height="'+Math.max(h,2)+'" rx="5" fill="'+(p.valor>=0?'#168054':'#c31419')+'"/><text x="'+x+'" y="'+(p.valor>=0?y-10:y+h+18)+'" text-anchor="middle" font-size="14" fill="'+(p.valor>=0?'#0f7b40':'#c31419')+'">'+esc(rs(p.valor))+'</text>';
+    else barras+='<text x="'+x+'" y="176" text-anchor="middle" font-size="14" fill="#6b6d78">Não apurado</text>';
+    barras+='<text x="'+x+'" y="239" text-anchor="middle" font-size="14" fill="#23242b">'+esc(rotulo(p))+'</text></g>';
   });barras+='</svg>';
-  const vals=ps.filter(p=>p.acumulado!=null).map(p=>p.acumulado),min=Math.min(0,...vals),max=Math.max(0,...vals),span=Math.max(1,max-min),yy=v=>35+(max-v)/span*145;
-  let linha='<svg class="histgrafico" viewBox="0 0 '+largura+' 240" role="img" aria-label="Saldo acumulado apurado"><line x1="0" y1="'+yy(0)+'" x2="'+largura+'" y2="'+yy(0)+'" stroke="#c4c6d0"/>',prev=null;
+  const vals=ps.filter(p=>p.acumulado!=null).map(p=>p.acumulado),min=Math.min(0,...vals),max=Math.max(0,...vals),span=Math.max(1,max-min),yy=v=>30+(max-v)/span*105;
+  let linha='<svg class="histgrafico" viewBox="0 0 '+largura+' 185" role="img" aria-label="Saldo acumulado apurado"><line x1="0" y1="'+yy(0)+'" x2="'+largura+'" y2="'+yy(0)+'" stroke="#c4c6d0"/>',prev=null;
   ps.forEach((p,i)=>{
     const x=i*passo+passo/2;
     if(p.valor==null){prev=null;return;}
     const y=yy(p.acumulado);
     if(prev)linha+='<line x1="'+prev.x+'" y1="'+prev.y+'" x2="'+x+'" y2="'+y+'" stroke="#1e1e7b" stroke-width="3"/>';
-    linha+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="#1e1e7b"/><text x="'+x+'" y="'+(y-12)+'" text-anchor="middle" font-size="12" fill="#1e1e7b">'+esc(rs(p.acumulado))+'</text><text x="'+x+'" y="221" text-anchor="middle" font-size="13">'+esc(rotulo(p))+'</text>';prev={x,y};
+    linha+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="#1e1e7b"/><text x="'+x+'" y="'+(y-12)+'" text-anchor="middle" font-size="14" fill="#1e1e7b">'+esc(rs(p.acumulado))+'</text><text x="'+x+'" y="172" text-anchor="middle" font-size="14">'+esc(rotulo(p))+'</text>';prev={x,y};
   });linha+='</svg>';
   const ref=indicador==='referencia';
   $('#histGrafico').innerHTML='<div class="histkpis"><div><span>'+(ref?'NET acima da referência':'Ganhos frente à base')+'</span><b class="pos">'+(tem?dinheiro2(ganho):'Não apurado')+'</b></div><div><span>'+(ref?'NET abaixo da referência':'Reduções frente à base')+'</span><b class="neg">'+(tem?dinheiro2(reducao):'Não apurado')+'</b></div><div><span>Saldo acumulado apurado · '+esc(ano||'todo o histórico')+'</span><b class="'+(saldo<0?'neg':'pos')+'">'+dinheiro2(saldo)+'</b></div></div>'+
