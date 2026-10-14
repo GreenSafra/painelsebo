@@ -24,7 +24,7 @@ const rd = v => v == null ? null : Math.round(v);
 // comparar com o que agregarSemana() devolveu.
 const parseRs = txt => {
   const t = (txt || '').trim();
-  if (!t || t === '-') return null;
+  if (!t || t === '-' || t === 'Não apurado') return null;
   const neg = t.indexOf('−') >= 0 || t.indexOf('-') >= 0;
   const n = Number(t.replace(/[^\d]/g, ''));
   return neg ? -n : n;

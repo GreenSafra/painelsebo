@@ -60,15 +60,15 @@ T('close rejects undefined economic data',dbSource.includes('Carga sem cliente, 
 T('concurrent closing serializes versions',dbSource.includes('pg_advisory_xact_lock'));
 T('NET persistence retains financial precision',dbSource.includes('TYPE NUMERIC(18,9)'));
 T('consolidated memory uses shared calculation',dbSource.includes('core.memoriaPorOrigem'));
-T('monthly memory selects shipments after weekly reference construction',dbSource.includes('AS em_periodo')&&dbSource.includes('a.emPeriodo'));
-T('history reports uncomparable volumes',dbSource.includes('AS volume_sem_referencia'));
+T('monthly memory preserves full weekly reference construction',dbSource.includes('AS em_periodo')&&dbSource.includes('a.emPeriodo'));
+T('history reports uncomparable volumes',fs.readFileSync(require.resolve('../src/core'),'utf8').includes('volume_sem_referencia'));
 const ui=fs.readFileSync(__dirname+'/../src/ui.js','utf8');
 T('Home does not confuse absent reference with economic zero',ui.includes("temSavR ? rs(savR) : 'Não apurado'"));
 T('Home identifies the plant on the calculation disclosure',ui.includes("Ver composição da diferença · "));
 T('manual choice impact is identified as theoretical',ui.includes('não é perda realizada nem alternativa validada'));
 T('Home explicitly differentiates programming and shipments',ui.includes('A programação não confirma embarques realizados'));
 const cons=fs.readFileSync(__dirname+'/../public/consolidado.html','utf8');
-T('history leaves unknown points unmeasured',cons.includes('if(p.valor==null)'));
+T('history leaves unknown points unmeasured',cons.includes("const valor=linhas.some(x=>num(x.desvio)!=null)"));
 T('consolidated summary preserves null result',cons.includes("temSavR ? rs(savR) : 'Não apurado'"));
 T('consolidated detail shows reference by week and origin',cons.includes('p.memoria_realizado'));
 console.log('\n'+ok+' OK, '+bad+' falhas');process.exit(bad?1:0);

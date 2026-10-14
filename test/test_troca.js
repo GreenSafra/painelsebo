@@ -37,6 +37,7 @@ const E=s=>s.replace(/[^a-zA-Z0-9_-]/g,c=>'\\'+c);
  T('marca visual do grupo em cada linha', ops.every(o=>!!o.querySelector('.dot')));
 
  // tira da própria e joga no melhor terceiro
+ const antesNet=w.RES.netFinal;
  const antesLins=w.RES.alocFinal.filter(a=>a.cli==='JBS - BioPower Lins').reduce((s,a)=>s+a.ton,0);
  const vProp=ops.find(o=>/BioPower Lins/.test(o.querySelector('.nm').textContent)).querySelector('.vol');
  const vTer=ops.find(o=>!/BioPower|Flora/.test(o.querySelector('.nm').textContent)).querySelector('.vol');
@@ -49,6 +50,9 @@ const E=s=>s.replace(/[^a-zA-Z0-9_-]/g,c=>'\\'+c);
  t2.value='35'; t2.dispatchEvent(new w.Event('change'));
  await new Promise(r=>setTimeout(r,60));
  T('total volta a fechar', !d.querySelector('#detail .rest'));
+ T('impacto da redistribuição usa a última programação completa',w.ULT_ALTERACAO && w.ULT_ALTERACAO.semBase===0 && Math.abs(w.ULT_ALTERACAO.saldo-(w.RES.netFinal-antesNet))<0.001);
+ T('feedback da última alteração aparece na Home',!!d.querySelector('.rs-ultima'));
+ T('base temporária da edição é liberada ao fechar o volume',w.ANTES_EDICAO===null);
  const depoisLins=w.RES.alocFinal.filter(a=>a.cli==='JBS - BioPower Lins').reduce((s,a)=>s+a.ton,0);
  T('a BioPower Lins continua com 1.050 t (outra unidade cobriu)',
    Math.abs(depoisLins-1050)<0.01, antesLins+' -> '+depoisLins);

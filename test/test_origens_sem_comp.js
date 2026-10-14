@@ -212,8 +212,8 @@ const T = (n, c, x) => { c ? ok++ : bad++; console.log((c ? '  ok  ' : '  FALHA 
     const linhaVolume = [...blocoRealizado.querySelectorAll('.lin')].find(l => l.textContent.indexOf('Volume') === 0);
     T('linha "Volume" mostra o total (150 t), nao so a parte comparavel (100 t)',
       !!linhaVolume && linhaVolume.textContent.indexOf('150') >= 0, linhaVolume && linhaVolume.textContent);
-    const linhaDif = [...blocoRealizado.querySelectorAll('.lin.forte')].find(l => l.textContent.indexOf('Diferença') === 0);
-    T('linha "Diferença" usa so a Diferenca calculada (20.000), sem fingir cobrir a parte sem terceiro',
+    const linhaDif = [...blocoRealizado.querySelectorAll('.lin.forte')].find(l => l.textContent.indexOf('Desvio vs referência') === 0);
+    T('linha "Desvio vs referência" usa so a Diferenca calculada (20.000), sem fingir cobrir a parte sem terceiro',
       !!linhaDif && (linhaDif.textContent.indexOf('20.000') >= 0), linhaDif && linhaDif.textContent);
   }
 

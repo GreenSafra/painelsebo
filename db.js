@@ -124,9 +124,8 @@ async function iniciar() {
     `CREATE INDEX IF NOT EXISTS ix_semanas_atual ON semanas(ano, semana) WHERE atual`
   );
 
-  // Uma linha por carga alocada. data_embarque e o que define o mes no
-  // consolidado — uma semana pode atravessar a virada do mes, entao apurar
-  // pela semana inteira jogaria volume no mes errado.
+  // Uma linha por carga; data_embarque permanece preservada para logística.
+  // A competência gerencial mensal usa a semana inteira pelo domingo final.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS alocacoes (
       id            SERIAL PRIMARY KEY,
@@ -670,11 +669,8 @@ async function semanaMaisRecente() {
   return r.rows[0] || null;
 }
 
-// Monta o filtro do periodo do consolidado. Por mes: janela de
-// data_embarque (como sempre foi). Por semana: s.ano e s.semana da propria
-// semana fechada, NAO data_embarque — assim uma semana que atravessa a
-// virada do mes aparece inteira no modo Semana. criterio aceita uma string
-// (mes, formato antigo) ou um objeto { mes } / { ano, semana }.
+// A competência mensal é o domingo final da semana ISO. Nunca divide cargas
+// de uma semana entre meses; datas de embarque não participam da apuração.
 function filtroConsolidado(criterio) {
   const c = (typeof criterio === 'string') ? { mes: criterio } : (criterio || {});
   if (c.ano != null || c.semana != null) {
@@ -685,11 +681,12 @@ function filtroConsolidado(criterio) {
   }
   const m = /^(\d{4})-(\d{2})$/.exec(String(c.mes || ''));
   if (!m) throw new Error('Mes invalido. Use AAAA-MM.');
+  if (Number(m[2]) < 1 || Number(m[2]) > 12) throw new Error('Mes invalido.');
   const ini = c.mes + '-01';
   const fim = (Number(m[2]) === 12)
     ? (Number(m[1]) + 1) + '-01-01'
     : m[1] + '-' + String(Number(m[2]) + 1).padStart(2, '0') + '-01';
-  return { sql: 'a.data_embarque >= $1 AND a.data_embarque < $2', params: [ini, fim], modo: 'mes', mes: c.mes };
+  return { sql: "to_date(s.ano::text || lpad(s.semana::text,2,'0') || '7','IYYYIWID') >= $1::date AND to_date(s.ano::text || lpad(s.semana::text,2,'0') || '7','IYYYIWID') < $2::date", params: [ini, fim], modo: 'mes', mes: c.mes };
 }
 
 // Preenche motivo_zero_otimo em cada linha de porPropria com ton_otimo=0,
@@ -899,9 +896,16 @@ async function consolidado(criterio) {
     });
   });
 
+  const escolhas = [];
+  porSemana.forEach(lista => {
+    const e = core.impactoEscolhas(lista.filter(l=>l.cenario==='realizado' && l.emPeriodo), lista.filter(l=>l.cenario==='otimo' && l.emPeriodo));
+    escolhas.push({...e, ano:lista[0].ano, semana:lista[0].semana});
+  });
+
   if (f.modo === 'semana') await preencherMotivosZeroOtimo(f.ano, f.semana, porPropria.rows);
 
   return {
+    escolhas,
     modo: f.modo,
     mes: f.mes || null,
     ano: f.ano || null,
@@ -916,36 +920,10 @@ async function consolidado(criterio) {
 
 // Historico gerencial sem modificar registros de semanas fechadas.
 async function historicoEconomico() {
-  const r = await pool.query(`
-    WITH terceiros AS (
-      SELECT semana_id, sigla,
-             CASE WHEN count(*) FILTER (WHERE net IS NULL) = 0 THEN sum(net * toneladas) / nullif(sum(toneladas),0) END AS referencia
-        FROM alocacoes
-       WHERE cenario='realizado' AND NOT proprio AND toneladas > 0
-         AND cliente !~* 'biopower|flora|(^|[^a-z0-9])jbs([^a-z0-9]|$)'
-       GROUP BY semana_id, sigla
-    ), base AS (
-      SELECT s.ano, s.semana, a.cliente, a.data_embarque,
-             (a.net-t.referencia)*a.toneladas AS desvio,
-             CASE WHEN t.referencia IS NOT NULL AND a.net IS NOT NULL THEN a.toneladas ELSE 0 END AS volume,
-             a.toneladas AS volume_total
-        FROM alocacoes a JOIN semanas s ON s.id=a.semana_id
-        LEFT JOIN terceiros t ON t.semana_id=a.semana_id AND t.sigla=a.sigla
-       WHERE s.atual AND a.cenario='realizado' AND a.proprio
-    )
-    SELECT 'semana' AS tipo, (ano::text || '-W' || lpad(semana::text,2,'0')) AS periodo,
-           cliente, sum(desvio) AS desvio, sum(volume) AS volume,
-           sum(volume_total-volume) AS volume_sem_referencia
-      FROM base GROUP BY ano,semana,cliente
-    UNION ALL
-    SELECT 'mes' AS tipo, to_char(data_embarque,'YYYY-MM') AS periodo,
-           cliente, sum(desvio) AS desvio, sum(volume) AS volume,
-           sum(volume_total-volume) AS volume_sem_referencia
-      FROM base WHERE data_embarque IS NOT NULL
-      GROUP BY to_char(data_embarque,'YYYY-MM'),cliente
-    ORDER BY tipo, periodo, cliente
-  `);
-  return r.rows;
+  // Apenas versões atuais e NETs preservados; não altera histórico nem recria cotações.
+  const semanas = await pool.query('SELECT id, ano, semana, versao FROM semanas WHERE atual ORDER BY ano, semana');
+  const cargas = await pool.query(`SELECT a.* FROM alocacoes a JOIN semanas s ON s.id=a.semana_id WHERE s.atual ORDER BY s.ano,s.semana,a.id`);
+  return core.historicoDasSemanas(semanas.rows, cargas.rows);
 }
 
 async function apagarSemana(ano, semana) {
@@ -969,10 +947,10 @@ async function apagarSemana(ano, semana) {
 
 async function mesesComDado() {
   const r = await pool.query(
-    `SELECT to_char(a.data_embarque, 'YYYY-MM') AS mes,
+    `SELECT to_char(to_date(s.ano::text || lpad(s.semana::text,2,'0') || '7','IYYYIWID'), 'YYYY-MM') AS mes,
             sum(a.toneladas) AS toneladas
        FROM alocacoes a JOIN semanas s ON s.id = a.semana_id
-      WHERE s.atual AND a.cenario = 'realizado' AND a.data_embarque IS NOT NULL
+      WHERE s.atual AND a.cenario = 'realizado'
       GROUP BY 1 ORDER BY 1 DESC`
   );
   return r.rows;

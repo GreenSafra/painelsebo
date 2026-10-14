@@ -128,6 +128,21 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
   .wrap{padding:16px 12px 50px}
   table{font-size:12.5px} th,td{padding:8px 9px}
 }
+
+.histbadge{font-size:12px;background:#eef0fa;color:var(--azul);padding:6px 10px;border-radius:20px}
+.histkpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.histkpis>div{background:#f6f7fb;border:1px solid #e2e5ef;border-radius:9px;padding:14px}
+.histkpis span{font-size:12px;color:var(--mute);display:block;margin-bottom:8px}
+.histkpis b{font-size:22px;display:block;overflow-wrap:anywhere}
+.histplot,.histtabela{overflow-x:auto;max-width:100%;margin:10px 0}
+.histplot svg{min-width:650px}
+.histperiodo{border:0;background:transparent;color:var(--azul);font:inherit;cursor:pointer;text-decoration:underline}
+.histgrafico [role=button]{cursor:pointer}.histgrafico [role=button]:focus{outline:2px solid var(--azul)}
+.histdet,.quadro-escolhas{border:1px solid var(--line);border-radius:9px;background:#fff;padding:16px;margin:18px 0}
+.histdet h3,.quadro-escolhas h2{margin-top:0}.impacto-frase{font-size:17px}.quadro-escolhas summary{color:var(--azul);cursor:pointer;font-size:13px}
+.cobertura{padding:12px 14px;background:#eef1f8;border-radius:7px;color:#4b5264;font-size:13px;line-height:1.6}
+@media(max-width:640px){.historico{padding:14px}.histkpis{grid-template-columns:1fr}.histkpis b{font-size:22px}.histfiltros label{width:100%}.histfiltros select{width:100%;margin-top:5px}.histplot::after{content:'Deslize para ver todos os períodos';display:block;font-size:11px;color:var(--mute);margin-top:6px}}
+
 </style>
 </head>
 <body>
@@ -147,17 +162,21 @@ tfoot td{font-weight:600;background:#F4F5F8;border-top:1px solid var(--line)}
 </header>
 <hr>
 
-<div id="conteudo"><p class="carregando">Carregando…</p></div>
-<section id="painelHistorico" class="historico hide" aria-label="Histórico econômico">
-  <div class="histcab"><h2>Histórico econômico das alocações</h2><button type="button" id="fecharHistorico">Fechar</button></div>
-  <div class="histfiltros"><label>Unidade <select id="histCliente"><option value="">Todas as plantas</option></select></label>
-    <label>Visão <select id="histModo"><option value="mes">Mensal</option><option value="semana">Semanal</option></select></label></div>
+<section id="painelHistorico" class="historico" aria-label="Histórico econômico">
+  <div class="histcab"><h2>Evolução dos desvios e das escolhas</h2><span class="histbadge">Apuração semanal</span></div>
+  <p class="histlegenda">Cada semana é apurada com sua referência preservada. O mês soma semanas inteiras pelo mês do domingo final.</p>
+  <div class="histfiltros"><label>Comparação <select id="histIndicador"><option value="referencia">NET vs terceiros programados</option><option value="escolhas">Escolhas vs base do modelo</option></select></label><label>Ano <select id="histAno"></select></label><label id="histUnidade">Unidade <select id="histCliente"><option value="">Todas as plantas</option></select></label>
+    <label>Visão <select id="histModo"><option value="semana">Semanal</option><option value="mes">Mensal</option></select></label></div>
   <div id="histGrafico" aria-live="polite"></div>
+  <div id="histDetalhe" aria-live="polite"></div>
 </section>
+<div id="conteudo"><p class="carregando">Carregando…</p></div>
 <details class="metodologia"><summary>Metodologia de Cálculo</summary>
   <p><b>Competitividade das plantas:</b> compara o NET das cargas destinadas a cada planta com o NET médio dos terceiros efetivamente programados na mesma origem e semana, ponderado pelas toneladas destinadas a cada terceiro. JBS e Flora pertencem ao mesmo grupo e não entram como terceiros. Sem terceiro programado naquela origem, a carga não entra no desvio, mas permanece no volume e no NET da planta.</p>
   <p><b>Custo de oportunidade:</b> diferença potencial entre a escolha realizada e a melhor alternativa de oferta comparável. É uma simulação comercial, não perda realizada nem garantia de retirada.</p>
-  <p><b>Resultado econômico:</b> soma dos desvios (NET da planta − NET médio dos terceiros programados) × toneladas comparáveis. A visão semanal usa a semana fechada; a mensal usa a data de embarque de cada carga, preservando os meses anteriores. Valores positivos indicam NET maior na planta; negativos, menor.</p>
+  <p><b>Resultado econômico:</b> soma dos desvios (NET da planta − NET médio dos terceiros programados) × toneladas comparáveis. A visão semanal usa a semana fechada; a mensal soma as semanas inteiras pelo mês do domingo final. Datas de embarque permanecem disponíveis para logística. Valores positivos indicam NET maior na planta; negativos, menor.</p>
+  <p><b>Impacto das escolhas:</b> programação escolhida menos a base do modelo preservada no fechamento, para o mesmo volume e origem. Destinos comuns são mantidos primeiro e as toneladas restantes são pareadas uma única vez. É uma decomposição dos cenários, sem comprovação de demanda adicional dos compradores.</p>
+  <p><b>Acumulado apurado:</b> soma os saldos disponíveis no histórico completo ou no ano selecionado; semanas pendentes e volumes sem referência não são tratados como zero. Mês fechado exige todas as semanas com domingo final no mês e o término do mês.</p>
 </details>
 </div>
 <script>
@@ -213,9 +232,10 @@ function bloco(cab, t, net, terMed, nTer, terMelhor, tonSemComp, origensSemComp,
         ? ' (origens: ' + origensSemComp.map(esc).join(', ') + ')' : '') + '</div>';
   }
   o += '<div class="lin sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
-  o += '<div class="lin forte"><span>Diferença</span><span class="' +
+  o += '<div class="lin forte"><span>Desvio vs referência</span><span class="' +
     (sav == null ? '' : (sav < 0 ? 'neg' : 'pos')) + '">' +
-    (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+    (sav == null ? 'Não apurado' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+  o += '<p class="nota">' + (sav == null ? 'Não há referência válida para avaliar estas cargas.' : 'NET ' + (sav < 0 ? 'abaixo' : sav > 0 ? 'acima' : 'igual') + ' da média dos terceiros programados em ' + ton(Math.max(0,t-tonSemComp)) + '. Não comprova perda ou ganho realizado.') + '</p>';
   return o + '</div>';
 }
 function sinal(v) {
@@ -240,7 +260,7 @@ function subtitulo(j) {
   if (j.modo === 'semana') {
     return nomeSemana(j.ano + '-' + j.semana) + ' · apurado pela semana fechada, não pela data de embarque';
   }
-  return nomeMes(j.mes) + ' · apurado pela data de embarque de cada carga';
+  return nomeMes(j.mes) + ' · soma de semanas inteiras pelo mês do domingo final';
 }
 
 let modo = 'mes';
@@ -320,7 +340,7 @@ function render(d) {
   }
 
   let h = '';
-  if (temDado) {
+  if (temDado || Number((d.total||{}).toneladas)>0) {
   // Totais. O saving so existe onde havia alternativa de terceiro para comparar.
   let savR = 0, savO = 0, temSavR = false, temSavO = false;
   props.forEach(p => {
@@ -343,9 +363,9 @@ function render(d) {
   h += '<div class="c"><div class="lab">Para terceiros</div><div class="big">' +
        ton(tTer) + '</div><div class="pe">NET médio geral ' +
        rs(num(tot.net_medio)) + '</div></div>';
-  h += '<div class="c"><div class="lab">Diferença econômica</div><div class="big ' +
+  h += '<div class="c"><div class="lab">Desvio vs terceiros</div><div class="big ' +
        (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') + (temSavR ? rs(savR) : 'Não apurado') +
-       '</div><div class="pe">programado, somente no volume comparável</div></div>';
+       '</div><div class="pe">referência comercial · somente no volume avaliado</div></div>';
   h += '</div>';
 
 
@@ -363,12 +383,15 @@ function render(d) {
       '</div>';
   }
 
+  h += quadroEscolhas(d.escolhas || []);
   h += '<h2>Fábricas próprias</h2>';
   h += '<p class="nota">Para cada carga que foi para uma fábrica própria, o painel compara ' +
     'com o NET médio ponderado pelo volume dos terceiros <b>efetivamente programados</b> ' +
     'para a mesma origem e semana. Sem terceiro programado nessa origem, não há desvio apurado. ' +
     'O comparativo distingue o realizado do cenário indicado pelo modelo: ' +
-    'no que foi feito, e no que o modelo mandava fazer antes de qualquer troca manual.</p>';
+    'no que foi feito, e no que o modelo mandava fazer antes de qualquer troca manual. A média de terceiros é referência comercial, não comprovação de absorção adicional.</p>';
+  const avaliado=props.reduce((s,p)=>s+Number(p.ton_comp_realizado||0),0);
+  h += '<p class="cobertura">Comparação com terceiros: <b>' + ton(avaliado) + ' de ' + ton(tProp) + '</b> avaliadas (' + n1.format(tProp?avaliado/tProp*100:0) + '%). <b>' + ton(tProp-avaliado) + '</b> sem referência, fora do desvio.</p>';
 
   // Sem planilhas guardadas (ver avisoPacote acima), nenhuma carga da(s)
   // semana(s) em tela tem media pra comparar — usado pra distinguir esse
@@ -452,7 +475,7 @@ function render(d) {
         esc(g.sigla) + '</b> · ' + ton(g.toneladas) + ' · NET planta ' + preciso(g.net) + '/t' +
         (g.impacto != null ? ' · Referência ' + preciso(g.referencia) + '/t · Diferença ' +
           preciso(g.diferencaPorTonelada) + '/t · Volume comparável ' + ton(g.toneladasComparaveis) +
-          ' · Desvio ' + preciso(g.impacto) + '<br>Terceiros programados: ' +
+          ' · NET ' + (g.impacto < 0 ? 'abaixo' : 'acima') + ' da referência: ' + preciso(Math.abs(g.impacto)) + '<br>Terceiros programados: ' +
           g.terceiros.map(t => esc(t.cliente) + ' · ' + ton(t.toneladas) + ' · NET ' + preciso(t.net) + '/t').join('; ')
           : ' · Desvio não apurado: ' + g.motivos.map(esc).join('; ')) +
         (g.toneladasSemReferencia > 0 ? ' · Sem referência: ' + ton(g.toneladasSemReferencia) : '') + '</div>').join('') +
@@ -468,11 +491,7 @@ function render(d) {
 
   const totO = props.reduce((s2, p) => s2 + Number(p.ton_otimo || 0), 0);
   const prepPeriodo = d.modo === 'semana' ? 'Na semana' : 'No mês';
-  h += '<div class="resumo">' + prepPeriodo + ', <b>' + ton(tProp) + '</b> foram para fábrica própria e ' +
-    'têm desvio programado de <b class="' + (savR < 0 ? 'neg' : 'pos') + '">' + (savR > 0 ? '+' : '') +
-    (temSavR ? rs(savR) : 'Não apurado') + '</b> frente aos terceiros efetivamente programados nas mesmas origens. ' +
-    'A alocação do modelo mandaria <b>' + ton(totO) + '</b> ; desvio simulado: <b class="' + (savO < 0 ? 'neg' : 'pos') + '">' + (savO > 0 ? '+' : '') +
-    (temSavO ? rs(savO) : 'Não apurado') + '</b>.</div>';
+  h += '<div class="resumo">' + prepPeriodo + ', <b>' + ton(tProp) + '</b> foram programadas para fábricas próprias. Desvio frente aos terceiros programados: <b class="' + (savR < 0 ? 'neg' : 'pos') + '">' + (temSavR ? rs(savR) : 'Não apurado') + '</b>. A comparação com a base do modelo aparece no quadro de escolhas, separadamente.</div>';
 
   // Terceiros num bloco so, como combinado.
   const ters = (d.porPlanta || []).filter(x => x.proprio === false);
@@ -558,7 +577,7 @@ function render(d) {
       if (sessaoExpirada(r)) return;
       if (!r.ok) { alert('Não consegui apagar essa semana.'); return; }
       HIST_ECON=null;
-      $('#painelHistorico').classList.add('hide');
+      $('#histDetalhe').innerHTML='';
       // Apagou justo a semana escolhida no modo Semana: ela some da lista,
       // repopula e cai em outra semana valida — sem trocar de modo.
       if (modo === 'semana' && $('#periodo').value === ano + '-' + semana) {
@@ -571,62 +590,118 @@ function render(d) {
   });
 }
 
-let HIST_ECON = null;
-async function abrirHistorico(cliente) {
-  $('#painelHistorico').classList.remove('hide');
-  $('#histGrafico').textContent = 'Carregando histórico…';
+
+let HIST_ECON=null, HIST_PONTOS=[];
+const dinheiro2=v=>v==null?'Não apurado':(v<0?'−R$ ':'R$ ')+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function detalheEscolhas(ds) {
+  if(!ds.length)return '<p class="histlegenda">Nenhuma diferença de destino ou NET nas cargas avaliadas.</p>';
+  return '<div class="histtabela"><table><thead><tr><th>Semana / origem</th><th>Escolha</th><th>Base de comparação</th><th>Volume</th><th>NET escolhido</th><th>NET da base</th><th>R$/t a mais / menos</th><th>Impacto</th></tr></thead><tbody>'+ds.map(d=>
+    '<tr><td>'+esc(d.semana||'')+' · '+esc(d.sigla)+'</td><td>'+esc(d.cliente)+'</td><td>'+esc(d.alternativa)+'</td><td>'+ton(d.toneladas)+'</td><td>'+dinheiro2(d.net)+'</td><td>'+dinheiro2(d.netBase)+'</td><td class="'+(d.diferencaPorTonelada<0?'neg':'pos')+'">'+dinheiro2(d.diferencaPorTonelada)+'</td><td class="'+(d.impacto<0?'neg':'pos')+'">'+dinheiro2(d.impacto)+'</td></tr>').join('')+'</tbody></table></div>';
+}
+function quadroEscolhas(escolhas) {
+  const validas=escolhas.filter(e=>num(e.saldo)!=null), saldo=validas.length?validas.reduce((s,e)=>s+Number(e.saldo),0):null;
+  const vol=escolhas.reduce((s,e)=>s+Number(e.volume||0),0), sem=escolhas.reduce((s,e)=>s+Number(e.semBase||0),0);
+  return '<section class="quadro-escolhas"><h2>Impacto das escolhas nesta programação</h2><p class="impacto-frase"><b>'+dinheiro2(saldo)+'</b> '+(saldo==null?'sem programação-base comparável':saldo<0?'de NET a menos':saldo>0?'de NET a mais':'de diferença de NET')+' frente à base do modelo.</p><p class="histlegenda">'+ton(vol)+' avaliadas · '+ton(sem)+' sem base comparável. Mesmos volumes e origens; cenário preservado no fechamento. A capacidade adicional dos compradores não está validada.</p><details><summary>Ver escolhas por semana e origem</summary>'+detalheEscolhas(escolhas.flatMap(e=>(e.detalhes||[]).map(d=>({...d,semana:'S-'+e.semana+'/'+e.ano}))))+escolhas.flatMap(e=>e.pendencias||[]).map(d=>'<p class="histlegenda">'+esc(d.sigla)+' · '+ton(d.toneladas)+' · '+esc(d.motivo)+'</p>').join('')+'</details></section>';
+}
+async function abrirHistorico(cliente, rolar=true) {
+  $('#histGrafico').textContent='Carregando evolução…';
   try {
-    if (!HIST_ECON) {
-      const r = await fetch('/api/consolidado/historico');
-      if (sessaoExpirada(r)) return;
-      if (!r.ok) throw new Error('Não foi possível consultar o histórico.');
-      HIST_ECON = await r.json();
+    if(!HIST_ECON) {
+      const r=await fetch('/api/consolidado/historico');
+      if(sessaoExpirada(r))return;
+      if(!r.ok)throw new Error('Não foi possível consultar a evolução.');
+      const j=await r.json();HIST_ECON=Array.isArray(j)?j:[];
     }
-    const clientes = [...new Set(HIST_ECON.map(x => x.cliente))].sort();
-    $('#histCliente').innerHTML = '<option value="">Todas as plantas</option>' +
-      clientes.map(x => '<option value="' + esc(x) + '">' + esc(x) + '</option>').join('');
-    $('#histCliente').value = clientes.includes(cliente) ? cliente : '';
+    const anos=[...new Set(HIST_ECON.map(x=>x.periodo.slice(0,4)))].sort().reverse();
+    const antigoAno=$('#histAno').value;
+    $('#histAno').innerHTML='<option value="">Todo o histórico</option>'+anos.map(a=>'<option>'+esc(a)+'</option>').join('');
+    if(anos.includes(antigoAno))$('#histAno').value=antigoAno;
+    const indicador=$('#histIndicador').value;
+    const clientes=indicador==='referencia'?[...new Set(HIST_ECON.filter(x=>(x.indicador||'referencia')===indicador&&x.cliente).map(x=>x.cliente))].sort():[];
+    $('#histCliente').innerHTML='<option value="">'+(indicador==='referencia'?'Todas as fábricas':'Todos os destinos')+'</option>'+clientes.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join('');
+    $('#histCliente').value=clientes.includes(cliente)?cliente:'';
+    $('#histUnidade').style.display=indicador==='referencia'?'':'none';
     desenharHistorico();
-    $('#painelHistorico').scrollIntoView({behavior:'smooth',block:'start'});
-  } catch(e) { $('#histGrafico').textContent = e.message; }
+    if(rolar&&$('#painelHistorico').scrollIntoView)$('#painelHistorico').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){$('#histGrafico').textContent=e.message;}
 }
 function desenharHistorico() {
-  const modoHist = $('#histModo').value, cliente = $('#histCliente').value;
-  const dados = (HIST_ECON || []).filter(x => x.tipo === modoHist && (!cliente || x.cliente === cliente));
-  const periodos = [...new Set(dados.map(x => x.periodo))].sort();
-  const pontos = periodos.map(periodo => {
-    const linhas = dados.filter(x => x.periodo === periodo);
-    return {periodo, valor:linhas.some(x=>num(x.desvio)!=null) ? linhas.reduce((s,x)=>s+(num(x.desvio)||0),0) : null,
-      semReferencia:linhas.reduce((s,x)=>s+Number(x.volume_sem_referencia||0),0),
-      volume:linhas.reduce((s,x)=>s+Number(x.volume||0),0)};
-  });
-  if (!pontos.length) { $('#histGrafico').textContent='Nenhuma programação fechada com histórico comparável.';return; }
-  const largura=Math.max(700,pontos.length*75), altura=300, zero=150;
-  const limite=Math.max(1,...pontos.map(x=>Math.abs(x.valor)));
-  const bar=44, passo=largura/pontos.length;
-  let svg='<svg class="histgrafico" viewBox="0 0 '+largura+' '+altura+'" role="img" aria-label="Desvios econômicos por período">';
-  svg+='<line x1="0" y1="'+zero+'" x2="'+largura+'" y2="'+zero+'" stroke="#b8bfce"/>';
-  pontos.forEach((p,i)=>{
-    const x=i*passo+(passo-bar)/2, h=Math.abs(p.valor||0)/limite*112, y=p.valor>=0?zero-h:zero;
-    if(p.valor==null) {
-      svg+='<text x="'+(x+bar/2)+'" y="170" text-anchor="middle" font-size="10" fill="#626878">Sem referência</text>';
-      svg+='<text x="'+(x+bar/2)+'" y="285" text-anchor="middle" font-size="11">'+esc(p.periodo.replace('-W','/S'))+'</text>';
-      return;
+  const tipo=$('#histModo').value, cliente=$('#histCliente').value, ano=$('#histAno').value, indicador=$('#histIndicador').value;
+  const universo=(HIST_ECON||[]).filter(x=>x.tipo===tipo&&(x.indicador||'referencia')===indicador&&(!ano||x.periodo.startsWith(ano)));
+  let periodos=[...new Set(universo.map(x=>x.periodo))].sort();
+  // Exibir lacunas entre períodos registrados, sem inventar um saldo zero.
+  if(periodos.length) {
+    const primeiro=periodos[0],ultimo=periodos[periodos.length-1];
+    if(tipo==='semana') {
+      const domingo=v=>{const d=new Date(Date.UTC(Number(v.slice(0,4)),0,4));d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7+(Number(v.slice(-2))-1)*7+6);return d;};
+      const fim=domingo(ultimo);periodos=[];
+      for(let d=domingo(primeiro);d<=fim;d.setUTCDate(d.getUTCDate()+7)) {
+        const q=new Date(d);q.setUTCDate(q.getUTCDate()-3);const a=q.getUTCFullYear();
+        const primeira=new Date(Date.UTC(a,0,4));primeira.setUTCDate(primeira.getUTCDate()-(primeira.getUTCDay()+6)%7+3);
+        periodos.push(a+'-W'+String(1+Math.round((q-primeira)/(7*86400000))).padStart(2,'0'));
+      }
+    } else {
+      const fim=new Date(ultimo+'-01T00:00:00Z');periodos=[];
+      for(let d=new Date(primeiro+'-01T00:00:00Z');d<=fim;d.setUTCMonth(d.getUTCMonth()+1))periodos.push(d.toISOString().slice(0,7));
     }
-    svg+='<rect x="'+x+'" y="'+y+'" width="'+bar+'" height="'+Math.max(1,h)+'" rx="4" fill="'+(p.valor>=0?'#168054':'#bf4045')+'"><title>'+esc(p.periodo)+' · '+rs(p.valor)+' · '+ton(p.volume)+'</title></rect>';
-    svg+='<text x="'+(x+bar/2)+'" y="285" text-anchor="middle" font-size="11" fill="#626878">'+esc(p.periodo.replace('-W','/S'))+'</text>';
+  }
+  let acum=0,temAcum=false;
+  HIST_PONTOS=periodos.map(periodo=>{
+    const todas=universo.filter(x=>x.periodo===periodo), linhas=todas.filter(x=>!cliente||x.cliente===cliente);
+    const valor=linhas.some(x=>num(x.desvio)!=null)?linhas.reduce((s,x)=>s+(num(x.desvio)||0),0):null;
+    if(valor!=null){acum+=valor;temAcum=true;}
+    const semanas=[...new Set(todas.flatMap(x=>x.semanas||[]))];
+    return {periodo,valor,acumulado:temAcum?acum:null,ganhos:linhas.reduce((s,x)=>s+(num(x.ganhos)??Math.max(0,num(x.desvio)||0)),0),
+      reducoes:linhas.reduce((s,x)=>s+(num(x.reducoes)??Math.min(0,num(x.desvio)||0)),0),
+      volume:linhas.reduce((s,x)=>s+Number(x.volume||0),0),semReferencia:linhas.reduce((s,x)=>s+Number(x.volume_sem_referencia||0),0),
+      detalhes:linhas.flatMap(x=>x.detalhes||[]),pendencias:linhas.flatMap(x=>x.pendencias||[]),semanas,
+      status:tipo==='semana'?(todas.length?'Semana fechada':'Semana pendente'):todas.length?(todas[0].status||'Parcial'):'Não apurado',
+      esperadas:todas[0]?.semanasEsperadas||0,pendentes:todas[0]?.semanasPendentes||[]};
   });
-  svg+='</svg>';
-  const total=pontos.some(p=>p.valor!=null) ? pontos.reduce((s,x)=>s+(x.valor||0),0) : null, volume=pontos.reduce((s,x)=>s+x.volume,0);
-  const semReferencia=pontos.reduce((s,x)=>s+x.semReferencia,0);
-  $('#histGrafico').innerHTML='<p><b>Desvio acumulado: '+(total==null?'Não apurado':rs(total))+'</b> · Volume comparável: '+ton(volume)+' · Sem referência: '+ton(semReferencia)+'</p>'+
-    svg+'<p class="histlegenda">Passe o mouse sobre as barras para consultar o valor de cada período. '+
-    'Positivo: NET da planta acima da referência; negativo: abaixo. '+
-    'O acumulado soma somente cargas com terceiros programados na mesma origem e semana.</p>';
+  $('#histDetalhe').innerHTML='';
+  if(!HIST_PONTOS.length){$('#histGrafico').textContent='Nenhuma semana fechada disponível neste filtro.';return;}
+  const ps=HIST_PONTOS, tem=ps.some(p=>p.valor!=null), ganho=ps.reduce((s,p)=>s+p.ganhos,0), reducao=ps.reduce((s,p)=>s+p.reducoes,0), saldo=tem?ganho+reducao:null;
+  const volume=ps.reduce((s,p)=>s+p.volume,0),sem=ps.reduce((s,p)=>s+p.semReferencia,0);
+  const largura=Math.max(650,ps.length*125),passo=largura/ps.length,limite=Math.max(1,...ps.map(p=>Math.abs(p.valor||0))),zero=155;
+  const rotulo=p=>tipo==='semana'?'S-'+Number(p.periodo.slice(-2)):nomeMes(p.periodo).split(' de ')[0].slice(0,3);
+  let barras='<svg class="histgrafico" viewBox="0 0 '+largura+' 310" role="img" aria-label="Desvio positivo e negativo por '+(tipo==='semana'?'semana':'mês')+'"><line x1="0" y1="'+zero+'" x2="'+largura+'" y2="'+zero+'" stroke="#a9b1c2"/>';
+  ps.forEach((p,i)=>{
+    const x=i*passo+passo/2,h=Math.abs(p.valor||0)/limite*102,y=p.valor>=0?zero-h:zero;
+    barras+='<g tabindex="0" role="button" data-hist-periodo="'+esc(p.periodo)+'" aria-label="'+esc(p.periodo+' · '+(p.valor==null?'Não apurado':dinheiro2(p.valor)))+'">';
+    if(p.valor!=null) barras+='<rect x="'+(x-24)+'" y="'+y+'" width="48" height="'+Math.max(h,2)+'" rx="5" fill="'+(p.valor>=0?'#168054':'#c31419')+'"/><text x="'+x+'" y="'+(p.valor>=0?y-10:y+h+18)+'" text-anchor="middle" font-size="12" fill="'+(p.valor>=0?'#0f7b40':'#c31419')+'">'+esc(rs(p.valor))+'</text>';
+    else barras+='<text x="'+x+'" y="176" text-anchor="middle" font-size="12" fill="#6b6d78">Não apurado</text>';
+    barras+='<text x="'+x+'" y="287" text-anchor="middle" font-size="13" fill="#23242b">'+esc(rotulo(p))+'</text></g>';
+  });barras+='</svg>';
+  const vals=ps.filter(p=>p.acumulado!=null).map(p=>p.acumulado),min=Math.min(0,...vals),max=Math.max(0,...vals),span=Math.max(1,max-min),yy=v=>35+(max-v)/span*145;
+  let linha='<svg class="histgrafico" viewBox="0 0 '+largura+' 240" role="img" aria-label="Saldo acumulado apurado"><line x1="0" y1="'+yy(0)+'" x2="'+largura+'" y2="'+yy(0)+'" stroke="#c4c6d0"/>',prev=null;
+  ps.forEach((p,i)=>{
+    const x=i*passo+passo/2;
+    if(p.valor==null){prev=null;return;}
+    const y=yy(p.acumulado);
+    if(prev)linha+='<line x1="'+prev.x+'" y1="'+prev.y+'" x2="'+x+'" y2="'+y+'" stroke="#1e1e7b" stroke-width="3"/>';
+    linha+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="#1e1e7b"/><text x="'+x+'" y="'+(y-12)+'" text-anchor="middle" font-size="12" fill="#1e1e7b">'+esc(rs(p.acumulado))+'</text><text x="'+x+'" y="221" text-anchor="middle" font-size="13">'+esc(rotulo(p))+'</text>';prev={x,y};
+  });linha+='</svg>';
+  const ref=indicador==='referencia';
+  $('#histGrafico').innerHTML='<div class="histkpis"><div><span>'+(ref?'NET acima da referência':'Ganhos frente à base')+'</span><b class="pos">'+(tem?dinheiro2(ganho):'Não apurado')+'</b></div><div><span>'+(ref?'NET abaixo da referência':'Reduções frente à base')+'</span><b class="neg">'+(tem?dinheiro2(reducao):'Não apurado')+'</b></div><div><span>Saldo acumulado apurado · '+esc(ano||'todo o histórico')+'</span><b class="'+(saldo<0?'neg':'pos')+'">'+dinheiro2(saldo)+'</b></div></div>'+
+    '<p class="cobertura"><b>'+ton(volume)+'</b> avaliadas · <b>'+ton(sem)+'</b> sem '+(ref?'referência':'base comparável')+' · cobertura '+n1.format(volume+sem?100*volume/(volume+sem):0)+'%.</p>'+
+    '<h3>Saldo por '+(tipo==='semana'?'semana':'mês')+'</h3><div class="histplot">'+barras+'</div><h3>Evolução do acumulado</h3><div class="histplot">'+linha+'</div>'+
+    '<p class="histlegenda">'+(ref?'Positivo: NET acima da média dos terceiros programados; negativo: abaixo. Referência comercial, sem comprovação de demanda adicional.':'Positivo: escolha aumenta o NET frente à base preservada; negativo: reduz. O modelo considera as restrições cadastradas e não valida capacidade adicional dos compradores.')+' Toque numa barra ou no período abaixo para abrir a composição. O acumulado soma apenas valores apurados no período selecionado; lacunas permanecem não apuradas.</p>'+
+    '<div class="histtabela"><table><thead><tr><th>Período</th><th>Status</th><th>Positivo</th><th>Negativo</th><th>Saldo</th><th>Acumulado apurado</th><th>Avaliadas</th><th>Sem referência/base</th></tr></thead><tbody>'+ps.map(p=>'<tr><td><button class="histperiodo" data-hist-periodo="'+esc(p.periodo)+'">'+esc(tipo==='semana'?p.periodo.replace('-W',' / S-'):nomeMes(p.periodo))+'</button></td><td>'+esc(p.status)+(tipo==='mes'&&p.esperadas?' · '+p.semanas.length+'/'+p.esperadas+' semanas':'')+'</td><td class="pos">'+(p.valor==null?'Não apurado':dinheiro2(p.ganhos))+'</td><td class="neg">'+(p.valor==null?'Não apurado':dinheiro2(p.reducoes))+'</td><td>'+dinheiro2(p.valor)+'</td><td>'+dinheiro2(p.acumulado)+'</td><td>'+ton(p.volume)+'</td><td>'+ton(p.semReferencia)+'</td></tr>').join('')+'</tbody></table></div>';
+  $('#histGrafico').querySelectorAll('[data-hist-periodo]').forEach(el=>{const abrir=()=>abrirPeriodoHistorico(el.dataset.histPeriodo);el.onclick=abrir;el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();abrir();}};});
+}
+function abrirPeriodoHistorico(periodo) {
+  const p=HIST_PONTOS.find(p=>p.periodo===periodo);if(!p)return;
+  $('#histDetalhe').innerHTML='<section class="histdet"><h3>Composição · '+esc(periodo)+'</h3><p><b>'+dinheiro2(p.valor)+'</b> · '+esc(p.status)+' · '+ton(p.volume)+' avaliadas.</p>'+
+    (p.semanas.length?'<p class="histlegenda">Semanas incluídas: '+p.semanas.map(esc).join(', ')+'.</p>':'')+
+    (p.pendentes.length?'<p class="histlegenda">Semanas ainda pendentes: '+p.pendentes.map(esc).join(', ')+'.</p>':'')+
+    (p.valor==null?'<p>Não há comparação apurada neste período e filtro.</p>':detalheEscolhas(p.detalhes))+
+    p.pendencias.map(d=>'<p class="histlegenda">'+esc(d.sigla)+' · '+ton(d.toneladas)+' · '+esc(d.motivo)+'</p>').join('')+
+    '<p class="histlegenda">'+ton(p.semReferencia)+' sem comparação válida, fora do saldo.</p></section>';
 }
 $('#histModo').onchange=desenharHistorico;
 $('#histCliente').onchange=desenharHistorico;
-$('#fecharHistorico').onclick=()=>$('#painelHistorico').classList.add('hide');
+$('#histAno').onchange=desenharHistorico;
+$('#histIndicador').onchange=()=>abrirHistorico('',false);
 
 async function carregar() {
   const v = $('#periodo').value;
@@ -643,6 +718,7 @@ async function carregar() {
     if (!r.ok) throw new Error(j.erro || 'Falha ao carregar.');
     $('#sub').textContent = subtitulo(j);
     render(j);
+    await abrirHistorico($('#histCliente').value,false);
   } catch (e) {
     $('#conteudo').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>';
   }

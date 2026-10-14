@@ -6,6 +6,7 @@ var RAW = null, PROGBUF = null;                 // {prog, nec, mapa} planilhas c
 var ST = null;                  // escolhas do usuário
 var DS, RES, OPS, PROD, NEC, MAPA, ULT_EXPORT = null;
 var UFSEL = null, EDIT = null, SUJO = false;
+var ULT_ALTERACAO = null, ANTES_EDICAO = null;
 
 var fmt0 = n => (n == null || !isFinite(n)) ? '-' : Math.round(n).toLocaleString('pt-BR');
 var fmt1 = n => (n == null || !isFinite(n)) ? '-' : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -389,7 +390,9 @@ function montarNec() {
 }
 
 /* ====================== CÁLCULO ====================== */
-function recalcular() {
+function recalcular(programacaoAnterior) {
+  ULT_ALTERACAO = null;
+  if (!programacaoAnterior) ANTES_EDICAO = null;
   montarNec();
   MAPA.rows.forEach(r => { r.ofEdit = (r.i in ST.ofEdits) ? ST.ofEdits[r.i] : null; });
   MAPA_ROWS = MAPA.rows;
@@ -414,6 +417,10 @@ function recalcular() {
   const usados = {};
   RES.aloc.forEach(a => (usados[a.sigla] || (usados[a.sigla] = [])).push(a.cli));
   OPS = opcoes(DS, ST.travas, 8, usados, ST.modo);
+  if (programacaoAnterior) {
+    ULT_ALTERACAO = impactoEscolhas(montarSemana(PROD, RES.alocFinal, RES.otimoAloc, OPS, MAPA, DS).linhas, programacaoAnterior);
+    if (ULT_ALTERACAO.semBase < 0.001) ANTES_EDICAO = null;
+  }
   render();
 }
 
@@ -440,6 +447,12 @@ function render() {
 // duplicada: vem de montarSemana()+agregarSemana(), as mesmas do banco.
 // Classes prefixadas com "rs-" de proposito: ui.js ja tem .pos/.neg com
 // outro sentido (shell.html:190-191), entao nomes novos evitam colisao.
+function renderImpactoEscolhas(e, moeda, tonelada) {
+  const preciso=v=>v==null?'Não apurado':(v<0?'−R$ ':'R$ ')+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return '<section class="rs-impacto"><h3>Impacto das escolhas frente à base do modelo</h3><p><b class="'+(e.saldo<0?'rs-neg':'rs-pos')+'">'+preciso(e.saldo)+'</b> '+(e.saldo==null?'sem base comparável':e.saldo<0?'de NET a menos':e.saldo>0?'de NET a mais':'de diferença de NET')+'</p><p class="rs-nota">'+tonelada(e.volume)+' avaliadas · '+tonelada(e.semBase)+' sem base. Mesmos volumes e origens. A base considera as restrições cadastradas; não confirma demanda adicional dos compradores.</p><details><summary>Ver impacto de cada escolha</summary>'+
+    (e.detalhes.length?e.detalhes.map(d=>'<div class="rs-escolha"><b>'+esc(d.sigla)+' · '+esc(d.cliente)+'</b><p>Escolha: '+tonelada(d.toneladas)+' a '+preciso(d.net)+'/t. Base: '+esc(d.alternativa)+' a '+preciso(d.netBase)+'/t.</p><p><b class="'+(d.impacto<0?'rs-neg':'rs-pos')+'">'+preciso(Math.abs(d.impacto))+' de NET '+(d.impacto<0?'a menos':'a mais')+'</b> · '+preciso(Math.abs(d.diferencaPorTonelada))+'/t '+(d.diferencaPorTonelada<0?'a menos':'a mais')+'.</p></div>').join(''):'<p class="rs-nota">Nenhuma diferença de destino ou NET nas cargas avaliadas.</p>')+
+    e.pendencias.map(d=>'<p class="rs-nota">'+esc(d.sigla)+' · '+tonelada(d.toneladas)+' · '+esc(d.motivo)+'</p>').join('')+'</details></section>';
+}
 function assinaturaProgramacao() {
   return JSON.stringify([ST.manual,ST.nec,ST.travas,ST.ofEdits,ST.modo,ST.fora,ST.extras]);
 }
@@ -484,9 +497,10 @@ function renderResumoSemana() {
           ? ' (origens: ' + origensSemComp.map(esc).join(', ') + ')' : '') + '</div>';
     }
     o += '<div class="rs-lin rs-sec"><span>Melhor terceiro</span><span>' + f(terMelhor) + '</span></div>';
-    o += '<div class="rs-lin rs-forte"><span>Diferença</span><span class="' +
+    o += '<div class="rs-lin rs-forte"><span>Desvio vs referência</span><span class="' +
       (sav == null ? '' : (sav < 0 ? 'rs-neg' : 'rs-pos')) + '">' +
-      (sav == null ? '-' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+      (sav == null ? 'Não apurado' : (sav > 0 ? '+' : '') + rs(sav)) + '</span></div>';
+    o += '<p class="rs-nota">' + (sav==null?'Sem referência válida para avaliar estas cargas.':'NET '+(sav<0?'abaixo':sav>0?'acima':'igual')+' da referência em '+tn(Math.max(0,t-tonSemComp))+'. Não comprova perda ou ganho realizado.') + '</p>';
     return o + '</div>';
   };
 
@@ -515,10 +529,15 @@ function renderResumoSemana() {
     (tTudo ? fmt1(tProp / tTudo * 100) + '% do total' : '-') + '</div></div>';
   h += '<div class="rs-c"><div class="rs-lab">Para terceiros</div><div class="rs-big">' +
     tn(tTer) + '</div><div class="rs-pe">NET médio geral ' + rs(tot.net_medio) + '</div></div>';
-  h += '<div class="rs-c"><div class="rs-lab">Diferença econômica</div><div class="rs-big ' +
+  h += '<div class="rs-c"><div class="rs-lab">Desvio vs terceiros</div><div class="rs-big ' +
     (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') + (temSavR ? rs(savR) : 'Não apurado') +
-    '</div><div class="rs-pe">programado, somente no volume comparável</div></div>';
+    '</div><div class="rs-pe">referência comercial · somente no volume avaliado</div></div>';
   h += '</div>';
+  const comp=props.reduce((s,p)=>s+p.ton_comp_realizado,0);
+  h += '<p class="rs-nota">Comparação com terceiros: <b>'+tn(comp)+' de '+tn(tProp)+'</b> avaliadas ('+fmt1(tProp?100*comp/tProp:0)+'%). '+tn(tProp-comp)+' sem referência, fora do desvio.</p>';
+  const escolha=impactoEscolhas(pac.linhas,pac.linhasOtimo);
+  if(ULT_ALTERACAO) h += '<p class="rs-ultima"><b>Impacto da última alteração: '+(ULT_ALTERACAO.saldo==null?'Não apurado':rs(Math.abs(ULT_ALTERACAO.saldo))+' de NET '+(ULT_ALTERACAO.saldo<0?'a menos':ULT_ALTERACAO.saldo>0?'a mais':'sem diferença'))+'</b> em relação à programação anterior. '+(ULT_ALTERACAO.semBase>0?tn(ULT_ALTERACAO.semBase)+' com volumes diferentes ou sem base.':'')+'</p>';
+  h += renderImpactoEscolhas(escolha,rs,tn);
   if (snapshot) h += '<p class="rs-nota">Semana fechada: este resumo usa as cargas e a precisão NET persistidas, iguais ao Consolidado. Ao alterar a programação, passa a mostrar a nova simulação.</p>';
 
 
@@ -620,11 +639,7 @@ function renderResumoSemana() {
   });
 
   const totO = props.reduce((s2, p) => s2 + p.ton_otimo, 0);
-  h += '<div class="rs-resumo">Nesta semana, <b>' + tn(tProp) + '</b> foram para fábrica própria e ' +
-    'têm desvio programado de <b class="' + (savR < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savR > 0 ? '+' : '') +
-    (temSavR ? rs(savR) : 'Não apurado') + '</b> frente aos terceiros efetivamente programados nas mesmas origens. A alocação do ' +
-    'modelo mandaria <b>' + tn(totO) + '</b>; desvio simulado: <b class="' + (savO < 0 ? 'rs-neg' : 'rs-pos') + '">' + (savO > 0 ? '+' : '') + (temSavO ? rs(savO) : 'Não apurado') +
-    '</b>.</div>';
+  h += '<div class="rs-resumo">Nesta semana, <b>'+tn(tProp)+'</b> foram programadas para fábricas próprias. Desvio frente aos terceiros programados: <b class="'+(savR<0?'rs-neg':'rs-pos')+'">'+(temSavR?rs(savR):'Não apurado')+'</b>. O impacto frente à base do modelo está apresentado separadamente no quadro de escolhas.</div>';
 
   box.innerHTML = h;
   [].forEach.call(box.querySelectorAll('.rs-togglemodelo'), btn => {
@@ -1307,6 +1322,12 @@ function editorHtml(sigla, total) {
   return h;
 }
 
+function baseAntesDeEditar() {
+  if (ANTES_EDICAO) return ANTES_EDICAO;
+  const fechada=ORIGEM_FECHADA && ORIGEM_FECHADA.prod===PROD && ORIGEM_FECHADA.mapa===MAPA && ORIGEM_FECHADA.assinatura===assinaturaProgramacao();
+  ANTES_EDICAO=fechada ? ORIGEM_FECHADA.linhas : montarSemana(PROD,RES.alocFinal,RES.otimoAloc,OPS,MAPA,DS).linhas;
+  return ANTES_EDICAO;
+}
 function ligarEditor(uf) {
   $$('[data-vol]').forEach(inp => inp.onchange = () => {
     const sigla = EDIT, ops = OPS[sigla] || [];
@@ -1315,8 +1336,9 @@ function ligarEditor(uf) {
       const el = document.querySelector('[data-vol="' + CSS.escape(o.cli) + '"]');
       cur[o.cli] = el ? (parseFloat(el.value) || 0) : 0;
     });
+    const anterior=baseAntesDeEditar();
     ST.manual[sigla] = ops.map(o => ({ cli: o.cli, ton: cur[o.cli] })).filter(x => x.ton > 0.01);
-    recalcular();
+    recalcular(anterior);
   });
   $$('[data-of]').forEach(inp => inp.onchange = () => {
     const i = +inp.dataset.of, v = parseFloat(inp.value);
@@ -1324,7 +1346,8 @@ function ligarEditor(uf) {
     recalcular();
   });
   $$('[data-reset]').forEach(b => b.onclick = () => {
-    delete ST.manual[b.dataset.reset]; recalcular();
+    const anterior=baseAntesDeEditar();
+    delete ST.manual[b.dataset.reset]; recalcular(anterior);
   });
 }
 

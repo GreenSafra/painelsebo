@@ -1913,6 +1913,95 @@ function melhoresAlternativas(lista, clienteDestino) {
   return [candidatos[0] || null, candidatos[1] || null];
 }
 
+
+// Comparação econômica por semana. Nenhuma cotação atual substitui a base fechada.
+function fimSemanaISO(ano, semana) {
+  const d = new Date(Date.UTC(Number(ano), 0, 4));
+  d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7 + (Number(semana)-1)*7 + 6);
+  return d.toISOString().slice(0,10);
+}
+function semanasDoMes(mes) {
+  const [a,m]=mes.split('-').map(Number), out=[];
+  for(let dia=1;dia<=31;dia++) {
+    const d=new Date(Date.UTC(a,m-1,dia));
+    if(d.getUTCMonth()!==m-1) break;
+    if(d.getUTCDay()===0) {const w=isoWeekInfo(d);out.push(w.ano+'-W'+String(w.semana).padStart(2,'0'));}
+  }
+  return out;
+}
+// Faz o encontro dos volumes da base e da escolha, uma vez por origem.
+// Mantém os destinos comuns primeiro; pareia apenas o restante, sem reutilizar toneladas.
+// O pareamento é uma decomposição contábil do cenário, não uma demanda adicional validada.
+function impactoEscolhas(escolhidas, base) {
+  const siglas=[...new Set((escolhidas||[]).map(l=>l.sigla))].sort();
+  const out={saldo:null,ganhos:0,reducoes:0,volume:0,semBase:0,detalhes:[],pendencias:[]};
+  const normalizar=lista=>lista.map(l=>({cliente:l.cliente,net:l.net==null?null:Number(l.net),ton:Number(l.toneladas)}))
+    .filter(l=>l.ton>0).sort((a,b)=>a.cliente.localeCompare(b.cliente)||b.net-a.net);
+  for(const sigla of siglas) {
+    const r=normalizar((escolhidas||[]).filter(l=>l.sigla===sigla));
+    const b=normalizar((base||[]).filter(l=>l.sigla===sigla));
+    const vr=r.reduce((s,l)=>s+l.ton,0), vb=b.reduce((s,l)=>s+l.ton,0);
+    if(!b.length || Math.abs(vr-vb)>0.001 || [...r,...b].some(l=>!Number.isFinite(l.net))) {
+      out.semBase+=vr;out.pendencias.push({sigla,toneladas:vr,motivo:!b.length?'Sem programação-base preservada':Math.abs(vr-vb)>0.001?'Volume diferente entre escolha e base':'NET ausente ou inválido'});continue;
+    }
+    out.volume+=vr;
+    if(out.saldo==null) out.saldo=0;
+    const parear=(r,b)=>{
+      const ton=Math.min(r.ton,b.ton), dif=r.net-b.net, impacto=dif*ton;
+      r.ton-=ton;b.ton-=ton;out.saldo+=impacto;
+      if(impacto>0) out.ganhos+=impacto;else out.reducoes+=impacto;
+      if(r.cliente!==b.cliente || Math.abs(dif)>0.0000001)
+        out.detalhes.push({sigla,cliente:r.cliente,alternativa:b.cliente,toneladas:ton,net:r.net,netBase:b.net,diferencaPorTonelada:dif,impacto});
+    };
+    r.forEach(x=>b.filter(y=>y.cliente===x.cliente).forEach(y=>{if(x.ton>0&&y.ton>0)parear(x,y);}));
+    r.forEach(x=>b.forEach(y=>{if(x.ton>0.000001&&y.ton>0.000001)parear(x,y);}));
+  }
+  return out;
+}
+// Histórico semanal único; mensal = soma das semanas inteiras pelo domingo final.
+function historicoDasSemanas(semanas, cargas, hoje) {
+  const rows=[];
+  (semanas||[]).forEach(s=>{
+    const lista=(cargas||[]).filter(l=>String(l.semana_id)===String(s.id)).map(l=>({...l,
+      net:l.net==null?null:Number(l.net),toneladas:Number(l.toneladas),proprio:ehGrupoJBS(l.cliente)}));
+    const r=lista.filter(l=>l.cenario==='realizado'), b=lista.filter(l=>l.cenario==='otimo');
+    aplicarReferenciasProgramadas(r,b);
+    const periodo=s.ano+'-W'+String(s.semana).padStart(2,'0'), fim=fimSemanaISO(s.ano,s.semana);
+    const meta={tipo:'semana',periodo,mes:fim.slice(0,7),fim,ano:s.ano,semana:s.semana,semanas:[periodo],fechada:true,versao:s.versao};
+    const props=[...new Set(r.filter(l=>l.proprio).map(l=>l.cliente))];
+    if(!props.length) rows.push({...meta,indicador:'referencia',cliente:'',desvio:null,ganhos:0,reducoes:0,volume:0,volume_sem_referencia:0,detalhes:[]});
+    props.forEach(cliente=>{
+      const ls=r.filter(l=>l.cliente===cliente), comp=ls.filter(l=>Number.isFinite(l.net)&&Number.isFinite(l.netTerMed));
+      const dif=l=>(l.net-l.netTerMed)*l.toneladas;
+      rows.push({...meta,indicador:'referencia',cliente,desvio:comp.length?comp.reduce((s,l)=>s+dif(l),0):null,
+        ganhos:comp.reduce((s,l)=>s+Math.max(0,dif(l)),0),reducoes:comp.reduce((s,l)=>s+Math.min(0,dif(l)),0),
+        volume:comp.reduce((s,l)=>s+l.toneladas,0),volume_sem_referencia:ls.filter(l=>!comp.includes(l)).reduce((s,l)=>s+l.toneladas,0),
+        detalhes:comp.map(l=>({sigla:l.sigla,cliente,toneladas:l.toneladas,net:l.net,netBase:l.netTerMed,alternativa:'Média dos terceiros programados',impacto:dif(l),diferencaPorTonelada:l.net-l.netTerMed,semana:periodo}))});
+    });
+    const e=impactoEscolhas(r,b);
+    rows.push({...meta,indicador:'escolhas',cliente:'',desvio:e.saldo,ganhos:e.ganhos,reducoes:e.reducoes,volume:e.volume,volume_sem_referencia:e.semBase,
+      detalhes:e.detalhes.map(d=>({...d,semana:periodo})),pendencias:e.pendencias});
+  });
+  const meses=new Map();
+  rows.forEach(x=>{
+    const key=x.mes+'|'+x.indicador+'|'+x.cliente;
+    if(!meses.has(key))meses.set(key,{...x,tipo:'mes',periodo:x.mes,desvio:null,ganhos:0,reducoes:0,volume:0,volume_sem_referencia:0,semanas:[],detalhes:[],pendencias:[]});
+    const m=meses.get(key);
+    if(x.desvio!=null)m.desvio=(m.desvio==null?0:m.desvio)+x.desvio;
+    ['ganhos','reducoes','volume','volume_sem_referencia'].forEach(k=>m[k]+=x[k]);
+    m.semanas=[...new Set([...m.semanas,...x.semanas])];m.detalhes.push(...x.detalhes);m.pendencias.push(...(x.pendencias||[]));
+  });
+  const dataHoje=hoje||new Date().toLocaleDateString('en-CA',{timeZone:'America/Sao_Paulo'});
+  meses.forEach(m=>{
+    const fechadas=[...new Set(rows.filter(x=>x.mes===m.periodo).map(x=>x.periodo))];
+    const esperadas=semanasDoMes(m.periodo);
+    m.semanas=fechadas;m.semanasEsperadas=esperadas.length;
+    m.semanasPendentes=esperadas.filter(w=>!fechadas.includes(w));
+    m.status=dataHoje.slice(0,7)>m.periodo&&!m.semanasPendentes.length?'Fechado':'Parcial';
+  });
+  return [...rows,...meses.values()].sort((a,b)=>a.tipo.localeCompare(b.tipo)||a.periodo.localeCompare(b.periodo)||a.cliente.localeCompare(b.cliente));
+}
+
 // Isomorfico: no navegador este arquivo e colado dentro de um <script> por
 // build.js (typeof module e "undefined" la, o bloco abaixo nao roda). Em
 // Node (db.js, migracao de net_ter_med para semanas fechadas antigas)
@@ -1920,7 +2009,7 @@ function melhoresAlternativas(lista, clienteDestino) {
 // nada de leitura de xlsx nem geracao de planilha, que sao coisa de navegador.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    montar, comparacaoTerceiros, ehPropriaFabrica, ehGrupoJBS, recalcularTerceirosSemana, agregarSemana,
+    fimSemanaISO, semanasDoMes, impactoEscolhas, historicoDasSemanas, montar, comparacaoTerceiros, ehPropriaFabrica, ehGrupoJBS, recalcularTerceirosSemana, agregarSemana,
     referenciasProgramadas, aplicarReferenciasProgramadas, memoriaPorOrigem, basesComparaveis, travaBloqueia,
     motivoModeloZero, textoMotivoZero
   };
