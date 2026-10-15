@@ -926,6 +926,25 @@ async function historicoEconomico() {
   return core.historicoDasSemanas(semanas.rows, cargas.rows);
 }
 
+// Limpeza operacional atomica. Usuarios e sessoes permanecem intactos.
+async function apagarBaseCompleta() {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query('LOCK TABLE semanas, alocacoes, cotacoes, rascunhos IN ACCESS EXCLUSIVE MODE');
+    const removidos = {};
+    for (const tabela of ['alocacoes', 'semanas', 'cotacoes', 'rascunhos']) {
+      const r = await c.query('DELETE FROM ' + tabela);
+      removidos[tabela] = r.rowCount;
+    }
+    await c.query('COMMIT');
+    return removidos;
+  } catch (e) {
+    await c.query('ROLLBACK');
+    throw e;
+  } finally { c.release(); }
+}
+
 async function apagarSemana(ano, semana) {
   if (!Number.isInteger(ano) || !Number.isInteger(semana)) throw new Error('Ano/semana invalidos.');
   const c = await pool.connect();
@@ -1199,7 +1218,7 @@ async function gravarCotacoesLote(itens) {
 }
 
 module.exports = {
-  pool, iniciar, MASTER,
+  pool, iniciar, MASTER, apagarBaseCompleta,
   criarUsuario, porEmail, porId, listar, decidir, mudarPapel, trocarSenha,
   fecharOutrasSessoes, redefinirSenha,
   abrirSessao, lerSessao, fecharSessao, limparSessoes,

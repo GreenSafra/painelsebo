@@ -82,6 +82,15 @@ h2{font-size:14px;margin:24px 0 10px;color:var(--fraco);font-weight:600;
   <h2>Bloqueados</h2>
   <div id="bloqueados"></div>
 
+  <section id="baseCompleta" hidden style="margin-top:32px;border-top:1px solid #ddd;padding-top:16px">
+    <h2>Base de dados operacional</h2>
+    <p>Apaga todas as semanas e versões, alocações, mapas de ofertas e rascunhos.
+    O histórico de desvios e acumulados será zerado. Usuários e acessos serão preservados.</p>
+    <p>Esta ação não pode ser desfeita. Guarde uma cópia do banco antes de continuar
+    e peça aos demais usuários que fechem o painel.</p>
+    <button type="button" class="btn" id="btnExcluirBase" style="color:#b42318;border-color:#b42318">Excluir base completa</button>
+    <p id="baseResultado" role="status" aria-live="polite"></p>
+  </section>
   <h2>Excluídos</h2>
   <div id="excluidos"></div>
 </div>
@@ -180,6 +189,7 @@ async function carregar(){
   if(!e.usuario || (e.usuario.papel !== 'master' && e.usuario.papel !== 'admin')){
     navTopo('/entrar'); return;
   }
+  document.getElementById('baseCompleta').hidden = e.usuario.papel !== 'master';
   MEU_ID = e.usuario.id;
   document.getElementById('quem').textContent = e.usuario.nome + ' · ' + e.usuario.email;
 
@@ -237,6 +247,25 @@ document.getElementById('btnFecharSenha').onclick = function(){
   document.getElementById('ovlValor').textContent = '';
   diz('Senha redefinida.', 'bom');
   carregar();
+};
+
+document.getElementById('btnExcluirBase').onclick = async function() {
+  if (!confirm('Tem certeza de que deseja excluir a BASE COMPLETA? Todas as semanas, versões, alocações, mapas de ofertas e rascunhos serão apagados permanentemente. O histórico e os acumulados serão zerados. Usuários e acessos serão preservados.')) return;
+  var b = this, msg = document.getElementById('baseResultado');
+  b.disabled = true;
+  msg.textContent = 'Excluindo base...';
+  try {
+    var r = await fetch('/api/base-completa', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmacao: 'EXCLUIR BASE COMPLETA' })
+    });
+    if (sessaoExpirada(r)) return;
+    var j = await r.json();
+    if (!r.ok) throw new Error(j.erro || 'Não foi possível excluir a base.');
+    ['sebo_estado', 'sebo_dados', 'sebo_sujo'].forEach(function(k){ localStorage.removeItem(k); });
+    // Descarrega tambem o estado em memoria da casca do painel.
+    navTopo('/importar?baseExcluida=1');
+  } catch (e) { msg.textContent = e.message; b.disabled = false; }
 };
 
 carregar();

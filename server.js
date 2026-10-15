@@ -272,6 +272,23 @@ app.get('/api/semanas-salvas', exigeLoginPronto, async (req, res) => {
   res.json(await db.semanasSalvas());
 });
 
+// Exclusao completa restrita ao titular master, inclusive pela API.
+app.delete('/api/base-completa', exigeLoginPronto, async (req, res) => {
+  if (req.usuario.papel !== 'master') {
+    return res.status(403).json({ erro: 'Só a conta master pode excluir a base completa.' });
+  }
+  if (!req.is('application/json') || !req.body || req.body.confirmacao !== 'EXCLUIR BASE COMPLETA') {
+    return res.status(400).json({ erro: 'Confirmação de exclusão obrigatória.' });
+  }
+  try {
+    const removidos = await db.apagarBaseCompleta();
+    res.json({ ok: true, removidos });
+  } catch (e) {
+    console.error('excluir base completa:', e.message);
+    res.status(500).json({ erro: 'Não foi possível excluir a base. A transação foi revertida.' });
+  }
+});
+
 app.delete('/api/semanas', exigeLoginPronto, async (req, res) => {
   try {
     const r = await db.apagarSemana(Number(req.query.ano), Number(req.query.semana));
